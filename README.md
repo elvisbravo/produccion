@@ -1,0 +1,69 @@
+# Sistema de Producción — GRUPO ES
+
+Sistema interno para gestionar prospectos, trabajos académicos, producción, entregables y pagos.
+
+- Alcance y decisiones: [PLAN.md](PLAN.md)
+- Modelo de datos: [docs/modelo-datos.md](docs/modelo-datos.md) (versión visual: `docs/modelo-datos.html`)
+
+## Estructura
+
+```
+apps/
+  api/          API (NestJS 12 + Prisma 7 + PostgreSQL 16)
+packages/
+  shared/       Catálogo de módulos y permisos, esquemas Zod y tipos compartidos
+docker-compose.yml   PostgreSQL para desarrollo (puerto 5433)
+```
+
+## Requisitos
+
+- Node.js 22 o superior
+- pnpm 10
+- Docker Desktop
+
+## Primera vez
+
+```bash
+pnpm install                      # instala dependencias, compila shared y genera el cliente de Prisma
+cp apps/api/.env.example apps/api/.env   # y completar los secretos
+pnpm db:up                        # levanta PostgreSQL en Docker
+pnpm db:deploy                    # aplica las migraciones
+pnpm db:seed                      # roles base, permisos, administrador y parámetros
+pnpm dev:api                      # API en http://localhost:3000/api
+```
+
+El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` en `apps/api/.env`.
+
+## Comandos útiles
+
+| Comando | Qué hace |
+|---|---|
+| `pnpm db:migrate` | Crea y aplica una migración nueva a partir de `schema.prisma` (desarrollo) |
+| `pnpm db:deploy` | Aplica las migraciones pendientes (producción) |
+| `pnpm db:seed` | Carga los datos iniciales (se puede repetir sin duplicar) |
+| `pnpm db:studio` | Abre Prisma Studio para ver los datos |
+| `pnpm test` | Pruebas unitarias |
+| `pnpm test:e2e` | Pruebas e2e (requieren la base de datos y el seed) |
+| `pnpm dev:shared` | Recompila `packages/shared` al guardar |
+
+## Endpoints disponibles
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/salud` | Estado de la API y de la base de datos |
+| POST | `/api/auth/login` | Inicia sesión; devuelve el access token y deja el refresh token en una cookie httpOnly |
+| POST | `/api/auth/refresh` | Renueva el access token (rota el refresh token) |
+| POST | `/api/auth/logout` | Cierra la sesión |
+| GET | `/api/auth/me` | Usuario actual con sus roles, permisos efectivos y menú |
+
+## Permisos
+
+Los módulos y acciones se definen en `packages/shared/src/permisos.ts` y se sincronizan con la base de datos al iniciar la API. Para proteger un endpoint:
+
+```ts
+@RequierePermiso('prospectos.editar')
+@Patch(':id')
+editar(@Req() req: SolicitudAutenticada) {
+  // req.alcance → 'propios' | 'equipo' | 'todos' para filtrar los datos
+}
+```

@@ -1,0 +1,21 @@
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Variables de entorno (usar los .env.example como plantilla)
+.env
+.env.*
+!.env.example
+
+# Cliente de Prisma generado
+apps/api/src/generated/
+
+# Editor / sistema
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log

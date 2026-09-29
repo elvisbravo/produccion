@@ -1,0 +1,22 @@
+{
+  "name": "grupo-es-produccion",
+  "private": true,
+  "packageManager": "pnpm@10.15.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter @grupoes/api db:migrate",
+    "db:deploy": "pnpm --filter @grupoes/api db:deploy",
+    "db:seed": "pnpm --filter @grupoes/api db:seed",
+    "db:studio": "pnpm --filter @grupoes/api db:studio",
+    "dev:shared": "pnpm --filter @grupoes/shared dev",
+    "dev:api": "pnpm --filter @grupoes/api start:dev",
+    "build": "pnpm --filter @grupoes/shared build && pnpm --filter @grupoes/api build",
+    "test": "pnpm --filter @grupoes/api test",
+    "test:e2e": "pnpm --filter @grupoes/api test:e2e",
+    "postinstall": "pnpm --filter @grupoes/shared build && pnpm --filter @grupoes/api db:generate"
+  }
+}

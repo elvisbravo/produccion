@@ -1,0 +1,24 @@
+name: grupoes-produccion
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-produccion}
+      POSTGRES_USER: ${POSTGRES_USER:-produccion}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-produccion_dev}
+      TZ: America/Lima
+      PGTZ: America/Lima
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db_data:

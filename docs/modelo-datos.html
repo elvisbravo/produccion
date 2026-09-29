@@ -1,0 +1,963 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modelo de datos</title>
+<style>
+  :root { --bg:#f7f7f5; --fg:#1f2328; --muted:#59636e; --card:#fff; --line:#d8dee4; --accent:#2f6feb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f1115; --fg:#e6edf3; --muted:#9198a1; --card:#161b22; --line:#30363d; --accent:#4c8dff; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { display:grid; grid-template-columns: 240px 1fr; min-height:100vh; }
+  nav { position:sticky; top:0; height:100vh; overflow:auto; padding:24px 16px; border-right:1px solid var(--line); }
+  nav a { display:block; color:var(--muted); text-decoration:none; padding:6px 8px; border-radius:6px; font-size:14px; }
+  nav a:hover { background:var(--card); color:var(--fg); }
+  main { padding:32px 40px; max-width:1400px; min-width:0; }
+  h1 { margin-top:0; } h2 { margin-top:48px; padding-top:8px; border-top:1px solid var(--line); }
+  table { border-collapse:collapse; margin:12px 0; background:var(--card); }
+  th, td { border:1px solid var(--line); padding:6px 12px; text-align:left; }
+  code { background:var(--card); border:1px solid var(--line); padding:1px 5px; border-radius:4px; font-size:13px; }
+  blockquote { margin:12px 0; padding:8px 16px; border-left:4px solid var(--accent); background:var(--card); color:var(--muted); }
+  .diagram { background:#fff; border:1px solid var(--line); border-radius:10px; padding:16px; overflow:auto; margin:16px 0; }
+  .diagram svg { max-width:none !important; height:auto; }
+  .tools { font-size:13px; color:var(--muted); margin-bottom:8px; }
+  .tools button { font:inherit; margin-right:6px; padding:3px 10px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--fg); cursor:pointer; }
+  @media (max-width: 800px) { .wrap { grid-template-columns:1fr; } nav { position:static; height:auto; border-right:0; border-bottom:1px solid var(--line); } main { padding:20px 16px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav id="toc"></nav>
+  <main id="content">Cargando…</main>
+</div>
+<script id="md" type="text/markdown"># Modelo de datos — Sistema de Producción
+
+Base de datos: **PostgreSQL 16**. Migraciones con **Prisma Migrate**.
+
+## Convenciones
+
+- Tablas y columnas en `snake_case`, nombres en singular.
+- Llave primaria `id` de tipo `uuid` (UUID v7, ordenable por fecha). Las tablas puente usan una llave compuesta.
+- Los registros que ve el usuario tienen un **código legible**: `P-2026-0001` (prospecto), `T-2026-0001` (trabajo), `C-2026-0001` (cotización), `R-2026-0001` (recibo).
+- **Columnas de auditoría** en todas las tablas principales (se omiten en los diagramas): `creado_en`, `creado_por`, `actualizado_en`, `actualizado_por`, `eliminado_en` (eliminación lógica).
+- Montos en `numeric(12,2)`; fechas con hora en `timestamptz` (zona `America/Lima`).
+- Los `enum` se listan en el comentario del campo.
+- **UK** = único. En las tablas con eliminación lógica, al eliminar un registro se **libera** su valor único renombrándolo (p. ej. `email` → `email#eliminado-<id>`), para que pueda volver a registrarse. Se evita el índice único parcial porque Prisma Migrate no lo soporta.
+
+---
+
+## 0. Vista general
+
+```mermaid
+erDiagram
+    PERSONA }o--o{ PROSPECTO : "contacto de"
+    PROSPECTO ||--o{ TAREA : "tiene"
+    PROSPECTO |o--o| TRABAJO : "se convierte en"
+    PROSPECTO ||--o{ COTIZACION : "recibe"
+    PERSONA }o--o{ TRABAJO : "integrante de"
+    TRABAJO ||--|| CONTRATO : "tiene"
+    CONTRATO ||--o{ CUOTA : "se paga en"
+    CONTRATO ||--o{ PAGO : "recibe"
+    TRABAJO ||--o{ ADICIONAL : "puede tener"
+    TRABAJO ||--o{ ENTREGABLE : "se divide en"
+    TRABAJO ||--o{ TAREA : "tiene"
+    ENTREGABLE ||--o{ TAREA : "se produce con"
+    ENTREGABLE ||--o{ REVISION : "es revisado"
+    ENTREGABLE ||--o{ ENTREGA_CLIENTE : "se entrega"
+    USUARIO }o--o{ TRABAJO : "equipo de"
+    USUARIO }o--o{ TAREA : "responsable de"
+    ACTIVIDAD ||--o{ TAREA : "se instancia en"
+    USUARIO }o--o{ ROL : "tiene"
+    ROL ||--o{ PERMISO : "otorga"
+    USUARIO ||--o{ HORARIO : "trabaja en"
+    USUARIO ||--o{ AUSENCIA : "registra"
+```
+
+---
+
+## 1. Usuarios, roles y permisos
+
+```mermaid
+erDiagram
+    usuario {
+        uuid id PK
+        varchar nombres
+        varchar apellidos
+        varchar email UK
+        varchar celular
+        date fecha_nacimiento "cumpleaños = día libre"
+        text password_hash
+        bool activo
+        int intentos_fallidos
+        timestamptz bloqueado_hasta
+        timestamptz ultimo_acceso
+    }
+    rol {
+        uuid id PK
+        varchar codigo UK "ADMIN, ASIST_ADM, AUXILIAR, ASIST_PROD, JEFE_PROD..."
+        varchar nombre
+        text descripcion
+        bool es_sistema "no se puede eliminar"
+        bool activo
+    }
+    usuario_rol {
+        uuid usuario_id PK, FK
+        uuid rol_id PK, FK
+    }
+    modulo {
+        uuid id PK
+        varchar codigo UK "prospectos, tareas, produccion..."
+        varchar nombre
+        uuid padre_id FK "submódulos"
+        varchar ruta
+        varchar icono
+        int orden
+        bool activo
+    }
+    accion {
+        uuid id PK
+        uuid modulo_id FK
+        varchar codigo "ver, crear, editar, eliminar, imprimir, convertir..."
+        varchar nombre
+        bool usa_alcance
+        bool vigente "false si ya no existe en el código"
+    }
+    rol_permiso {
+        uuid rol_id PK, FK
+        uuid accion_id PK, FK
+        enum alcance "propios / equipo / todos"
+    }
+    usuario_permiso {
+        uuid id PK
+        uuid usuario_id FK
+        uuid accion_id FK
+        enum tipo "conceder / denegar"
+        enum alcance "propios / equipo / todos"
+        text motivo
+        uuid otorgado_por FK
+        timestamptz fecha
+    }
+    sesion {
+        uuid id PK
+        uuid usuario_id FK
+        varchar token_hash UK "SHA-256 del refresh token"
+        timestamptz expira_en
+        timestamptz revocada_en
+        varchar ip
+        varchar dispositivo
+        timestamptz creada_en
+        timestamptz ultimo_uso
+    }
+    acceso_log {
+        uuid id PK
+        uuid usuario_id FK "null si el correo no existe"
+        varchar email_intento
+        timestamptz fecha
+        varchar ip
+        varchar dispositivo
+        enum resultado "exito / fallo / bloqueado"
+    }
+    auditoria {
+        uuid id PK
+        uuid usuario_id FK
+        varchar accion "crear / editar / eliminar..."
+        varchar entidad
+        uuid entidad_id
+        jsonb antes
+        jsonb despues
+        varchar ip
+        timestamptz fecha
+    }
+
+    usuario ||--o{ usuario_rol : ""
+    rol ||--o{ usuario_rol : ""
+    modulo ||--o{ modulo : "submódulos"
+    modulo ||--o{ accion : "define"
+    rol ||--o{ rol_permiso : ""
+    accion ||--o{ rol_permiso : ""
+    usuario ||--o{ usuario_permiso : "excepciones"
+    accion ||--o{ usuario_permiso : ""
+    usuario ||--o{ sesion : "refresh tokens"
+    usuario ||--o{ acceso_log : ""
+    usuario ||--o{ auditoria : ""
+```
+
+> **Sesiones:** el access token (JWT, 15 min) no se guarda. El refresh token (7 días) viaja en una cookie httpOnly y en `sesion` solo se guarda su hash. Cada uso lo **rota**; si un token ya rotado se reutiliza, se revocan todas las sesiones del usuario.
+
+---
+
+## 2. Agenda y personal
+
+```mermaid
+erDiagram
+    usuario {
+        uuid id PK
+        varchar nombres
+    }
+    plantilla_horario {
+        uuid id PK
+        varchar nombre "Horario estándar"
+        bool activa
+    }
+    plantilla_horario_tramo {
+        uuid id PK
+        uuid plantilla_id FK
+        smallint dia_semana "1=lunes ... 7=domingo"
+        time hora_inicio
+        time hora_fin
+    }
+    horario_usuario {
+        uuid id PK
+        uuid usuario_id FK
+        uuid plantilla_id FK "origen, opcional"
+        date vigente_desde
+        date vigente_hasta
+    }
+    horario_usuario_tramo {
+        uuid id PK
+        uuid horario_id FK
+        smallint dia_semana
+        time hora_inicio
+        time hora_fin
+    }
+    feriado {
+        uuid id PK
+        date fecha UK
+        varchar nombre
+        enum alcance "nacional / empresa"
+        bool medio_dia
+    }
+    ausencia {
+        uuid id PK
+        uuid usuario_id FK
+        enum tipo "vacaciones / permiso / descanso_medico / otro"
+        timestamptz desde
+        timestamptz hasta "permite permisos por horas"
+        text motivo
+        enum estado "solicitada / aprobada / rechazada"
+        uuid solicitada_por FK
+        uuid aprobada_por FK
+        uuid sustento_archivo_id FK
+    }
+    especialidad {
+        uuid id PK
+        enum tipo "area / enfoque / software"
+        varchar nombre
+        bool activa
+    }
+    usuario_especialidad {
+        uuid usuario_id PK, FK
+        uuid especialidad_id PK, FK
+        enum nivel "basico / intermedio / avanzado"
+    }
+    usuario_costo_hora {
+        uuid id PK
+        uuid usuario_id FK
+        numeric costo_hora "confidencial"
+        date vigente_desde
+        date vigente_hasta
+    }
+    tope_horas_extra_usuario {
+        uuid usuario_id PK, FK
+        numeric tope_semanal "vacío = sin tope"
+        numeric tope_mensual
+    }
+
+    plantilla_horario ||--o{ plantilla_horario_tramo : "tramos"
+    plantilla_horario |o--o{ horario_usuario : "se copia a"
+    usuario ||--o{ horario_usuario : "vigencias"
+    horario_usuario ||--o{ horario_usuario_tramo : "tramos"
+    usuario ||--o{ ausencia : ""
+    usuario ||--o{ usuario_especialidad : ""
+    especialidad ||--o{ usuario_especialidad : ""
+    usuario ||--o{ usuario_costo_hora : "vigencias"
+    usuario ||--o| tope_horas_extra_usuario : "excepción"
+```
+
+---
+
+## 3. Catálogos y parámetros
+
+```mermaid
+erDiagram
+    tipo_trabajo {
+        uuid id PK
+        varchar nombre UK "Tesis, Artículo, Monografía..."
+        int max_integrantes
+        int dias_garantia
+        bool activo
+    }
+    prioridad_trabajo {
+        uuid id PK
+        varchar nombre "Urgente, Alta, Media, Baja"
+        int nivel
+        varchar color
+        bool permite_insercion_urgente
+        bool activo
+    }
+    universidad {
+        uuid id PK
+        varchar nombre UK
+        varchar siglas
+        numeric max_similitud "vacío = valor general"
+        numeric max_ia
+        bool activo
+    }
+    carrera {
+        uuid id PK
+        varchar nombre UK
+        bool activo
+    }
+    nivel_academico {
+        uuid id PK
+        varchar nombre UK "Pregrado, Maestría, Doctorado..."
+        bool activo
+    }
+    origen_contacto {
+        uuid id PK
+        varchar nombre UK "Facebook, TikTok, Referido..."
+        bool activo
+    }
+    etapa_prospecto {
+        uuid id PK
+        varchar nombre
+        int orden
+        varchar color
+        enum clase "abierta / ganada / perdida"
+        uuid actividad_evento_id FK "movimiento automático"
+        enum momento_evento "al_programar / al_completar"
+        bool activa
+    }
+    resultado_contacto {
+        uuid id PK
+        varchar nombre "Contestó, No contestó..."
+        bool cuenta_sin_respuesta
+        bool activo
+    }
+    motivo_perdida {
+        uuid id PK
+        varchar nombre "Precio, No responde..."
+        bool activo
+    }
+    tarifa {
+        uuid id PK
+        uuid tipo_trabajo_id FK
+        uuid nivel_academico_id FK
+        numeric precio_base
+        char moneda
+        date vigente_desde
+        date vigente_hasta
+    }
+    parametro {
+        varchar clave PK "intentos_sin_respuesta, candado_deuda..."
+        jsonb valor
+        text descripcion
+    }
+    actividad {
+        uuid id PK
+        varchar nombre
+    }
+
+    tipo_trabajo ||--o{ tarifa : ""
+    nivel_academico ||--o{ tarifa : ""
+    actividad |o--o{ etapa_prospecto : "dispara"
+```
+
+---
+
+## 4. Comercial: personas, prospectos y cotizaciones
+
+```mermaid
+erDiagram
+    persona {
+        uuid id PK
+        varchar celular UK "WhatsApp, obligatorio"
+        varchar nombres
+        varchar apellidos
+        varchar email
+        enum tipo_documento "DNI / CE / PASAPORTE"
+        varchar numero_documento "UK junto con el tipo"
+    }
+    prospecto {
+        uuid id PK
+        varchar codigo UK "P-2026-0001"
+        uuid tipo_trabajo_id FK
+        varchar titulo
+        uuid prioridad_trabajo_id FK
+        uuid universidad_id FK
+        uuid carrera_id FK
+        uuid nivel_academico_id FK
+        date fecha_entrega_tentativa
+        uuid origen_contacto_id FK
+        uuid referido_por_id FK "persona"
+        varchar link_drive
+        text observaciones
+        text detalles
+        uuid etapa_id FK
+        enum temperatura "caliente / tibio / frio"
+        numeric monto_cotizado
+        uuid motivo_perdida_id FK
+        int intentos_sin_respuesta
+        uuid captado_por FK "usuario"
+        uuid responsable_id FK "usuario de seguimiento"
+        uuid trabajo_id FK "al convertir"
+    }
+    prospecto_contacto {
+        uuid prospecto_id PK, FK
+        uuid persona_id PK, FK
+        bool es_principal
+    }
+    prospecto_evento {
+        uuid id PK
+        uuid prospecto_id FK
+        enum tipo "cambio_etapa / nota / contacto / reasignacion..."
+        text detalle
+        uuid usuario_id FK
+        timestamptz fecha
+    }
+    cotizacion {
+        uuid id PK
+        varchar numero UK "C-2026-0001"
+        uuid prospecto_id FK
+        date fecha
+        int validez_dias
+        numeric total
+        text forma_pago_sugerida
+        enum estado "borrador / enviada / aceptada / rechazada / vencida"
+        uuid pdf_archivo_id FK
+    }
+    cotizacion_item {
+        uuid id PK
+        uuid cotizacion_id FK
+        varchar descripcion
+        numeric cantidad
+        numeric precio
+        numeric subtotal
+    }
+    consentimiento {
+        uuid id PK
+        uuid persona_id FK
+        varchar tipo "tratamiento de datos"
+        timestamptz fecha
+        varchar medio
+        uuid evidencia_archivo_id FK
+    }
+    etapa_prospecto {
+        uuid id PK
+        varchar nombre
+    }
+    usuario {
+        uuid id PK
+        varchar nombres
+    }
+    trabajo {
+        uuid id PK
+        varchar codigo
+    }
+
+    prospecto ||--|{ prospecto_contacto : "1 o más"
+    persona ||--o{ prospecto_contacto : ""
+    persona |o--o{ prospecto : "refiere"
+    etapa_prospecto ||--o{ prospecto : ""
+    usuario ||--o{ prospecto : "responsable"
+    prospecto ||--o{ prospecto_evento : "línea de tiempo"
+    prospecto ||--o{ cotizacion : ""
+    cotizacion ||--|{ cotizacion_item : ""
+    persona ||--o{ consentimiento : ""
+    prospecto |o--o| trabajo : "genera"
+```
+
+---
+
+## 5. Actividades y tareas
+
+```mermaid
+erDiagram
+    tipo_actividad {
+        uuid id PK
+        varchar nombre "Reunión, Producción..."
+        enum comportamiento "reunion / contacto / produccion / correccion / revision / administrativa / entrega"
+        varchar color
+        bool activo
+    }
+    actividad {
+        uuid id PK
+        varchar nombre "Enfoque"
+        uuid tipo_actividad_id FK
+        int minutos_estimados "80"
+        enum aplica_a "prospecto / cliente / ambos"
+        bool requiere_hora_fija
+        enum modo_asignacion "creador / directa / coordinada / responsable_trabajo"
+        uuid rol_coordinador_id FK
+        bool es_seguimiento
+        bool activa
+    }
+    actividad_participacion {
+        uuid id PK
+        uuid actividad_id FK
+        varchar nombre "Quien da el enfoque"
+        int cantidad
+        bool obligatoria
+    }
+    actividad_participacion_rol {
+        uuid participacion_id PK, FK
+        uuid rol_id PK, FK
+        uuid prioridad_rol_id FK
+    }
+    prioridad_rol {
+        uuid id PK
+        varchar nombre "Principal, Secundaria, Respaldo"
+        int nivel
+        varchar color
+    }
+    tarea {
+        uuid id PK
+        uuid actividad_id FK
+        uuid prospecto_id FK "uno de los dos"
+        uuid trabajo_id FK "uno de los dos"
+        uuid entregable_id FK "opcional"
+        timestamptz inicio_programado "reuniones"
+        date dia_planificado "tareas flexibles"
+        int minutos_estimados
+        enum modalidad "presencial / virtual"
+        enum estado "por_asignar / pendiente / en_proceso / completada / reprogramada / cancelada / no_asistio"
+        uuid resultado_contacto_id FK
+        text resultado
+        uuid creada_por FK
+    }
+    tarea_responsable {
+        uuid id PK
+        uuid tarea_id FK
+        uuid usuario_id FK
+        uuid participacion_id FK
+        uuid rol_id FK "con qué rol participa"
+        uuid prioridad_rol_id FK
+        int orden_cola
+        timestamptz inicio_planificado "calculado"
+        timestamptz fin_planificado "calculado"
+        int holgura_min
+        enum modalidad "normal / horas_extra / bono"
+        uuid asignado_por FK
+        bool forzado
+        text motivo_forzado
+    }
+    tarea_persona {
+        uuid tarea_id PK, FK
+        uuid persona_id PK, FK
+    }
+    registro_tiempo {
+        uuid id PK
+        uuid tarea_id FK
+        uuid usuario_id FK
+        timestamptz inicio
+        timestamptz fin
+        int minutos
+        bool es_manual
+        text nota
+    }
+    rol {
+        uuid id PK
+        varchar codigo
+    }
+    usuario {
+        uuid id PK
+        varchar nombres
+    }
+    persona {
+        uuid id PK
+        varchar celular
+    }
+
+    tipo_actividad ||--o{ actividad : ""
+    actividad ||--|{ actividad_participacion : "participaciones"
+    actividad_participacion ||--|{ actividad_participacion_rol : "roles permitidos"
+    rol ||--o{ actividad_participacion_rol : ""
+    prioridad_rol ||--o{ actividad_participacion_rol : ""
+    actividad ||--o{ tarea : "instancias"
+    tarea ||--o{ tarea_responsable : "responsables"
+    usuario ||--o{ tarea_responsable : ""
+    actividad_participacion ||--o{ tarea_responsable : ""
+    tarea ||--o{ tarea_persona : "asisten"
+    persona ||--o{ tarea_persona : ""
+    tarea ||--o{ registro_tiempo : "tiempo real"
+    usuario ||--o{ registro_tiempo : ""
+```
+
+> Restricción: una tarea pertenece a un **prospecto** o a un **trabajo**, nunca a los dos (`CHECK`).
+
+---
+
+## 6. Trabajos, contratos y pagos
+
+```mermaid
+erDiagram
+    trabajo {
+        uuid id PK
+        varchar codigo UK "T-2026-0001"
+        uuid prospecto_id FK, UK
+        uuid tipo_trabajo_id FK
+        varchar titulo
+        uuid prioridad_trabajo_id FK
+        uuid universidad_id FK
+        uuid carrera_id FK
+        uuid nivel_academico_id FK
+        varchar link_drive
+        text observaciones
+        text detalles
+        date fecha_inicio
+        date fecha_limite
+        enum estado "sin_asignar / asignado / en_proceso / finalizado / suspendido / cancelado"
+    }
+    trabajo_integrante {
+        uuid trabajo_id PK, FK
+        uuid persona_id PK, FK
+        bool es_titular "firma el contrato"
+    }
+    trabajo_equipo {
+        uuid id PK
+        uuid trabajo_id FK
+        uuid usuario_id FK
+        enum funcion "auxiliar_principal / auxiliar_apoyo / jefe_responsable"
+        date desde
+        date hasta
+        bool activo
+    }
+    trabajo_especialidad {
+        uuid trabajo_id PK, FK
+        uuid especialidad_id PK, FK
+    }
+    historial_asignacion {
+        uuid id PK
+        uuid trabajo_id FK
+        uuid tarea_id FK "opcional"
+        uuid usuario_anterior_id FK
+        uuid usuario_nuevo_id FK
+        enum funcion
+        enum tipo "asignacion / ausencia / urgente / cambio_equipo"
+        uuid asignado_por FK
+        timestamptz fecha
+        text motivo
+    }
+    contrato {
+        uuid id PK
+        uuid trabajo_id FK, UK
+        date fecha_firma
+        numeric monto_total
+        char moneda
+        enum forma_pago "contado / cuotas"
+        date fin_garantia
+        uuid firmado_archivo_id FK
+        text observaciones
+    }
+    adicional {
+        uuid id PK
+        uuid trabajo_id FK
+        text descripcion
+        numeric monto
+        enum estado "propuesto / aceptado / rechazado"
+        uuid registrado_por FK
+        timestamptz fecha
+    }
+    cuota {
+        uuid id PK
+        uuid contrato_id FK
+        uuid adicional_id FK "si nace de un adicional"
+        int numero
+        numeric monto
+        date vencimiento
+        enum estado "pendiente / parcial / pagada / vencida"
+    }
+    pago {
+        uuid id PK
+        varchar numero_recibo UK "R-2026-0001"
+        uuid contrato_id FK
+        numeric monto
+        date fecha
+        enum metodo "efectivo / transferencia / yape / plin / otro"
+        varchar numero_operacion
+        uuid voucher_archivo_id FK
+        uuid registrado_por FK
+    }
+    pago_cuota {
+        uuid pago_id PK, FK
+        uuid cuota_id PK, FK
+        numeric monto_aplicado
+    }
+    persona {
+        uuid id PK
+        varchar celular
+    }
+    usuario {
+        uuid id PK
+        varchar nombres
+    }
+
+    trabajo ||--|{ trabajo_integrante : "1 a N"
+    persona ||--o{ trabajo_integrante : ""
+    trabajo ||--|{ trabajo_equipo : "equipo"
+    usuario ||--o{ trabajo_equipo : ""
+    trabajo ||--o{ trabajo_especialidad : "requiere"
+    trabajo ||--o{ historial_asignacion : ""
+    trabajo ||--|| contrato : ""
+    trabajo ||--o{ adicional : ""
+    contrato ||--o{ cuota : ""
+    adicional |o--o{ cuota : "genera"
+    contrato ||--o{ pago : ""
+    pago ||--|{ pago_cuota : "se aplica a"
+    cuota ||--o{ pago_cuota : ""
+```
+
+> Un pago puede cubrir **varias cuotas**, o una cuota puede pagarse en **varios pagos** (`pago_cuota`).
+
+---
+
+## 7. Producción y calidad
+
+```mermaid
+erDiagram
+    plantilla_trabajo {
+        uuid id PK
+        uuid tipo_trabajo_id FK
+        uuid nivel_academico_id FK "opcional"
+        varchar nombre
+        bool activa
+    }
+    plantilla_entregable {
+        uuid id PK
+        uuid plantilla_id FK
+        varchar nombre "Plan, Cap. I, ... Final"
+        int orden
+        bool es_final
+        numeric porcentaje_plazo "para calcular la fecha límite"
+    }
+    plantilla_tarea {
+        uuid id PK
+        uuid plantilla_entregable_id FK
+        uuid actividad_id FK
+        int minutos_estimados
+        int orden
+    }
+    entregable {
+        uuid id PK
+        uuid trabajo_id FK
+        varchar nombre
+        int orden
+        bool es_final
+        date fecha_limite
+        enum estado "pendiente / en_proceso / en_revision / observado_interno / aprobado / entregado_cliente / observado_cliente / cerrado"
+        numeric similitud "porcentaje Turnitin"
+        numeric ia "porcentaje IA"
+        date fecha_medicion
+        uuid reporte_archivo_id FK
+        bool en_garantia
+    }
+    revision {
+        uuid id PK
+        uuid entregable_id FK
+        uuid tarea_id FK
+        uuid revisor_id FK
+        enum resultado "aprobado / observado"
+        text comentarios
+        timestamptz fecha
+    }
+    checklist_item {
+        uuid id PK
+        uuid tipo_trabajo_id FK
+        varchar descripcion
+        int orden
+        bool obligatorio
+        bool activo
+    }
+    revision_checklist {
+        uuid revision_id PK, FK
+        uuid checklist_item_id PK, FK
+        enum cumple "si / no / no_aplica"
+        text comentario
+    }
+    entrega_cliente {
+        uuid id PK
+        uuid entregable_id FK
+        uuid tarea_id FK
+        timestamptz fecha_envio
+        uuid enviado_por FK
+        enum canal "whatsapp"
+        text respuesta_cliente
+        bool candado_liberado "entregó con deuda"
+        text motivo_liberacion
+    }
+    entrega_destinatario {
+        uuid entrega_id PK, FK
+        uuid persona_id PK, FK
+        bool enviado
+        timestamptz fecha
+    }
+    hora_extra_bono {
+        uuid id PK
+        uuid usuario_id FK
+        uuid tarea_id FK "o entregable o trabajo"
+        uuid entregable_id FK
+        uuid trabajo_id FK
+        enum modalidad "horas_extra / bono"
+        numeric horas_planificadas
+        numeric horas_reales
+        numeric monto_bono "monto libre"
+        enum estado "propuesta / aceptada / rechazada / aprobada / realizada / liquidada"
+        uuid propuesta_por FK
+        uuid aprobada_por FK
+        timestamptz fecha
+    }
+    reprogramacion_lote {
+        uuid id PK
+        enum tipo "ausencia / urgente / manual"
+        text motivo
+        uuid realizada_por FK
+        timestamptz fecha
+        jsonb impacto "tareas movidas: antes y después"
+    }
+    trabajo {
+        uuid id PK
+        varchar codigo
+    }
+    tarea {
+        uuid id PK
+        uuid actividad_id
+    }
+
+    plantilla_trabajo ||--|{ plantilla_entregable : ""
+    plantilla_entregable ||--o{ plantilla_tarea : ""
+    trabajo ||--|{ entregable : ""
+    entregable ||--o{ tarea : "producción, revisión, corrección"
+    entregable ||--o{ revision : ""
+    revision ||--o{ revision_checklist : ""
+    checklist_item ||--o{ revision_checklist : ""
+    entregable ||--o{ entrega_cliente : ""
+    entrega_cliente ||--|{ entrega_destinatario : "a cada integrante"
+    tarea |o--o{ hora_extra_bono : ""
+    entregable |o--o{ hora_extra_bono : ""
+```
+
+---
+
+## 8. Transversales
+
+```mermaid
+erDiagram
+    notificacion {
+        uuid id PK
+        uuid usuario_id FK
+        varchar tipo
+        text mensaje
+        varchar entidad "prospecto, tarea, entregable..."
+        uuid entidad_id
+        bool leida
+        timestamptz fecha
+    }
+    comentario {
+        uuid id PK
+        varchar entidad "prospecto / trabajo / entregable / tarea"
+        uuid entidad_id
+        uuid autor_id FK
+        text texto
+        bool editado
+        timestamptz fecha
+    }
+    comentario_mencion {
+        uuid comentario_id PK, FK
+        uuid usuario_id PK, FK
+    }
+    archivo {
+        uuid id PK
+        varchar entidad
+        uuid entidad_id
+        enum categoria "voucher / contrato_firmado / reporte_similitud / cotizacion / sustento..."
+        varchar nombre
+        varchar mime
+        bigint tamano
+        varchar ruta "clave en MinIO"
+        uuid subido_por FK
+        timestamptz fecha
+    }
+    plantilla_documento {
+        uuid id PK
+        enum tipo "cotizacion / contrato / recibo / estado_cuenta"
+        varchar nombre
+        text contenido_html "con variables"
+        bool activa
+    }
+    plantilla_mensaje {
+        uuid id PK
+        varchar uso "confirmacion_reunion / entrega / recordatorio_pago..."
+        text texto "con variables {nombre} {fecha}"
+        bool activa
+    }
+    usuario {
+        uuid id PK
+        varchar nombres
+    }
+
+    usuario ||--o{ notificacion : "recibe"
+    usuario ||--o{ comentario : "escribe"
+    comentario ||--o{ comentario_mencion : ""
+    usuario ||--o{ comentario_mencion : "mencionado"
+    usuario ||--o{ archivo : "sube"
+```
+
+> `notificacion`, `comentario` y `archivo` son **polimórficas**: se enlazan a cualquier registro mediante `entidad` + `entidad_id`.
+
+---
+
+## Resumen
+
+| Área | Tablas |
+|---|---|
+| Usuarios, roles y permisos | 10 |
+| Agenda y personal | 10 |
+| Catálogos y parámetros | 11 |
+| Comercial | 7 |
+| Actividades y tareas | 9 |
+| Trabajos, contratos y pagos | 10 |
+| Producción y calidad | 11 |
+| Transversales | 6 |
+| **Total** | **74** |
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  const src = document.getElementById('md').textContent;
+  const renderer = new marked.Renderer();
+  let n = 0;
+  renderer.code = (code, lang) => {
+    const text = typeof code === 'object' ? code.text : code;
+    const l = typeof code === 'object' ? code.lang : lang;
+    if (l === 'mermaid') {
+      n++;
+      return '<div class="tools"><button data-z="+">Acercar</button><button data-z="-">Alejar</button><button data-z="0">100%</button></div>' +
+             '<div class="diagram" data-scale="1"><pre class="mermaid">' + text.replace(/</g,'&lt;') + '</pre></div>';
+    }
+    return '<pre><code>' + text.replace(/</g,'&lt;') + '</code></pre>';
+  };
+  const main = document.getElementById('content');
+  main.innerHTML = marked.parse(src, { renderer });
+
+  const toc = document.getElementById('toc');
+  main.querySelectorAll('h2').forEach((h, i) => {
+    h.id = 's' + i;
+    const a = document.createElement('a'); a.href = '#s' + i; a.textContent = h.textContent; toc.appendChild(a);
+  });
+
+  mermaid.initialize({ startOnLoad:false, theme:'default', er:{ useMaxWidth:false }, securityLevel:'loose' });
+  mermaid.run({ querySelector: '.mermaid' });
+
+  document.addEventListener('click', e => {
+    const b = e.target.closest('button[data-z]'); if (!b) return;
+    const box = b.parentElement.nextElementSibling; const svg = box.querySelector('svg'); if (!svg) return;
+    let s = parseFloat(box.dataset.scale);
+    s = b.dataset.z === '+' ? s * 1.25 : b.dataset.z === '-' ? s / 1.25 : 1;
+    box.dataset.scale = s; svg.style.transformOrigin = '0 0'; svg.style.transform = 'scale(' + s + ')';
+  });
+</script>
+</body>
+</html>
