@@ -16,7 +16,7 @@ export class CatalogosService {
 
   async paraProspecto(): Promise<CatalogosProspecto> {
     const activo = { where: { activo: true } } as const;
-    const [tiposTrabajo, prioridades, nivelesAcademicos, origenes, etapas] = await Promise.all([
+    const [tiposTrabajo, prioridades, nivelesAcademicos, origenes, etapas, resultadosContacto, motivosPerdida] = await Promise.all([
       this.prisma.tipoTrabajo.findMany({ ...activo, orderBy: { orden: 'asc' }, select: { id: true, nombre: true, maxIntegrantes: true } }),
       this.prisma.prioridadTrabajo.findMany({
         ...activo,
@@ -30,8 +30,10 @@ export class CatalogosService {
         orderBy: { orden: 'asc' },
         select: { id: true, nombre: true, color: true, clase: true, orden: true, inicial: true },
       }),
+      this.prisma.resultadoContacto.findMany({ ...activo, orderBy: { orden: 'asc' }, select: { id: true, nombre: true, cuentaSinRespuesta: true } }),
+      this.prisma.motivoPerdida.findMany({ ...activo, orderBy: { orden: 'asc' }, select: { id: true, nombre: true } }),
     ]);
-    return { tiposTrabajo, prioridades, nivelesAcademicos, origenes, etapas };
+    return { tiposTrabajo, prioridades, nivelesAcademicos, origenes, etapas, resultadosContacto, motivosPerdida };
   }
 
   /** Búsqueda para autocompletar, sin distinguir tildes ni mayúsculas (en universidades, también por siglas). */

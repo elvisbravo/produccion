@@ -1,6 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type {
   Alcance,
+  CambiarEtapaDatos,
+  CrearProspectoDatos,
   ListarProspectosConsulta,
   Paginado,
   ProspectoDatos,
@@ -11,8 +13,11 @@ import { AuditoriaService } from '../common/auditoria.service.js';
 import { contieneDigitos, contieneTodas, digitosDe, MAX_COINCIDENCIAS, palabrasDe } from '../common/busqueda.js';
 import { siguienteCodigo } from '../common/correlativo.js';
 import { Prisma } from '../generated/prisma/client.js';
+import { PermisosService } from '../permisos/permisos.service.js';
 import { PersonasService } from '../personas/personas.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { EmbudoService } from '../tareas/embudo.service.js';
+import { TareasService } from '../tareas/tareas.service.js';
 import { aDetalle, aListado, INCLUIR_DETALLE, INCLUIR_LISTADO } from './mapeo.js';
 
 export interface Actor {
@@ -44,7 +49,28 @@ export class ProspectosService {
     private readonly prisma: PrismaService,
     private readonly personas: PersonasService,
     private readonly auditoria: AuditoriaService,
+    private readonly tareas: TareasService,
+    private readonly embudo: EmbudoService,
+    private readonly permisos: PermisosService,
   ) {}
+
+  /** Cambio manual de etapa (kanban, marcar perdido, reactivar). */
+  async cambiarEtapa(id: string, datos: CambiarEtapaDatos, actor: Actor): Promise<ProspectoDetalle> {
+    await this.obtener(id, actor);
+    const efectivos = await this.permisos.efectivos(actor.usuarioId);
+    await this.prisma.$transaction(async (tx) => {
+      await this.embudo.cambiar(tx, {
+        prospectoId: id,
+        etapaId: datos.etapaId,
+        motivoPerdidaId: datos.motivoPerdidaId,
+        usuarioId: actor.usuarioId,
+        puedeMarcarPerdido: 'prospectos.marcar_perdido' in efectivos,
+        puedeReactivar: 'prospectos.reactivar' in efectivos,
+      });
+      await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'cambiar_etapa', entidad: 'prospecto', entidadId: id, despues: datos, ip: actor.ip }, tx);
+    });
+    return this.obtener(id, actor);
+  }
 
   /** Filtro según el alcance del permiso: con "propios" (o "equipo") solo los que tiene a cargo. */
   private filtroAlcance(actor: Actor): Prisma.ProspectoWhereInput {
@@ -105,13 +131,16 @@ export class ProspectosService {
       include: INCLUIR_DETALLE,
     });
     if (!prospecto) throw new NotFoundException('Prospecto no encontrado');
-    return aDetalle(prospecto);
+    return aDetalle(prospecto, await this.tareas.deProspecto(id));
   }
 
-  async crear(datos: ProspectoDatos, actor: Actor): Promise<ProspectoDetalle> {
+  async crear(datos: CrearProspectoDatos, actor: Actor): Promise<ProspectoDetalle> {
     await this.validarReferencias(datos);
     const etapaInicial = await this.prisma.etapaProspecto.findFirst({ where: { inicial: true, activa: true }, orderBy: { orden: 'asc' } });
     if (!etapaInicial) throw new BadRequestException('No hay una etapa inicial configurada en el embudo');
+    if (datos.primeraActividad && !('tareas.crear' in (await this.permisos.efectivos(actor.usuarioId)))) {
+      throw new ForbiddenException('No tienes permiso para programar actividades');
+    }
 
     const id = await this.prisma.$transaction(async (tx) => {
       const personas = await this.resolverContactos(tx, datos, actor.usuarioId);
@@ -135,6 +164,9 @@ export class ProspectosService {
         { usuarioId: actor.usuarioId, accion: 'crear', entidad: 'prospecto', entidadId: prospecto.id, despues: { codigo, ...datos }, ip: actor.ip },
         tx,
       );
+      if (datos.primeraActividad) {
+        await this.tareas.programarParaProspecto(prospecto.id, datos.primeraActividad, actor, tx, 'primeraActividad.');
+      }
       return prospecto.id;
     });
 

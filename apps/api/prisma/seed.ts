@@ -122,6 +122,7 @@ async function main() {
   }
 
   await sembrarCatalogos();
+  await sembrarActividades();
 
   console.log('Seed completado');
 }
@@ -227,6 +228,161 @@ async function sembrarCatalogos() {
     'Odontología', 'Psicología', 'Tecnología Médica', 'Trabajo Social',
   ];
   await prisma.carrera.createMany({ data: carreras.map((nombre) => ({ nombre })), skipDuplicates: true });
+}
+
+type Prioridad = 'Principal' | 'Secundaria' | 'Respaldo';
+interface ActividadSemilla {
+  nombre: string;
+  tipo: string;
+  minutos: number;
+  aplicaA: 'prospecto' | 'cliente' | 'ambos';
+  horaFija: boolean;
+  modo: 'creador' | 'directa' | 'coordinada' | 'responsable_trabajo';
+  coordinador?: RolBase;
+  seguimiento?: boolean;
+  participaciones: { nombre: string; obligatoria: boolean; roles: [RolBase, Prioridad][] }[];
+}
+
+/** Catálogo de actividades base (el administrador podrá ajustarlo desde el sistema). */
+async function sembrarActividades() {
+  const tipos = [
+    { nombre: 'Reunión', comportamiento: 'reunion' as const, color: '#6366f1' },
+    { nombre: 'Contacto / Seguimiento', comportamiento: 'contacto' as const, color: '#0ea5e9' },
+    { nombre: 'Producción', comportamiento: 'produccion' as const, color: '#16a34a' },
+    { nombre: 'Corrección', comportamiento: 'correccion' as const, color: '#f59e0b' },
+    { nombre: 'Revisión / Calidad', comportamiento: 'revision' as const, color: '#8b5cf6' },
+    { nombre: 'Administrativa', comportamiento: 'administrativa' as const, color: '#71717a' },
+    { nombre: 'Entrega', comportamiento: 'entrega' as const, color: '#14b8a6' },
+  ];
+  await prisma.tipoActividad.createMany({ data: tipos, skipDuplicates: true });
+
+  await prisma.prioridadRol.createMany({
+    data: [
+      { nombre: 'Principal', nivel: 1, color: '#18181b' },
+      { nombre: 'Secundaria', nivel: 2, color: '#71717a' },
+      { nombre: 'Respaldo', nivel: 3, color: '#a1a1aa' },
+    ],
+    skipDuplicates: true,
+  });
+
+  await prisma.resultadoContacto.createMany({
+    data: [
+      { nombre: 'Contestó', orden: 1 },
+      { nombre: 'Interesado', orden: 2 },
+      { nombre: 'Pidió cotización', orden: 3 },
+      { nombre: 'Lo pensará', orden: 4 },
+      { nombre: 'No contestó', orden: 5, cuentaSinRespuesta: true },
+      { nombre: 'No interesado', orden: 6 },
+      { nombre: 'Número equivocado', orden: 7 },
+    ],
+    skipDuplicates: true,
+  });
+
+  const actividades: ActividadSemilla[] = [
+    {
+      nombre: 'Enfoque',
+      tipo: 'Reunión',
+      minutos: 80,
+      aplicaA: 'ambos',
+      horaFija: true,
+      modo: 'coordinada',
+      coordinador: 'ASIST_PROD',
+      participaciones: [
+        {
+          nombre: 'Quien da el enfoque',
+          obligatoria: true,
+          roles: [['JEFE_PROD', 'Principal'], ['AUXILIAR', 'Principal'], ['ASIST_PROD', 'Secundaria']],
+        },
+        { nombre: 'Acompañante', obligatoria: false, roles: [['ASIST_ADM', 'Principal']] },
+      ],
+    },
+    {
+      nombre: 'Llamada de seguimiento',
+      tipo: 'Contacto / Seguimiento',
+      minutos: 10,
+      aplicaA: 'prospecto',
+      horaFija: false,
+      modo: 'creador',
+      seguimiento: true,
+      participaciones: [{ nombre: 'Responsable', obligatoria: true, roles: [['ASIST_ADM', 'Principal']] }],
+    },
+    {
+      nombre: 'Mensaje de seguimiento',
+      tipo: 'Contacto / Seguimiento',
+      minutos: 5,
+      aplicaA: 'prospecto',
+      horaFija: false,
+      modo: 'creador',
+      seguimiento: true,
+      participaciones: [{ nombre: 'Responsable', obligatoria: true, roles: [['ASIST_ADM', 'Principal']] }],
+    },
+    {
+      nombre: 'Envío de cotización',
+      tipo: 'Contacto / Seguimiento',
+      minutos: 15,
+      aplicaA: 'prospecto',
+      horaFija: false,
+      modo: 'creador',
+      seguimiento: true,
+      participaciones: [{ nombre: 'Responsable', obligatoria: true, roles: [['ASIST_ADM', 'Principal']] }],
+    },
+    {
+      nombre: 'Reunión comercial',
+      tipo: 'Reunión',
+      minutos: 30,
+      aplicaA: 'prospecto',
+      horaFija: true,
+      modo: 'creador',
+      seguimiento: true,
+      participaciones: [{ nombre: 'Responsable', obligatoria: true, roles: [['ASIST_ADM', 'Principal']] }],
+    },
+  ];
+
+  const [tiposDb, roles, prioridades] = await Promise.all([
+    prisma.tipoActividad.findMany(),
+    prisma.rol.findMany(),
+    prisma.prioridadRol.findMany(),
+  ]);
+  const idTipo = (nombre: string) => tiposDb.find((t) => t.nombre === nombre)!.id;
+  const idRol = (codigo: RolBase) => roles.find((r) => r.codigo === codigo)!.id;
+  const idPrioridad = (nombre: Prioridad) => prioridades.find((p) => p.nombre === nombre)!.id;
+
+  for (const [orden, a] of actividades.entries()) {
+    // Solo se crean las que no existen: los ajustes del administrador no se pisan.
+    if (await prisma.actividad.findUnique({ where: { nombre: a.nombre } })) continue;
+    await prisma.actividad.create({
+      data: {
+        nombre: a.nombre,
+        tipoActividadId: idTipo(a.tipo),
+        minutosEstimados: a.minutos,
+        aplicaA: a.aplicaA,
+        requiereHoraFija: a.horaFija,
+        modoAsignacion: a.modo,
+        rolCoordinadorId: a.coordinador ? idRol(a.coordinador) : null,
+        esSeguimiento: a.seguimiento ?? false,
+        orden: orden + 1,
+        participaciones: {
+          create: a.participaciones.map((p, i) => ({
+            nombre: p.nombre,
+            obligatoria: p.obligatoria,
+            orden: i + 1,
+            roles: { create: p.roles.map(([rol, prioridad]) => ({ rolId: idRol(rol), prioridadRolId: idPrioridad(prioridad) })) },
+          })),
+        },
+      },
+    });
+  }
+
+  // Movimiento automático del embudo con el enfoque.
+  const enfoque = await prisma.actividad.findUniqueOrThrow({ where: { nombre: 'Enfoque' } });
+  await prisma.etapaProspecto.updateMany({
+    where: { nombre: 'Enfoque agendado', actividadEventoId: null },
+    data: { actividadEventoId: enfoque.id, momentoEvento: 'al_programar' },
+  });
+  await prisma.etapaProspecto.updateMany({
+    where: { nombre: 'Enfoque realizado', actividadEventoId: null },
+    data: { actividadEventoId: enfoque.id, momentoEvento: 'al_completar' },
+  });
 }
 
 main()

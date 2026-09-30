@@ -1,15 +1,19 @@
-import { enlaceWhatsapp, formatearCelular, NOMBRE_TIPO_DOCUMENTO, type ProspectoEventoItem } from '@grupoes/shared'
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { diaEnLima, enlaceWhatsapp, formatearCelular, NOMBRE_TIPO_DOCUMENTO, type CatalogosProspecto, type ProspectoEventoItem, type ResultadoCompletar, type TareaItem } from '@grupoes/shared'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
-import { ArrowLeft, ExternalLink, FilePenLine, History, MessageCircle, Pencil, Plus, Star } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { ArrowLeft, CalendarPlus, ClipboardList, ExternalLink, FilePenLine, History, MessageCircle, Pencil, Plus, Star } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 import { Can } from '@/components/can'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { prospectoQuery } from '@/features/prospectos/api'
+import { catalogosProspectoQuery, prospectoQuery } from '@/features/prospectos/api'
 import { InsigniaEtapa, InsigniaPrioridad, InsigniaTemperatura } from '@/features/prospectos/components/insignias'
+import { MenuCambioEtapa, DialogoPerdido } from '@/features/seguimiento/components/cambio-etapa'
+import { actividadesQuery } from '@/features/tareas/api'
+import { DialogoProgramar } from '@/features/tareas/components/dialogo-programar'
+import { TareaFila } from '@/features/tareas/components/tarea-fila'
 import { ApiError } from '@/lib/api'
 import { formatearFecha, formatearFechaHora, haceCuanto, nombreCompleto } from '@/lib/formato'
 import { exigirPermiso } from '@/lib/guardas'
@@ -18,7 +22,10 @@ export const Route = createFileRoute('/_app/prospectos/$id/')({
   beforeLoad: () => exigirPermiso('prospectos.ver'),
   loader: async ({ context, params }) => {
     try {
-      await context.queryClient.ensureQueryData(prospectoQuery(params.id))
+      await Promise.all([
+        context.queryClient.ensureQueryData(prospectoQuery(params.id)),
+        context.queryClient.ensureQueryData(catalogosProspectoQuery),
+      ])
     } catch (error) {
       // 404 o fuera de su alcance: no se revela si existe.
       if (error instanceof ApiError && (error.status === 404 || error.status === 400)) throw notFound()
@@ -31,7 +38,14 @@ export const Route = createFileRoute('/_app/prospectos/$id/')({
 function DetalleProspecto() {
   const { id } = Route.useParams()
   const { data: p } = useSuspenseQuery(prospectoQuery(id))
+  const { data: catalogos } = useSuspenseQuery(catalogosProspectoQuery)
   const principal = p.contactos.find((c) => c.esPrincipal) ?? p.contactos[0]
+  const [sugerirPerdido, setSugerirPerdido] = useState<number | null>(null)
+  const perdida = catalogos.etapas.find((e) => e.clase === 'perdida')
+
+  const alCompletar = (r: ResultadoCompletar) => {
+    if (r.sugerirPerdido) setSugerirPerdido(r.intentosSinRespuesta)
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-8">
@@ -57,7 +71,8 @@ function DetalleProspecto() {
               {p.titulo && ` · ${p.titulo}`}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <MenuCambioEtapa prospectoId={p.id} codigo={p.codigo} etapaActual={p.etapa} catalogos={catalogos} />
             <Button variant="outline" asChild>
               <a href={enlaceWhatsapp(principal.celular)} target="_blank" rel="noreferrer">
                 <MessageCircle />
@@ -76,8 +91,22 @@ function DetalleProspecto() {
         </div>
       </div>
 
+      {sugerirPerdido !== null && perdida && (
+        <DialogoPerdido
+          prospectoId={p.id}
+          codigo={p.codigo}
+          aviso={`Lleva ${sugerirPerdido} intentos seguidos sin respuesta. ¿Lo marcas como perdido?`}
+          etapaPerdida={perdida}
+          motivos={catalogos.motivosPerdida}
+          abierto
+          onAbiertoChange={(abierto) => !abierto && setSugerirPerdido(null)}
+        />
+      )}
+
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="flex flex-col gap-6">
+          <Actividades prospectoId={p.id} tareas={p.tareas} cerrado={p.etapa.clase !== 'abierta'} catalogos={catalogos} onCompletada={alCompletar} />
+
           <Card>
             <CardHeader>
               <CardTitle>Contactos</CardTitle>
@@ -219,6 +248,7 @@ const ICONO_EVENTO: Record<ProspectoEventoItem['tipo'], typeof Plus> = {
   nota: FilePenLine,
   contacto: MessageCircle,
   reasignado: History,
+  tarea: ClipboardList,
 }
 
 function Evento({ evento }: { evento: ProspectoEventoItem }) {
@@ -236,5 +266,74 @@ function Evento({ evento }: { evento: ProspectoEventoItem }) {
         </time>
       </p>
     </li>
+  )
+}
+
+interface PropsActividades {
+  prospectoId: string
+  tareas: TareaItem[]
+  cerrado: boolean
+  catalogos: CatalogosProspecto
+  onCompletada: (r: ResultadoCompletar) => void
+}
+
+function Actividades({ prospectoId, tareas, cerrado, catalogos, onCompletada }: PropsActividades) {
+  const { data: actividades = [] } = useQuery(actividadesQuery('prospecto'))
+  const [programando, setProgramando] = useState(false)
+  const [verHistorial, setVerHistorial] = useState(false)
+  const hoy = diaEnLima()
+  const activas = tareas.filter((t) => ['por_asignar', 'pendiente', 'en_proceso'].includes(t.estado))
+  const historial = tareas.filter((t) => !activas.includes(t))
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <CardTitle>Actividades</CardTitle>
+        {!cerrado && (
+          <Can permiso="tareas.crear">
+            <Button size="sm" variant="outline" onClick={() => setProgramando(true)}>
+              <CalendarPlus />
+              Programar actividad
+            </Button>
+          </Can>
+        )}
+      </CardHeader>
+      <CardContent>
+        {activas.length === 0 ? (
+          <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+            {cerrado ? 'El prospecto está cerrado.' : 'Sin próximo paso. Todo prospecto activo debería tener una actividad programada.'}
+          </p>
+        ) : (
+          <ul className="divide-y">
+            {activas.map((t) => (
+              <TareaFila
+                key={t.id}
+                tarea={t}
+                hoy={hoy}
+                actividades={actividades}
+                catalogos={catalogos}
+                hayOtrasPendientes={activas.length > 1}
+                onCompletada={onCompletada}
+              />
+            ))}
+          </ul>
+        )}
+        {historial.length > 0 && (
+          <div className="mt-3">
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setVerHistorial((v) => !v)}>
+              {verHistorial ? 'Ocultar historial' : `Ver historial (${historial.length})`}
+            </Button>
+            {verHistorial && (
+              <ul className="divide-y">
+                {historial.map((t) => (
+                  <TareaFila key={t.id} tarea={t} hoy={hoy} actividades={actividades} catalogos={catalogos} />
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </CardContent>
+      {programando && <DialogoProgramar prospectoId={prospectoId} actividades={actividades} abierto onAbiertoChange={setProgramando} />}
+    </Card>
   )
 }

@@ -15,6 +15,8 @@ import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppSplatRouteImport } from './routes/_app/$'
 import { Route as AppProspectosIndexRouteImport } from './routes/_app/prospectos/index'
 import { Route as AppProspectosNuevoRouteImport } from './routes/_app/prospectos/nuevo'
+import { Route as AppSeguimientoIndexRouteImport } from './routes/_app/seguimiento/index'
+import { Route as AppTareasIndexRouteImport } from './routes/_app/tareas/index'
 import { Route as AppProspectosIdIndexRouteImport } from './routes/_app/prospectos/$id/index'
 import { Route as AppProspectosIdEditarRouteImport } from './routes/_app/prospectos/$id/editar'
 
@@ -47,6 +49,16 @@ const AppProspectosNuevoRoute = AppProspectosNuevoRouteImport.update({
   path: '/prospectos/nuevo',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSeguimientoIndexRoute = AppSeguimientoIndexRouteImport.update({
+  id: '/seguimiento/',
+  path: '/seguimiento/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTareasIndexRoute = AppTareasIndexRouteImport.update({
+  id: '/tareas/',
+  path: '/tareas/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppProspectosIdIndexRoute = AppProspectosIdIndexRouteImport.update({
   id: '/prospectos/$id/',
   path: '/prospectos/$id/',
@@ -64,6 +76,8 @@ export interface FileRoutesByFullPath {
   '/$': typeof AppSplatRoute
   '/prospectos/nuevo': typeof AppProspectosNuevoRoute
   '/prospectos/': typeof AppProspectosIndexRoute
+  '/seguimiento/': typeof AppSeguimientoIndexRoute
+  '/tareas/': typeof AppTareasIndexRoute
   '/prospectos/$id/editar': typeof AppProspectosIdEditarRoute
   '/prospectos/$id/': typeof AppProspectosIdIndexRoute
 }
@@ -73,6 +87,8 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/prospectos/nuevo': typeof AppProspectosNuevoRoute
   '/prospectos': typeof AppProspectosIndexRoute
+  '/seguimiento': typeof AppSeguimientoIndexRoute
+  '/tareas': typeof AppTareasIndexRoute
   '/prospectos/$id/editar': typeof AppProspectosIdEditarRoute
   '/prospectos/$id': typeof AppProspectosIdIndexRoute
 }
@@ -84,6 +100,8 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/_app/prospectos/nuevo': typeof AppProspectosNuevoRoute
   '/_app/prospectos/': typeof AppProspectosIndexRoute
+  '/_app/seguimiento/': typeof AppSeguimientoIndexRoute
+  '/_app/tareas/': typeof AppTareasIndexRoute
   '/_app/prospectos/$id/editar': typeof AppProspectosIdEditarRoute
   '/_app/prospectos/$id/': typeof AppProspectosIdIndexRoute
 }
@@ -95,6 +113,8 @@ export interface FileRouteTypes {
     | '/$'
     | '/prospectos/nuevo'
     | '/prospectos/'
+    | '/seguimiento/'
+    | '/tareas/'
     | '/prospectos/$id/editar'
     | '/prospectos/$id/'
   fileRoutesByTo: FileRoutesByTo
@@ -104,6 +124,8 @@ export interface FileRouteTypes {
     | '/'
     | '/prospectos/nuevo'
     | '/prospectos'
+    | '/seguimiento'
+    | '/tareas'
     | '/prospectos/$id/editar'
     | '/prospectos/$id'
   id:
@@ -114,6 +136,8 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/prospectos/nuevo'
     | '/_app/prospectos/'
+    | '/_app/seguimiento/'
+    | '/_app/tareas/'
     | '/_app/prospectos/$id/editar'
     | '/_app/prospectos/$id/'
   fileRoutesById: FileRoutesById
@@ -167,6 +191,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProspectosNuevoRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/seguimiento/': {
+      id: '/_app/seguimiento/'
+      path: '/seguimiento'
+      fullPath: '/seguimiento/'
+      preLoaderRoute: typeof AppSeguimientoIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tareas/': {
+      id: '/_app/tareas/'
+      path: '/tareas'
+      fullPath: '/tareas/'
+      preLoaderRoute: typeof AppTareasIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/prospectos/$id/': {
       id: '/_app/prospectos/$id/'
       path: '/prospectos/$id'
@@ -189,6 +227,8 @@ interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
   AppProspectosNuevoRoute: typeof AppProspectosNuevoRoute
   AppProspectosIndexRoute: typeof AppProspectosIndexRoute
+  AppSeguimientoIndexRoute: typeof AppSeguimientoIndexRoute
+  AppTareasIndexRoute: typeof AppTareasIndexRoute
   AppProspectosIdEditarRoute: typeof AppProspectosIdEditarRoute
   AppProspectosIdIndexRoute: typeof AppProspectosIdIndexRoute
 }
@@ -198,6 +238,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
   AppProspectosNuevoRoute: AppProspectosNuevoRoute,
   AppProspectosIndexRoute: AppProspectosIndexRoute,
+  AppSeguimientoIndexRoute: AppSeguimientoIndexRoute,
+  AppTareasIndexRoute: AppTareasIndexRoute,
   AppProspectosIdEditarRoute: AppProspectosIdEditarRoute,
   AppProspectosIdIndexRoute: AppProspectosIdIndexRoute,
 }

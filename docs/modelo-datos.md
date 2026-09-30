@@ -909,3 +909,11 @@ Diferencias entre el diseño de arriba y lo que ya está en `apps/api/prisma/sch
 | `accion` | + `vigente` | Acciones que ya no existen en el código no se borran |
 | `acceso_log` | + `email_intento` | Registrar intentos con correos inexistentes |
 | — | Extensión `unaccent` y función `f_unaccent()` | Búsqueda sin distinguir tildes ni mayúsculas |
+| `actividad` | + `orden`; nombre único | Orden en los formularios |
+| `actividad_participacion` | + `orden`; único por (actividad, nombre) | Orden y referencia estable |
+| `prioridad_rol` | `nivel` único | 1 = principal, 2 = secundaria, 3 = respaldo |
+| `tarea` | `fecha` (día en Lima) + `inicio` opcional (timestamptz); + `notas`, `completada_en`, `motivo_cancelacion`, `veces_reprogramada`; por ahora solo `prospecto_id` (el `trabajo_id` y `entregable_id` llegan con el módulo de trabajos) | Tareas con o sin hora fija |
+| `tarea_responsable` | Sin campos de cola todavía (`orden_cola`, inicio/fin planificados, holgura, modalidad): llegan con la programación de producción | Alcance de esta etapa |
+| `prospecto_evento` | + tipo `tarea` | Programación, asignación, reprogramación y cancelación en la línea de tiempo |
+| `etapa_prospecto` | `CHECK`: actividad y momento del evento automático van juntos | Integridad del embudo |
+| — | `registro_tiempo` aún no se crea | Llega con la agenda y el cronómetro |

@@ -45,6 +45,7 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | `pnpm db:migrate` | Crea y aplica una migración nueva a partir de `schema.prisma` (desarrollo) |
 | `pnpm db:deploy` | Aplica las migraciones pendientes (producción) |
 | `pnpm db:seed` | Carga los datos iniciales (se puede repetir sin duplicar) |
+| `pnpm db:demo` | Crea un usuario de demostración por rol (solo desarrollo; contraseña en `SEED_DEMO_PASSWORD`) |
 | `pnpm db:studio` | Abre Prisma Studio para ver los datos |
 | `pnpm typecheck` / `pnpm lint` | Revisión de tipos y linter de API y frontend |
 | `pnpm test` | Pruebas unitarias |
@@ -60,6 +61,15 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | POST | `/api/auth/refresh` | Renueva el access token (rota el refresh token) |
 | POST | `/api/auth/logout` | Cierra la sesión |
 | GET | `/api/auth/me` | Usuario actual con sus roles, permisos efectivos y menú |
+| GET/POST/PATCH | `/api/prospectos`, `/api/prospectos/:id` | Listado, alta (con primera actividad opcional), detalle y edición |
+| PATCH | `/api/prospectos/:id/etapa` | Cambio manual de etapa (perdido pide motivo; reactivar) |
+| POST | `/api/prospectos/:id/tareas` | Programar una actividad para el prospecto |
+| GET | `/api/actividades` | Catálogo de actividades con participaciones, roles y prioridades |
+| GET | `/api/tareas/mias`, `/api/tareas/por-asignar` | Mis tareas y bandeja del coordinador |
+| GET/POST | `/api/tareas/:id/candidatos`, `/api/tareas/:id/asignar` | Candidatos por prioridad y disponibilidad; asignación (con motivo si hay choque) |
+| POST | `/api/tareas/:id/completar` | `reprogramar` | `cancelar` | Cierre con resultado y siguiente paso; reprogramación; cancelación |
+| GET | `/api/seguimiento/tablero` | Prospectos abiertos con su próximo paso (kanban) |
+| GET | `/api/catalogos/…`, `/api/personas/…` | Catálogos del formulario y búsqueda de personas |
 
 ## Permisos
 

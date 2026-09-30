@@ -39,14 +39,17 @@ model Usuario {
   eliminadoEn    DateTime? @map("eliminado_en") @db.Timestamptz(6)
 
   roles              UsuarioRol[]
-  permisos           UsuarioPermiso[]  @relation("PermisoDelUsuario")
-  permisosOtorgados  UsuarioPermiso[]  @relation("PermisoOtorgadoPor")
+  permisos           UsuarioPermiso[]   @relation("PermisoDelUsuario")
+  permisosOtorgados  UsuarioPermiso[]   @relation("PermisoOtorgadoPor")
   sesiones           Sesion[]
   accesos            AccesoLog[]
   auditorias         Auditoria[]
-  prospectosCaptados Prospecto[]       @relation("ProspectoCaptadoPor")
-  prospectosACargo   Prospecto[]       @relation("ProspectoResponsable")
+  prospectosCaptados Prospecto[]        @relation("ProspectoCaptadoPor")
+  prospectosACargo   Prospecto[]        @relation("ProspectoResponsable")
   eventosProspecto   ProspectoEvento[]
+  tareasCreadas      Tarea[]            @relation("TareaCreadaPor")
+  tareasAsignadas    TareaResponsable[] @relation("TareaResponsableUsuario")
+  asignacionesHechas TareaResponsable[] @relation("TareaAsignadaPor")
 
   @@map("usuario")
 }
@@ -65,8 +68,11 @@ model Rol {
   actualizadoPor String?   @map("actualizado_por") @db.Uuid
   eliminadoEn    DateTime? @map("eliminado_en") @db.Timestamptz(6)
 
-  usuarios UsuarioRol[]
-  permisos RolPermiso[]
+  usuarios            UsuarioRol[]
+  permisos            RolPermiso[]
+  participaciones     ActividadParticipacionRol[]
+  actividadesCoordina Actividad[]                 @relation("RolCoordinador")
+  responsables        TareaResponsable[]
 
   @@map("rol")
 }
@@ -348,16 +354,20 @@ enum ClaseEtapa {
 }
 
 model EtapaProspecto {
-  id      String     @id @default(uuid(7)) @db.Uuid
-  nombre  String     @unique @db.VarChar(60)
-  orden   Int
-  color   String     @db.VarChar(20)
-  clase   ClaseEtapa @default(abierta)
+  id                String         @id @default(uuid(7)) @db.Uuid
+  nombre            String         @unique @db.VarChar(60)
+  orden             Int
+  color             String         @db.VarChar(20)
+  clase             ClaseEtapa     @default(abierta)
   /// Etapa en la que empieza todo prospecto nuevo.
-  inicial Boolean    @default(false)
-  activa  Boolean    @default(true)
+  inicial           Boolean        @default(false)
+  activa            Boolean        @default(true)
+  /// Movimiento automático: el prospecto pasa a esta etapa cuando ocurre este evento con esta actividad.
+  actividadEventoId String?        @map("actividad_evento_id") @db.Uuid
+  momentoEvento     MomentoEvento? @map("momento_evento")
 
-  prospectos Prospecto[]
+  actividadEvento Actividad?  @relation(fields: [actividadEventoId], references: [id])
+  prospectos      Prospecto[]
 
   @@map("etapa_prospecto")
 }
@@ -403,6 +413,7 @@ model Persona {
 
   prospectos ProspectoContacto[]
   referidos  Prospecto[]         @relation("ReferidoPor")
+  tareas     TareaPersona[]
 
   @@unique([tipoDocumento, numeroDocumento])
   @@map("persona")
@@ -460,6 +471,7 @@ model Prospecto {
 
   contactos ProspectoContacto[]
   eventos   ProspectoEvento[]
+  tareas    Tarea[]
 
   @@index([responsableId, etapaId])
   @@index([etapaId])
@@ -488,6 +500,7 @@ enum TipoEventoProspecto {
   nota
   contacto
   reasignado
+  tarea
 
   @@map("tipo_evento_prospecto")
 }
@@ -507,4 +520,229 @@ model ProspectoEvento {
 
   @@index([prospectoId, fecha])
   @@map("prospecto_evento")
+}
+
+model ResultadoContacto {
+  id                 String  @id @default(uuid(7)) @db.Uuid
+  nombre             String  @unique @db.VarChar(60)
+  /// Suma un intento sin respuesta (p. ej. "No contestó").
+  cuentaSinRespuesta Boolean @default(false) @map("cuenta_sin_respuesta")
+  orden              Int     @default(0)
+  activo             Boolean @default(true)
+
+  tareas Tarea[]
+
+  @@map("resultado_contacto")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Actividades y tareas
+// ─────────────────────────────────────────────────────────────
+
+enum ComportamientoActividad {
+  reunion
+  contacto
+  produccion
+  correccion
+  revision
+  administrativa
+  entrega
+
+  @@map("comportamiento_actividad")
+}
+
+enum AplicaA {
+  prospecto
+  cliente
+  ambos
+
+  @@map("aplica_a")
+}
+
+enum ModoAsignacion {
+  /// Se asigna a quien crea la tarea.
+  creador
+  /// Quien crea la tarea elige al responsable.
+  directa
+  /// Queda "por asignar" en la bandeja del rol coordinador.
+  coordinada
+  /// Al auxiliar principal del trabajo (clientes).
+  responsable_trabajo
+
+  @@map("modo_asignacion")
+}
+
+enum MomentoEvento {
+  al_programar
+  al_completar
+
+  @@map("momento_evento")
+}
+
+model TipoActividad {
+  id             String                  @id @default(uuid(7)) @db.Uuid
+  nombre         String                  @unique @db.VarChar(60)
+  comportamiento ComportamientoActividad
+  color          String                  @db.VarChar(20)
+  activo         Boolean                 @default(true)
+
+  actividades Actividad[]
+
+  @@map("tipo_actividad")
+}
+
+model Actividad {
+  id               String         @id @default(uuid(7)) @db.Uuid
+  nombre           String         @unique @db.VarChar(100)
+  tipoActividadId  String         @map("tipo_actividad_id") @db.Uuid
+  minutosEstimados Int            @map("minutos_estimados")
+  aplicaA          AplicaA        @map("aplica_a")
+  requiereHoraFija Boolean        @default(false) @map("requiere_hora_fija")
+  modoAsignacion   ModoAsignacion @map("modo_asignacion")
+  rolCoordinadorId String?        @map("rol_coordinador_id") @db.Uuid
+  /// Pide resultado del contacto y el siguiente seguimiento al completarse.
+  esSeguimiento    Boolean        @default(false) @map("es_seguimiento")
+  orden            Int            @default(0)
+  activa           Boolean        @default(true)
+
+  tipo            TipoActividad            @relation(fields: [tipoActividadId], references: [id])
+  rolCoordinador  Rol?                     @relation("RolCoordinador", fields: [rolCoordinadorId], references: [id])
+  participaciones ActividadParticipacion[]
+  tareas          Tarea[]
+  etapasEvento    EtapaProspecto[]
+
+  @@map("actividad")
+}
+
+model PrioridadRol {
+  id     String @id @default(uuid(7)) @db.Uuid
+  nombre String @unique @db.VarChar(40)
+  /// 1 = principal
+  nivel  Int    @unique
+  color  String @db.VarChar(20)
+
+  roles        ActividadParticipacionRol[]
+  responsables TareaResponsable[]
+
+  @@map("prioridad_rol")
+}
+
+model ActividadParticipacion {
+  id          String  @id @default(uuid(7)) @db.Uuid
+  actividadId String  @map("actividad_id") @db.Uuid
+  nombre      String  @db.VarChar(80)
+  cantidad    Int     @default(1)
+  obligatoria Boolean @default(true)
+  orden       Int     @default(0)
+
+  actividad    Actividad                   @relation(fields: [actividadId], references: [id], onDelete: Cascade)
+  roles        ActividadParticipacionRol[]
+  responsables TareaResponsable[]
+
+  @@unique([actividadId, nombre])
+  @@map("actividad_participacion")
+}
+
+model ActividadParticipacionRol {
+  participacionId String @map("participacion_id") @db.Uuid
+  rolId           String @map("rol_id") @db.Uuid
+  prioridadRolId  String @map("prioridad_rol_id") @db.Uuid
+
+  participacion ActividadParticipacion @relation(fields: [participacionId], references: [id], onDelete: Cascade)
+  rol           Rol                    @relation(fields: [rolId], references: [id], onDelete: Cascade)
+  prioridad     PrioridadRol           @relation(fields: [prioridadRolId], references: [id])
+
+  @@id([participacionId, rolId])
+  @@map("actividad_participacion_rol")
+}
+
+enum EstadoTarea {
+  por_asignar
+  pendiente
+  en_proceso
+  completada
+  cancelada
+  no_asistio
+
+  @@map("estado_tarea")
+}
+
+enum Modalidad {
+  presencial
+  virtual
+
+  @@map("modalidad")
+}
+
+model Tarea {
+  id                  String      @id @default(uuid(7)) @db.Uuid
+  actividadId         String      @map("actividad_id") @db.Uuid
+  /// Por ahora solo tareas de prospectos; las de trabajos se agregan con el módulo de trabajos.
+  prospectoId         String?     @map("prospecto_id") @db.Uuid
+  /// Día planificado (hora de Lima).
+  fecha               DateTime    @db.Date
+  /// Inicio exacto, si la tarea tiene hora (obligatorio en reuniones).
+  inicio              DateTime?   @db.Timestamptz(6)
+  minutosEstimados    Int         @map("minutos_estimados")
+  modalidad           Modalidad?
+  estado              EstadoTarea
+  notas               String?
+  resultadoContactoId String?     @map("resultado_contacto_id") @db.Uuid
+  resultado           String?
+  completadaEn        DateTime?   @map("completada_en") @db.Timestamptz(6)
+  motivoCancelacion   String?     @map("motivo_cancelacion")
+  vecesReprogramada   Int         @default(0) @map("veces_reprogramada")
+  creadaPorId         String      @map("creada_por_id") @db.Uuid
+
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+
+  actividad         Actividad          @relation(fields: [actividadId], references: [id])
+  prospecto         Prospecto?         @relation(fields: [prospectoId], references: [id], onDelete: Cascade)
+  resultadoContacto ResultadoContacto? @relation(fields: [resultadoContactoId], references: [id])
+  creadaPor         Usuario            @relation("TareaCreadaPor", fields: [creadaPorId], references: [id])
+  responsables      TareaResponsable[]
+  personas          TareaPersona[]
+
+  @@index([prospectoId, estado])
+  @@index([estado, fecha])
+  @@map("tarea")
+}
+
+model TareaResponsable {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  tareaId         String   @map("tarea_id") @db.Uuid
+  usuarioId       String   @map("usuario_id") @db.Uuid
+  participacionId String   @map("participacion_id") @db.Uuid
+  /// Con qué rol participa y con qué prioridad (copiados al asignar).
+  rolId           String   @map("rol_id") @db.Uuid
+  prioridadRolId  String?  @map("prioridad_rol_id") @db.Uuid
+  asignadoPorId   String   @map("asignado_por_id") @db.Uuid
+  asignadoEn      DateTime @default(now()) @map("asignado_en") @db.Timestamptz(6)
+  /// Se asignó pese a un choque de horario o a una prioridad menor.
+  forzado         Boolean  @default(false)
+  motivoForzado   String?  @map("motivo_forzado")
+
+  tarea         Tarea                  @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  usuario       Usuario                @relation("TareaResponsableUsuario", fields: [usuarioId], references: [id])
+  participacion ActividadParticipacion @relation(fields: [participacionId], references: [id])
+  rol           Rol                    @relation(fields: [rolId], references: [id])
+  prioridad     PrioridadRol?          @relation(fields: [prioridadRolId], references: [id])
+  asignadoPor   Usuario                @relation("TareaAsignadaPor", fields: [asignadoPorId], references: [id])
+
+  @@unique([tareaId, usuarioId])
+  @@index([usuarioId])
+  @@map("tarea_responsable")
+}
+
+/// Contactos o integrantes que participan en la tarea (p. ej. quienes asisten al enfoque).
+model TareaPersona {
+  tareaId   String @map("tarea_id") @db.Uuid
+  personaId String @map("persona_id") @db.Uuid
+
+  tarea   Tarea   @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  persona Persona @relation(fields: [personaId], references: [id])
+
+  @@id([tareaId, personaId])
+  @@map("tarea_persona")
 }

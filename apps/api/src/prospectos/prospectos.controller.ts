@@ -1,7 +1,11 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req } from '@nestjs/common';
 import {
+  cambiarEtapaSchema,
+  crearProspectoSchema,
   listarProspectosSchema,
   prospectoSchema,
+  type CambiarEtapaDatos,
+  type CrearProspectoDatos,
   type Paginado,
   type ProspectoDatos,
   type ProspectoDetalle,
@@ -36,7 +40,7 @@ export class ProspectosController {
 
   @RequierePermiso('prospectos.crear')
   @Post()
-  crear(@Body(new ZodValidationPipe(prospectoSchema)) datos: ProspectoDatos, @Req() req: SolicitudAutenticada): Promise<ProspectoDetalle> {
+  crear(@Body(new ZodValidationPipe(crearProspectoSchema)) datos: CrearProspectoDatos, @Req() req: SolicitudAutenticada): Promise<ProspectoDetalle> {
     return this.prospectos.crear(datos, actor(req));
   }
 
@@ -48,5 +52,15 @@ export class ProspectosController {
     @Req() req: SolicitudAutenticada,
   ): Promise<ProspectoDetalle> {
     return this.prospectos.editar(id, datos, actor(req));
+  }
+
+  @RequierePermiso('prospectos.editar')
+  @Patch(':id/etapa')
+  cambiarEtapa(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(cambiarEtapaSchema)) datos: CambiarEtapaDatos,
+    @Req() req: SolicitudAutenticada,
+  ): Promise<ProspectoDetalle> {
+    return this.prospectos.cambiarEtapa(id, datos, actor(req));
   }
 }

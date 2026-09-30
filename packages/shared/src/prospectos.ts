@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { normalizarCelular } from './celular.js'
+import { programarTareaSchema, type TareaItem } from './tareas.js'
 
 export const TIPOS_DOCUMENTO = ['DNI', 'CE', 'PASAPORTE'] as const
 export type TipoDocumento = (typeof TIPOS_DOCUMENTO)[number]
@@ -128,6 +129,13 @@ export const prospectoSchema = z
     })
   })
 
+/** Alta: además de los datos, opcionalmente la primera actividad (p. ej. el enfoque). */
+export const crearProspectoSchema = prospectoSchema.safeExtend({
+  primeraActividad: programarTareaSchema.omit({ responsables: true, personaIds: true }).optional(),
+})
+export type CrearProspectoFormulario = z.input<typeof crearProspectoSchema>
+export type CrearProspectoDatos = z.output<typeof crearProspectoSchema>
+
 /** Valores del formulario (lo que se escribe). */
 export type ProspectoFormulario = z.input<typeof prospectoSchema>
 /** Datos ya validados y normalizados (lo que recibe la API). */
@@ -164,6 +172,8 @@ export interface CatalogosProspecto {
   nivelesAcademicos: Opcion[]
   origenes: (Opcion & { esReferido: boolean })[]
   etapas: (Opcion & { color: string; clase: 'abierta' | 'ganada' | 'perdida'; orden: number; inicial: boolean })[]
+  resultadosContacto: (Opcion & { cuentaSinRespuesta: boolean })[]
+  motivosPerdida: Opcion[]
 }
 
 export interface PersonaResumen {
@@ -214,7 +224,7 @@ export interface Paginado<T> {
 
 export interface ProspectoEventoItem {
   id: string
-  tipo: 'creado' | 'editado' | 'cambio_etapa' | 'nota' | 'contacto' | 'reasignado'
+  tipo: 'creado' | 'editado' | 'cambio_etapa' | 'nota' | 'contacto' | 'reasignado' | 'tarea'
   detalle: string
   usuario: UsuarioResumen | null
   fecha: string
@@ -243,4 +253,6 @@ export interface ProspectoDetalle {
   creadoEn: string
   actualizadoEn: string
   eventos: ProspectoEventoItem[]
+  /** Actividades del prospecto: primero las pendientes. */
+  tareas: TareaItem[]
 }

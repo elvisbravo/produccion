@@ -1,4 +1,4 @@
-import type { ProspectoDetalle, ProspectoListadoItem } from '@grupoes/shared';
+import type { ProspectoDetalle, ProspectoListadoItem, TareaItem } from '@grupoes/shared';
 import type { Prisma } from '../generated/prisma/client.js';
 import { CAMPOS_PERSONA } from '../personas/personas.service.js';
 
@@ -56,7 +56,7 @@ export function aListado(p: ProspectoListado): ProspectoListadoItem {
   };
 }
 
-export function aDetalle(p: ProspectoConDetalle): ProspectoDetalle {
+export function aDetalle(p: ProspectoConDetalle, tareas: TareaItem[]): ProspectoDetalle {
   return {
     id: p.id,
     codigo: p.codigo,
@@ -80,5 +80,6 @@ export function aDetalle(p: ProspectoConDetalle): ProspectoDetalle {
     creadoEn: p.creadoEn.toISOString(),
     actualizadoEn: p.actualizadoEn.toISOString(),
     eventos: p.eventos.map((e) => ({ id: e.id, tipo: e.tipo, detalle: e.detalle, usuario: e.usuario, fecha: e.fecha.toISOString() })),
+    tareas,
   };
 }

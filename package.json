@@ -11,6 +11,7 @@
     "db:migrate": "pnpm --filter @grupoes/api db:migrate",
     "db:deploy": "pnpm --filter @grupoes/api db:deploy",
     "db:seed": "pnpm --filter @grupoes/api db:seed",
+    "db:demo": "pnpm --filter @grupoes/api db:demo",
     "db:studio": "pnpm --filter @grupoes/api db:studio",
     "dev:shared": "pnpm --filter @grupoes/shared dev",
     "dev:api": "pnpm --filter @grupoes/api start:dev",

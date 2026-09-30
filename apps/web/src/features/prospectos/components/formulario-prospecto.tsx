@@ -2,32 +2,40 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import {
   formatearCelular,
   MAX_CONTACTOS,
-  prospectoSchema,
+  crearProspectoSchema,
+  diaEnLima,
   TEMPERATURAS,
   NOMBRE_TEMPERATURA,
   type CatalogosProspecto,
-  type ProspectoDatos,
+  type CrearProspectoDatos,
+  type CrearProspectoFormulario,
   type ProspectoDetalle,
   type ProspectoFormulario,
 } from '@grupoes/shared'
+import { useQuery } from '@tanstack/react-query'
 import { AlertCircle, Loader2, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { Controller, FormProvider, useFieldArray, useForm, useWatch, type FieldPath } from 'react-hook-form'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Requerido } from '@/components/requerido'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { SelectorRemoto } from '@/components/selector-remoto'
 import { ApiError } from '@/lib/api'
 import { nombreCompleto } from '@/lib/formato'
+import { usePermiso } from '@/lib/permisos'
 import { useSesion } from '@/stores/sesion'
 import { buscarCatalogo, buscarPersonas, crearEnCatalogo, useGuardarProspecto } from '../api'
+import { actividadesQuery } from '@/features/tareas/api'
+import { CamposProgramacion } from '@/features/tareas/components/campos-programacion'
 import { ContactoFila } from './contacto-fila'
 
 const contactoVacio = (esPrincipal: boolean) => ({
@@ -86,8 +94,13 @@ export function FormularioProspecto({ catalogos, prospecto, onGuardado, onCancel
     referidoPor: prospecto?.referidoPor ? (nombreCompleto(prospecto.referidoPor) ?? formatearCelular(prospecto.referidoPor.celular)) : undefined,
   })
 
-  const form = useForm<ProspectoFormulario, unknown, ProspectoDatos>({
-    resolver: zodResolver(prospectoSchema),
+  const puedeProgramar = usePermiso('tareas.crear')
+  const { data: actividades = [] } = useQuery({ ...actividadesQuery('prospecto'), enabled: !prospecto && puedeProgramar })
+  const [agendar, setAgendar] = useState(false)
+
+  // En la edición no se usa "primeraActividad": el esquema de alta la acepta como opcional.
+  const form = useForm<CrearProspectoFormulario, unknown, CrearProspectoDatos>({
+    resolver: zodResolver(crearProspectoSchema),
     defaultValues: prospecto
       ? valoresDesdeDetalle(prospecto)
       : {
@@ -98,7 +111,13 @@ export function FormularioProspecto({ catalogos, prospecto, onGuardado, onCancel
           temperatura: '',
         },
   })
-  const { control, register, formState, setValue, getValues, setError, handleSubmit } = form
+  const { control, register, formState, setValue, getValues, setError, handleSubmit, unregister } = form
+
+  const cambiarAgendar = (valor: boolean) => {
+    setAgendar(valor)
+    if (valor) setValue('primeraActividad', { actividadId: '', fecha: diaEnLima(), hora: '', modalidad: '', notas: '' })
+    else unregister('primeraActividad')
+  }
   const contactos = useFieldArray({ control, name: 'contactos' })
   const tipoTrabajoId = useWatch({ control, name: 'tipoTrabajoId' })
   const origenId = useWatch({ control, name: 'origenId' })
@@ -128,7 +147,7 @@ export function FormularioProspecto({ catalogos, prospecto, onGuardado, onCancel
       onGuardado(guardado)
     } catch (error) {
       if (error instanceof ApiError && error.errores.length > 0) {
-        error.errores.forEach((err) => setError(err.campo as FieldPath<ProspectoFormulario>, { message: err.mensaje }))
+        error.errores.forEach((err) => setError(err.campo as FieldPath<CrearProspectoFormulario>, { message: err.mensaje }))
         setErrorGeneral('Revisa los campos marcados.')
       } else {
         setErrorGeneral(error instanceof ApiError ? error.message : 'No se pudo guardar el prospecto')
@@ -459,14 +478,25 @@ export function FormularioProspecto({ catalogos, prospecto, onGuardado, onCancel
               </CardContent>
             </Card>
 
-            <Card className="border-dashed bg-muted/30">
-              <CardHeader>
-                <CardTitle className="text-sm">Primera actividad</CardTitle>
-                <CardDescription>
-                  Agendar el enfoque u otra actividad desde aquí estará disponible con el módulo de tareas y seguimiento.
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            {!prospecto && puedeProgramar && (
+              <Card>
+                <CardHeader className="flex flex-row items-start justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <CardTitle>Primera actividad</CardTitle>
+                    <CardDescription>Opcional: por ejemplo, el enfoque.</CardDescription>
+                  </div>
+                  <Label htmlFor="agendar-ahora" className="flex items-center gap-2 font-normal">
+                    <Checkbox id="agendar-ahora" checked={agendar} onCheckedChange={(v) => cambiarAgendar(v === true)} />
+                    Agendar ahora
+                  </Label>
+                </CardHeader>
+                {agendar && (
+                  <CardContent>
+                    <CamposProgramacion prefijo="primeraActividad." actividades={actividades} />
+                  </CardContent>
+                )}
+              </Card>
+            )}
 
             <div className="flex gap-2">
               <Button type="button" variant="outline" className="flex-1" onClick={onCancelar}>

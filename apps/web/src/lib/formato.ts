@@ -34,6 +34,35 @@ export function haceCuanto(valor: string, ahora = Date.now()): string {
   return formatearFecha(valor)
 }
 
+const diaSemana = new Intl.DateTimeFormat('es-PE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+const soloHora = new Intl.DateTimeFormat('es-PE', { hour: 'numeric', minute: '2-digit', timeZone: ZONA })
+
+/** "Hoy", "Mañana", "Ayer" o "vie. 2 oct." para un día YYYY-MM-DD (respecto de hoy en Lima). */
+export function describirDia(dia: string, hoy: string): string {
+  const diferencia = Math.round((Date.parse(`${dia}T12:00:00Z`) - Date.parse(`${hoy}T12:00:00Z`)) / 86_400_000)
+  if (diferencia === 0) return 'Hoy'
+  if (diferencia === 1) return 'Mañana'
+  if (diferencia === -1) return 'Ayer'
+  return diaSemana.format(new Date(`${dia}T12:00:00Z`))
+}
+
+/** 4:00 p. m. (hora de Lima de un instante ISO). */
+export function formatearHora(instante: string): string {
+  return soloHora.format(new Date(instante))
+}
+
+/** "Hoy, 4:00 p. m." o "vie. 2 oct." si no tiene hora. */
+export function describirCuando(t: { fecha: string; inicio: string | null }, hoy: string): string {
+  const dia = describirDia(t.fecha, hoy)
+  return t.inicio ? `${dia}, ${formatearHora(t.inicio)}` : dia
+}
+
+export function duracion(minutos: number): string {
+  const h = Math.floor(minutos / 60)
+  const m = minutos % 60
+  return h ? `${h} h${m ? ` ${m} min` : ''}` : `${m} min`
+}
+
 export function nombreCompleto(p: { nombres: string | null; apellidos: string | null } | null | undefined): string | null {
   const texto = [p?.nombres, p?.apellidos].filter(Boolean).join(' ').trim()
   return texto || null
