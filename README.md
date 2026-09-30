@@ -67,7 +67,7 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | GET | `/api/actividades` | Catálogo de actividades con participaciones, roles y prioridades |
 | GET | `/api/tareas/mias`, `/api/tareas/por-asignar` | Mis tareas y bandeja del coordinador |
 | GET/POST | `/api/tareas/:id/candidatos`, `/api/tareas/:id/asignar` | Candidatos por prioridad y disponibilidad; asignación (con motivo si hay choque) |
-| POST | `/api/tareas/:id/completar` | `reprogramar` | `cancelar` | Cierre con resultado y siguiente paso; reprogramación; cancelación |
+| POST | `/api/tareas/:id/completar`, `…/reprogramar`, `…/cancelar` | Cierre con resultado y siguiente paso; reprogramación; cancelación |
 | GET | `/api/seguimiento/tablero` | Prospectos abiertos con su próximo paso (kanban) |
 | GET | `/api/catalogos/…`, `/api/personas/…` | Catálogos del formulario y búsqueda de personas |
 
