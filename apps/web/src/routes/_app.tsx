@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect, useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { NoEncontrado } from '@/components/estado-vacio'
 import { AppHeader } from '@/components/layout/app-header'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { BusquedaGlobal } from '@/components/layout/busqueda-global'
@@ -17,6 +18,7 @@ export const Route = createFileRoute('/_app')({
     }
   },
   component: LayoutApp,
+  notFoundComponent: NoEncontrado,
 })
 
 function LayoutApp() {

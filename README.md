@@ -87,7 +87,7 @@ En el frontend, el menú lateral se arma con los módulos permitidos y para ocul
 | Carpeta | Contenido |
 |---|---|
 | `src/routes/` | Páginas (TanStack Router por archivos). `_app.tsx` es el layout con sesión; `_app/$.tsx` muestra "en construcción" para los módulos aún no hechos |
-| `src/components/ui/` | Componentes de shadcn/ui (generados con `pnpm dlx shadcn add …`). **Ojo:** la CLI actual a veces escribe `import { cn } from "cn"`; hay que cambiarlo a `@/lib/utils` y no instalar el paquete `cn` |
+| `src/components/ui/` | Componentes de shadcn/ui. Agregarlos con `pnpm --filter @grupoes/web ui:add <componente>`, que además corrige un defecto de la CLI actual (escribe `import { cn } from "cn"` e instala un paquete ajeno `cn`) |
 | `src/components/layout/` | Sidebar, encabezado, búsqueda global (Ctrl+K) y menú de usuario |
 | `src/lib/api.ts` | Cliente de la API: token en memoria, refresh automático ante 401 y errores normalizados |
 | `src/stores/sesion.ts` | Estado de la sesión (Zustand) |

@@ -13,6 +13,10 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppSplatRouteImport } from './routes/_app/$'
+import { Route as AppProspectosIndexRouteImport } from './routes/_app/prospectos/index'
+import { Route as AppProspectosNuevoRouteImport } from './routes/_app/prospectos/nuevo'
+import { Route as AppProspectosIdIndexRouteImport } from './routes/_app/prospectos/$id/index'
+import { Route as AppProspectosIdEditarRouteImport } from './routes/_app/prospectos/$id/editar'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -33,16 +37,44 @@ const AppSplatRoute = AppSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => AppRoute,
 } as any)
+const AppProspectosIndexRoute = AppProspectosIndexRouteImport.update({
+  id: '/prospectos/',
+  path: '/prospectos/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppProspectosNuevoRoute = AppProspectosNuevoRouteImport.update({
+  id: '/prospectos/nuevo',
+  path: '/prospectos/nuevo',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppProspectosIdIndexRoute = AppProspectosIdIndexRouteImport.update({
+  id: '/prospectos/$id/',
+  path: '/prospectos/$id/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppProspectosIdEditarRoute = AppProspectosIdEditarRouteImport.update({
+  id: '/prospectos/$id/editar',
+  path: '/prospectos/$id/editar',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/$': typeof AppSplatRoute
+  '/prospectos/nuevo': typeof AppProspectosNuevoRoute
+  '/prospectos/': typeof AppProspectosIndexRoute
+  '/prospectos/$id/editar': typeof AppProspectosIdEditarRoute
+  '/prospectos/$id/': typeof AppProspectosIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/$': typeof AppSplatRoute
   '/': typeof AppIndexRoute
+  '/prospectos/nuevo': typeof AppProspectosNuevoRoute
+  '/prospectos': typeof AppProspectosIndexRoute
+  '/prospectos/$id/editar': typeof AppProspectosIdEditarRoute
+  '/prospectos/$id': typeof AppProspectosIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -50,13 +82,40 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_app/$': typeof AppSplatRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/prospectos/nuevo': typeof AppProspectosNuevoRoute
+  '/_app/prospectos/': typeof AppProspectosIndexRoute
+  '/_app/prospectos/$id/editar': typeof AppProspectosIdEditarRoute
+  '/_app/prospectos/$id/': typeof AppProspectosIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/$'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/$'
+    | '/prospectos/nuevo'
+    | '/prospectos/'
+    | '/prospectos/$id/editar'
+    | '/prospectos/$id/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/$' | '/'
-  id: '__root__' | '/_app' | '/login' | '/_app/$' | '/_app/'
+  to:
+    | '/login'
+    | '/$'
+    | '/'
+    | '/prospectos/nuevo'
+    | '/prospectos'
+    | '/prospectos/$id/editar'
+    | '/prospectos/$id'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/login'
+    | '/_app/$'
+    | '/_app/'
+    | '/_app/prospectos/nuevo'
+    | '/_app/prospectos/'
+    | '/_app/prospectos/$id/editar'
+    | '/_app/prospectos/$id/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -94,17 +153,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSplatRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/prospectos/': {
+      id: '/_app/prospectos/'
+      path: '/prospectos'
+      fullPath: '/prospectos/'
+      preLoaderRoute: typeof AppProspectosIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/prospectos/nuevo': {
+      id: '/_app/prospectos/nuevo'
+      path: '/prospectos/nuevo'
+      fullPath: '/prospectos/nuevo'
+      preLoaderRoute: typeof AppProspectosNuevoRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/prospectos/$id/': {
+      id: '/_app/prospectos/$id/'
+      path: '/prospectos/$id'
+      fullPath: '/prospectos/$id/'
+      preLoaderRoute: typeof AppProspectosIdIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/prospectos/$id/editar': {
+      id: '/_app/prospectos/$id/editar'
+      path: '/prospectos/$id/editar'
+      fullPath: '/prospectos/$id/editar'
+      preLoaderRoute: typeof AppProspectosIdEditarRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
   AppSplatRoute: typeof AppSplatRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppProspectosNuevoRoute: typeof AppProspectosNuevoRoute
+  AppProspectosIndexRoute: typeof AppProspectosIndexRoute
+  AppProspectosIdEditarRoute: typeof AppProspectosIdEditarRoute
+  AppProspectosIdIndexRoute: typeof AppProspectosIdIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppSplatRoute: AppSplatRoute,
   AppIndexRoute: AppIndexRoute,
+  AppProspectosNuevoRoute: AppProspectosNuevoRoute,
+  AppProspectosIndexRoute: AppProspectosIndexRoute,
+  AppProspectosIdEditarRoute: AppProspectosIdEditarRoute,
+  AppProspectosIdIndexRoute: AppProspectosIdIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

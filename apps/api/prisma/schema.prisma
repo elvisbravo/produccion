@@ -38,12 +38,15 @@ model Usuario {
   actualizadoPor String?   @map("actualizado_por") @db.Uuid
   eliminadoEn    DateTime? @map("eliminado_en") @db.Timestamptz(6)
 
-  roles             UsuarioRol[]
-  permisos          UsuarioPermiso[] @relation("PermisoDelUsuario")
-  permisosOtorgados UsuarioPermiso[] @relation("PermisoOtorgadoPor")
-  sesiones          Sesion[]
-  accesos           AccesoLog[]
-  auditorias        Auditoria[]
+  roles              UsuarioRol[]
+  permisos           UsuarioPermiso[]  @relation("PermisoDelUsuario")
+  permisosOtorgados  UsuarioPermiso[]  @relation("PermisoOtorgadoPor")
+  sesiones           Sesion[]
+  accesos            AccesoLog[]
+  auditorias         Auditoria[]
+  prospectosCaptados Prospecto[]       @relation("ProspectoCaptadoPor")
+  prospectosACargo   Prospecto[]       @relation("ProspectoResponsable")
+  eventosProspecto   ProspectoEvento[]
 
   @@map("usuario")
 }
@@ -241,4 +244,267 @@ model Parametro {
   actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz(6)
 
   @@map("parametro")
+}
+
+/// Correlativos por año para los códigos legibles (P-2026-0001, T-2026-0001...).
+model Correlativo {
+  serie  String @db.VarChar(10)
+  anio   Int
+  ultimo Int    @default(0)
+
+  @@id([serie, anio])
+  @@map("correlativo")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Catálogos
+// ─────────────────────────────────────────────────────────────
+
+model TipoTrabajo {
+  id             String  @id @default(uuid(7)) @db.Uuid
+  nombre         String  @unique @db.VarChar(80)
+  maxIntegrantes Int     @default(1) @map("max_integrantes")
+  diasGarantia   Int     @default(0) @map("dias_garantia")
+  orden          Int     @default(0)
+  activo         Boolean @default(true)
+
+  prospectos Prospecto[]
+
+  @@map("tipo_trabajo")
+}
+
+model PrioridadTrabajo {
+  id                      String  @id @default(uuid(7)) @db.Uuid
+  nombre                  String  @unique @db.VarChar(40)
+  /// 1 = más urgente
+  nivel                   Int
+  color                   String  @db.VarChar(20)
+  permiteInsercionUrgente Boolean @default(false) @map("permite_insercion_urgente")
+  porDefecto              Boolean @default(false) @map("por_defecto")
+  activo                  Boolean @default(true)
+
+  prospectos Prospecto[]
+
+  @@map("prioridad_trabajo")
+}
+
+model Universidad {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  nombre       String   @unique @db.VarChar(200)
+  siglas       String?  @db.VarChar(30)
+  maxSimilitud Decimal? @map("max_similitud") @db.Decimal(5, 2)
+  maxIa        Decimal? @map("max_ia") @db.Decimal(5, 2)
+  activo       Boolean  @default(true)
+  creadoEn     DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  creadoPor    String?  @map("creado_por") @db.Uuid
+
+  prospectos Prospecto[]
+
+  @@map("universidad")
+}
+
+model Carrera {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  nombre    String   @unique @db.VarChar(150)
+  activo    Boolean  @default(true)
+  creadoEn  DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  creadoPor String?  @map("creado_por") @db.Uuid
+
+  prospectos Prospecto[]
+
+  @@map("carrera")
+}
+
+model NivelAcademico {
+  id     String  @id @default(uuid(7)) @db.Uuid
+  nombre String  @unique @db.VarChar(80)
+  orden  Int     @default(0)
+  activo Boolean @default(true)
+
+  prospectos Prospecto[]
+
+  @@map("nivel_academico")
+}
+
+model OrigenContacto {
+  id         String  @id @default(uuid(7)) @db.Uuid
+  nombre     String  @unique @db.VarChar(60)
+  /// Si es true, el formulario pide "referido por".
+  esReferido Boolean @default(false) @map("es_referido")
+  orden      Int     @default(0)
+  activo     Boolean @default(true)
+
+  prospectos Prospecto[]
+
+  @@map("origen_contacto")
+}
+
+enum ClaseEtapa {
+  abierta
+  ganada
+  perdida
+
+  @@map("clase_etapa")
+}
+
+model EtapaProspecto {
+  id      String     @id @default(uuid(7)) @db.Uuid
+  nombre  String     @unique @db.VarChar(60)
+  orden   Int
+  color   String     @db.VarChar(20)
+  clase   ClaseEtapa @default(abierta)
+  /// Etapa en la que empieza todo prospecto nuevo.
+  inicial Boolean    @default(false)
+  activa  Boolean    @default(true)
+
+  prospectos Prospecto[]
+
+  @@map("etapa_prospecto")
+}
+
+model MotivoPerdida {
+  id     String  @id @default(uuid(7)) @db.Uuid
+  nombre String  @unique @db.VarChar(80)
+  orden  Int     @default(0)
+  activo Boolean @default(true)
+
+  prospectos Prospecto[]
+
+  @@map("motivo_perdida")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Comercial: personas y prospectos
+// ─────────────────────────────────────────────────────────────
+
+enum TipoDocumento {
+  DNI
+  CE
+  PASAPORTE
+
+  @@map("tipo_documento")
+}
+
+model Persona {
+  id              String         @id @default(uuid(7)) @db.Uuid
+  /// Celular/WhatsApp normalizado (+51987654321). Identifica a la persona.
+  celular         String         @unique @db.VarChar(20)
+  nombres         String?        @db.VarChar(100)
+  apellidos       String?        @db.VarChar(100)
+  email           String?        @db.VarChar(150)
+  tipoDocumento   TipoDocumento? @map("tipo_documento")
+  numeroDocumento String?        @map("numero_documento") @db.VarChar(20)
+
+  creadoEn       DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
+  creadoPor      String?   @map("creado_por") @db.Uuid
+  actualizadoEn  DateTime  @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  actualizadoPor String?   @map("actualizado_por") @db.Uuid
+  eliminadoEn    DateTime? @map("eliminado_en") @db.Timestamptz(6)
+
+  prospectos ProspectoContacto[]
+  referidos  Prospecto[]         @relation("ReferidoPor")
+
+  @@unique([tipoDocumento, numeroDocumento])
+  @@map("persona")
+}
+
+enum Temperatura {
+  caliente
+  tibio
+  frio
+
+  @@map("temperatura")
+}
+
+model Prospecto {
+  id                    String       @id @default(uuid(7)) @db.Uuid
+  codigo                String       @unique @db.VarChar(20)
+  tipoTrabajoId         String       @map("tipo_trabajo_id") @db.Uuid
+  titulo                String?      @db.VarChar(300)
+  prioridadId           String       @map("prioridad_id") @db.Uuid
+  universidadId         String?      @map("universidad_id") @db.Uuid
+  carreraId             String?      @map("carrera_id") @db.Uuid
+  nivelAcademicoId      String?      @map("nivel_academico_id") @db.Uuid
+  fechaEntregaTentativa DateTime?    @map("fecha_entrega_tentativa") @db.Date
+  origenId              String       @map("origen_id") @db.Uuid
+  referidoPorId         String?      @map("referido_por_id") @db.Uuid
+  linkDrive             String?      @map("link_drive") @db.VarChar(500)
+  observaciones         String?
+  detalles              String?
+  etapaId               String       @map("etapa_id") @db.Uuid
+  temperatura           Temperatura?
+  montoCotizado         Decimal?     @map("monto_cotizado") @db.Decimal(12, 2)
+  fechaCotizacion       DateTime?    @map("fecha_cotizacion") @db.Date
+  motivoPerdidaId       String?      @map("motivo_perdida_id") @db.Uuid
+  intentosSinRespuesta  Int          @default(0) @map("intentos_sin_respuesta")
+  captadoPorId          String       @map("captado_por_id") @db.Uuid
+  responsableId         String       @map("responsable_id") @db.Uuid
+
+  creadoEn       DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
+  creadoPor      String?   @map("creado_por") @db.Uuid
+  actualizadoEn  DateTime  @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  actualizadoPor String?   @map("actualizado_por") @db.Uuid
+  eliminadoEn    DateTime? @map("eliminado_en") @db.Timestamptz(6)
+
+  tipoTrabajo    TipoTrabajo      @relation(fields: [tipoTrabajoId], references: [id])
+  prioridad      PrioridadTrabajo @relation(fields: [prioridadId], references: [id])
+  universidad    Universidad?     @relation(fields: [universidadId], references: [id])
+  carrera        Carrera?         @relation(fields: [carreraId], references: [id])
+  nivelAcademico NivelAcademico?  @relation(fields: [nivelAcademicoId], references: [id])
+  origen         OrigenContacto   @relation(fields: [origenId], references: [id])
+  referidoPor    Persona?         @relation("ReferidoPor", fields: [referidoPorId], references: [id])
+  etapa          EtapaProspecto   @relation(fields: [etapaId], references: [id])
+  motivoPerdida  MotivoPerdida?   @relation(fields: [motivoPerdidaId], references: [id])
+  captadoPor     Usuario          @relation("ProspectoCaptadoPor", fields: [captadoPorId], references: [id])
+  responsable    Usuario          @relation("ProspectoResponsable", fields: [responsableId], references: [id])
+
+  contactos ProspectoContacto[]
+  eventos   ProspectoEvento[]
+
+  @@index([responsableId, etapaId])
+  @@index([etapaId])
+  @@index([creadoEn])
+  @@map("prospecto")
+}
+
+model ProspectoContacto {
+  prospectoId String  @map("prospecto_id") @db.Uuid
+  personaId   String  @map("persona_id") @db.Uuid
+  esPrincipal Boolean @default(false) @map("es_principal")
+  orden       Int     @default(0)
+
+  prospecto Prospecto @relation(fields: [prospectoId], references: [id], onDelete: Cascade)
+  persona   Persona   @relation(fields: [personaId], references: [id])
+
+  @@id([prospectoId, personaId])
+  @@index([personaId])
+  @@map("prospecto_contacto")
+}
+
+enum TipoEventoProspecto {
+  creado
+  editado
+  cambio_etapa
+  nota
+  contacto
+  reasignado
+
+  @@map("tipo_evento_prospecto")
+}
+
+/// Línea de tiempo del prospecto.
+model ProspectoEvento {
+  id          String              @id @default(uuid(7)) @db.Uuid
+  prospectoId String              @map("prospecto_id") @db.Uuid
+  tipo        TipoEventoProspecto
+  detalle     String
+  datos       Json?
+  usuarioId   String?             @map("usuario_id") @db.Uuid
+  fecha       DateTime            @default(now()) @db.Timestamptz(6)
+
+  prospecto Prospecto @relation(fields: [prospectoId], references: [id], onDelete: Cascade)
+  usuario   Usuario?  @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([prospectoId, fecha])
+  @@map("prospecto_evento")
 }

@@ -887,3 +887,25 @@ erDiagram
 | Producción y calidad | 11 |
 | Transversales | 6 |
 | **Total** | **74** |
+
+---
+
+## Ajustes hechos al implementar
+
+Diferencias entre el diseño de arriba y lo que ya está en `apps/api/prisma/schema.prisma` (el esquema de Prisma es la fuente de verdad):
+
+| Tabla | Cambio | Motivo |
+|---|---|---|
+| `sesion` | Nueva; con `motivo_revocacion` (rotada / logout / reutilizacion) | Refresh tokens rotativos y margen para pestañas simultáneas |
+| `correlativo` | Nueva: `serie`, `anio`, `ultimo` | Códigos legibles (P-2026-0001) sin repetir, con incremento atómico |
+| `tipo_trabajo`, `nivel_academico`, `origen_contacto`, `motivo_perdida` | + `orden` | Orden de las listas en los formularios |
+| `prioridad_trabajo` | + `por_defecto` | Valor inicial en el formulario (Media) |
+| `origen_contacto` | + `es_referido` | Solo el origen "Referido" pide "referido por" |
+| `etapa_prospecto` | + `inicial`; el `evento automático` se agrega con el módulo de tareas | Etapa en la que nace todo prospecto |
+| `prospecto` | `prioridad_id`, `origen_id`, `captado_por_id` (nombres cortos); `fecha_cotizacion` | Consistencia de nombres |
+| `prospecto_contacto` | + `orden` | Mantener el orden de los contactos |
+| `prospecto_evento` | + `datos` (jsonb); tipos: creado, editado, cambio_etapa, nota, contacto, reasignado | Línea de tiempo |
+| `persona` | `CHECK`: tipo y número de documento van juntos; único por (tipo, número) | Integridad del documento |
+| `accion` | + `vigente` | Acciones que ya no existen en el código no se borran |
+| `acceso_log` | + `email_intento` | Registrar intentos con correos inexistentes |
+| — | Extensión `unaccent` y función `f_unaccent()` | Búsqueda sin distinguir tildes ni mayúsculas |
