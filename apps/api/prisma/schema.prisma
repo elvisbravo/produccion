@@ -50,6 +50,11 @@ model Usuario {
   tareasCreadas      Tarea[]            @relation("TareaCreadaPor")
   tareasAsignadas    TareaResponsable[] @relation("TareaResponsableUsuario")
   asignacionesHechas TareaResponsable[] @relation("TareaAsignadaPor")
+  trabajosEquipo     TrabajoEquipo[]    @relation("EquipoUsuario")
+  equiposAsignados   TrabajoEquipo[]    @relation("EquipoAsignadoPor")
+  eventosTrabajo     TrabajoEvento[]
+  pagosRegistrados   Pago[]             @relation("PagoRegistradoPor")
+  pagosAnulados      Pago[]             @relation("PagoAnuladoPor")
 
   @@map("usuario")
 }
@@ -275,6 +280,7 @@ model TipoTrabajo {
   activo         Boolean @default(true)
 
   prospectos Prospecto[]
+  trabajos   Trabajo[]
 
   @@map("tipo_trabajo")
 }
@@ -290,6 +296,7 @@ model PrioridadTrabajo {
   activo                  Boolean @default(true)
 
   prospectos Prospecto[]
+  trabajos   Trabajo[]
 
   @@map("prioridad_trabajo")
 }
@@ -305,6 +312,7 @@ model Universidad {
   creadoPor    String?  @map("creado_por") @db.Uuid
 
   prospectos Prospecto[]
+  trabajos   Trabajo[]
 
   @@map("universidad")
 }
@@ -317,6 +325,7 @@ model Carrera {
   creadoPor String?  @map("creado_por") @db.Uuid
 
   prospectos Prospecto[]
+  trabajos   Trabajo[]
 
   @@map("carrera")
 }
@@ -328,6 +337,7 @@ model NivelAcademico {
   activo Boolean @default(true)
 
   prospectos Prospecto[]
+  trabajos   Trabajo[]
 
   @@map("nivel_academico")
 }
@@ -412,6 +422,7 @@ model Persona {
   eliminadoEn    DateTime? @map("eliminado_en") @db.Timestamptz(6)
 
   prospectos ProspectoContacto[]
+  trabajos   TrabajoIntegrante[]
   referidos  Prospecto[]         @relation("ReferidoPor")
   tareas     TareaPersona[]
 
@@ -472,6 +483,7 @@ model Prospecto {
   contactos ProspectoContacto[]
   eventos   ProspectoEvento[]
   tareas    Tarea[]
+  trabajo   Trabajo?
 
   @@index([responsableId, etapaId])
   @@index([etapaId])
@@ -745,4 +757,231 @@ model TareaPersona {
 
   @@id([tareaId, personaId])
   @@map("tarea_persona")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Trabajos, contratos y pagos
+// ─────────────────────────────────────────────────────────────
+
+enum EstadoTrabajo {
+  sin_asignar
+  asignado
+  en_proceso
+  finalizado
+  suspendido
+  cancelado
+
+  @@map("estado_trabajo")
+}
+
+model Trabajo {
+  id               String        @id @default(uuid(7)) @db.Uuid
+  codigo           String        @unique @db.VarChar(20)
+  prospectoId      String        @unique @map("prospecto_id") @db.Uuid
+  tipoTrabajoId    String        @map("tipo_trabajo_id") @db.Uuid
+  titulo           String?       @db.VarChar(300)
+  prioridadId      String        @map("prioridad_id") @db.Uuid
+  universidadId    String?       @map("universidad_id") @db.Uuid
+  carreraId        String?       @map("carrera_id") @db.Uuid
+  nivelAcademicoId String?       @map("nivel_academico_id") @db.Uuid
+  linkDrive        String?       @map("link_drive") @db.VarChar(500)
+  observaciones    String?
+  detalles         String?
+  fechaInicio      DateTime      @map("fecha_inicio") @db.Date
+  fechaLimite      DateTime      @map("fecha_limite") @db.Date
+  estado           EstadoTrabajo @default(sin_asignar)
+
+  creadoEn       DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
+  creadoPor      String?   @map("creado_por") @db.Uuid
+  actualizadoEn  DateTime  @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  actualizadoPor String?   @map("actualizado_por") @db.Uuid
+  eliminadoEn    DateTime? @map("eliminado_en") @db.Timestamptz(6)
+
+  prospecto      Prospecto        @relation(fields: [prospectoId], references: [id])
+  tipoTrabajo    TipoTrabajo      @relation(fields: [tipoTrabajoId], references: [id])
+  prioridad      PrioridadTrabajo @relation(fields: [prioridadId], references: [id])
+  universidad    Universidad?     @relation(fields: [universidadId], references: [id])
+  carrera        Carrera?         @relation(fields: [carreraId], references: [id])
+  nivelAcademico NivelAcademico?  @relation(fields: [nivelAcademicoId], references: [id])
+
+  integrantes TrabajoIntegrante[]
+  equipo      TrabajoEquipo[]
+  eventos     TrabajoEvento[]
+  contrato    Contrato?
+
+  @@index([estado])
+  @@index([fechaLimite])
+  @@map("trabajo")
+}
+
+model TrabajoIntegrante {
+  trabajoId String  @map("trabajo_id") @db.Uuid
+  personaId String  @map("persona_id") @db.Uuid
+  /// Contacto principal y firmante del contrato.
+  esTitular Boolean @default(false) @map("es_titular")
+  orden     Int     @default(0)
+
+  trabajo Trabajo @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
+  persona Persona @relation(fields: [personaId], references: [id])
+
+  @@id([trabajoId, personaId])
+  @@index([personaId])
+  @@map("trabajo_integrante")
+}
+
+enum FuncionEquipo {
+  auxiliar_principal
+  auxiliar_apoyo
+  jefe_responsable
+
+  @@map("funcion_equipo")
+}
+
+/// Equipo del trabajo. Cada cambio cierra la fila anterior (hasta) y abre una nueva: queda el historial.
+model TrabajoEquipo {
+  id            String        @id @default(uuid(7)) @db.Uuid
+  trabajoId     String        @map("trabajo_id") @db.Uuid
+  usuarioId     String        @map("usuario_id") @db.Uuid
+  funcion       FuncionEquipo
+  desde         DateTime      @default(now()) @db.Timestamptz(6)
+  hasta         DateTime?     @db.Timestamptz(6)
+  asignadoPorId String        @map("asignado_por_id") @db.Uuid
+  motivo        String?
+
+  trabajo     Trabajo @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
+  usuario     Usuario @relation("EquipoUsuario", fields: [usuarioId], references: [id])
+  asignadoPor Usuario @relation("EquipoAsignadoPor", fields: [asignadoPorId], references: [id])
+
+  @@index([trabajoId, hasta])
+  @@index([usuarioId, hasta])
+  @@map("trabajo_equipo")
+}
+
+enum TipoEventoTrabajo {
+  creado
+  editado
+  equipo
+  contrato
+  pago
+  estado
+
+  @@map("tipo_evento_trabajo")
+}
+
+model TrabajoEvento {
+  id        String            @id @default(uuid(7)) @db.Uuid
+  trabajoId String            @map("trabajo_id") @db.Uuid
+  tipo      TipoEventoTrabajo
+  detalle   String
+  datos     Json?
+  usuarioId String?           @map("usuario_id") @db.Uuid
+  fecha     DateTime          @default(now()) @db.Timestamptz(6)
+
+  trabajo Trabajo  @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([trabajoId, fecha])
+  @@map("trabajo_evento")
+}
+
+enum FormaPago {
+  contado
+  cuotas
+
+  @@map("forma_pago")
+}
+
+enum EstadoContrato {
+  vigente
+  anulado
+
+  @@map("estado_contrato")
+}
+
+model Contrato {
+  id            String         @id @default(uuid(7)) @db.Uuid
+  trabajoId     String         @unique @map("trabajo_id") @db.Uuid
+  fechaFirma    DateTime       @map("fecha_firma") @db.Date
+  montoTotal    Decimal        @map("monto_total") @db.Decimal(12, 2)
+  moneda        String         @default("PEN") @db.Char(3)
+  formaPago     FormaPago      @map("forma_pago")
+  /// Días de garantía copiados del tipo de trabajo al firmar.
+  diasGarantia  Int            @map("dias_garantia")
+  /// Se fija cuando el trabajo termina (fecha de entrega final + días de garantía).
+  finGarantia   DateTime?      @map("fin_garantia") @db.Date
+  estado        EstadoContrato @default(vigente)
+  observaciones String?
+
+  creadoEn  DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  creadoPor String?  @map("creado_por") @db.Uuid
+
+  trabajo Trabajo @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
+  cuotas  Cuota[]
+  pagos   Pago[]
+
+  @@map("contrato")
+}
+
+model Cuota {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  contratoId  String   @map("contrato_id") @db.Uuid
+  numero      Int
+  monto       Decimal  @db.Decimal(12, 2)
+  vencimiento DateTime @db.Date
+
+  contrato     Contrato    @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  aplicaciones PagoCuota[]
+
+  @@unique([contratoId, numero])
+  @@index([vencimiento])
+  @@map("cuota")
+}
+
+enum MetodoPago {
+  efectivo
+  transferencia
+  deposito
+  yape
+  plin
+  tarjeta
+  otro
+
+  @@map("metodo_pago")
+}
+
+model Pago {
+  id              String     @id @default(uuid(7)) @db.Uuid
+  numeroRecibo    String     @unique @map("numero_recibo") @db.VarChar(20)
+  contratoId      String     @map("contrato_id") @db.Uuid
+  monto           Decimal    @db.Decimal(12, 2)
+  fecha           DateTime   @db.Date
+  metodo          MetodoPago
+  numeroOperacion String?    @map("numero_operacion") @db.VarChar(60)
+  observaciones   String?
+  registradoPorId String     @map("registrado_por_id") @db.Uuid
+  registradoEn    DateTime   @default(now()) @map("registrado_en") @db.Timestamptz(6)
+  anuladoEn       DateTime?  @map("anulado_en") @db.Timestamptz(6)
+  anuladoPorId    String?    @map("anulado_por_id") @db.Uuid
+  motivoAnulacion String?    @map("motivo_anulacion")
+
+  contrato      Contrato    @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  registradoPor Usuario     @relation("PagoRegistradoPor", fields: [registradoPorId], references: [id])
+  anuladoPor    Usuario?    @relation("PagoAnuladoPor", fields: [anuladoPorId], references: [id])
+  aplicaciones  PagoCuota[]
+
+  @@index([contratoId])
+  @@map("pago")
+}
+
+/// Cómo se reparte un pago entre las cuotas (un pago puede cubrir varias; una cuota puede pagarse en partes).
+model PagoCuota {
+  pagoId        String  @map("pago_id") @db.Uuid
+  cuotaId       String  @map("cuota_id") @db.Uuid
+  montoAplicado Decimal @map("monto_aplicado") @db.Decimal(12, 2)
+
+  pago  Pago  @relation(fields: [pagoId], references: [id], onDelete: Cascade)
+  cuota Cuota @relation(fields: [cuotaId], references: [id], onDelete: Cascade)
+
+  @@id([pagoId, cuotaId])
+  @@map("pago_cuota")
 }

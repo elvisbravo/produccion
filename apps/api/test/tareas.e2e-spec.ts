@@ -143,6 +143,8 @@ describe('Tareas y seguimiento (e2e)', () => {
 
     // La dueña del prospecto no completa el enfoque: lo hace quien lo da.
     await http().post(`/api/tareas/${tareaId}/completar`).set(como('ana')).send({ resultado: 'x' }).expect(403);
+    // Quien da el enfoque no lo cancela (sí el coordinador o la dueña del prospecto).
+    await http().post(`/api/tareas/${tareaId}/cancelar`).set(como('aux')).send({ motivo: 'No puedo' }).expect(403);
     await http().post(`/api/tareas/${tareaId}/completar`).set(como('aux')).send({ resultado: 'Tiene el capítulo I avanzado' }).expect(201);
     const despues = (await http().get(`/api/prospectos/${p.id}`).set(como('ana')).expect(200)).body as ProspectoDetalle;
     expect(despues.etapa.nombre).toBe('Enfoque realizado');

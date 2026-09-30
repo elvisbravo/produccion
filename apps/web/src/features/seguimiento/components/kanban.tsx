@@ -10,6 +10,7 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core'
 import type { CatalogosProspecto, TableroSeguimiento, TarjetaSeguimiento } from '@grupoes/shared'
+import { useNavigate } from '@tanstack/react-router'
 import { CircleX, PartyPopper } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -35,6 +36,8 @@ const ZONA_CONVERTIDO = 'zona:convertido'
 export function Kanban({ tablero, prospectos, motivos }: Props) {
   const puedeMover = usePermiso('prospectos.editar')
   const puedePerder = usePermiso('prospectos.marcar_perdido')
+  const puedeConvertir = usePermiso('prospectos.convertir')
+  const navigate = useNavigate()
   const cambiar = useCambiarEtapa()
   const [arrastrado, setArrastrado] = useState<TarjetaSeguimiento | null>(null)
   const [aPerdido, setAPerdido] = useState<TarjetaSeguimiento | null>(null)
@@ -52,7 +55,8 @@ export function Kanban({ tablero, prospectos, motivos }: Props) {
     const p = prospectos.find((x) => x.id === active.id)
     if (!p || !over) return
     if (over.id === ZONA_CONVERTIDO) {
-      toast.info('Un prospecto pasa a "Convertido" cuando firma el contrato (módulo de trabajos).')
+      if (puedeConvertir) void navigate({ to: '/prospectos/$id/convertir', params: { id: p.id } })
+      else toast.info('No tienes permiso para convertir prospectos en clientes.')
       return
     }
     if (over.id === ZONA_PERDIDO) {
@@ -90,7 +94,7 @@ export function Kanban({ tablero, prospectos, motivos }: Props) {
         ))}
         {puedeMover && (
           <div className="flex w-44 shrink-0 flex-col gap-2">
-            <ZonaSoltar id={ZONA_CONVERTIDO} icono={<PartyPopper className="size-4" />} titulo="Convertido" texto="Se hace al firmar el contrato" tono="exito" deshabilitada />
+            <ZonaSoltar id={ZONA_CONVERTIDO} icono={<PartyPopper className="size-4" />} titulo="Convertido" texto="Suelta aquí para registrar el contrato" tono="exito" deshabilitada={!puedeConvertir} />
             {perdida && puedePerder && (
               <ZonaSoltar id={ZONA_PERDIDO} icono={<CircleX className="size-4" />} titulo="Perdido" texto="Suelta aquí; pedirá el motivo" tono="neutro" />
             )}

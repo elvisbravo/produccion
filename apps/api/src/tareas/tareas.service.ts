@@ -511,6 +511,14 @@ export class TareasService {
   async cancelar(tareaId: string, motivo: string, actor: ActorTarea): Promise<TareaItem> {
     const tarea = await this.obtenerVisible(tareaId, actor.usuarioId, 'tareas.editar');
     if (!esActiva(tarea.estado)) throw new BadRequestException('La tarea ya está cerrada');
+    // Cancelan el coordinador, quien la creó o el dueño del prospecto; quien solo la realiza, no.
+    const efectivos = await this.permisos.efectivos(actor.usuarioId);
+    const puede =
+      efectivos['tareas.editar'] === 'todos' ||
+      'tareas.asignar' in efectivos ||
+      tarea.creadaPorId === actor.usuarioId ||
+      tarea.prospecto?.responsableId === actor.usuarioId;
+    if (!puede) throw new ForbiddenException('Solo el coordinador o el responsable del prospecto pueden cancelar esta actividad');
     await this.prisma.$transaction(async (tx) => {
       await tx.tarea.update({ where: { id: tareaId }, data: { estado: 'cancelada', motivoCancelacion: motivo } });
       if (tarea.prospectoId) {

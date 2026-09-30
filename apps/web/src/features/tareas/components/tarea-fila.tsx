@@ -67,6 +67,8 @@ export function TareaFila({ tarea, hoy, actividades, catalogos, mostrarProspecto
   const alcanceEditar = useAlcance('tareas.editar')
   const usuarioId = useSesion((s) => s.usuario?.id)
   // Con alcance "propios" solo la completa quien la realiza.
+  const puedeCancelar =
+    puedeEditar && (alcanceEditar === 'todos' || puedeAsignar || tarea.creadaPor.id === usuarioId || tarea.prospecto?.responsableId === usuarioId)
   const puedeCompletar = puedeEditar && (alcanceEditar === 'todos' || tarea.responsables.some((r) => r.usuario.id === usuarioId))
   const activa = ['por_asignar', 'pendiente', 'en_proceso'].includes(tarea.estado)
   const cerrar = (abierto: boolean) => !abierto && setDialogo(null)
@@ -124,7 +126,7 @@ export function TareaFila({ tarea, hoy, actividades, catalogos, mostrarProspecto
               </Button>
             )
           )}
-          {(puedeEditar || puedeReprogramar || puedeAsignar) && (
+          {(puedeCancelar || puedeReprogramar || puedeAsignar) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon-sm" aria-label="Más acciones">
@@ -144,7 +146,7 @@ export function TareaFila({ tarea, hoy, actividades, catalogos, mostrarProspecto
                     Reasignar
                   </DropdownMenuItem>
                 )}
-                {puedeEditar && (
+                {puedeCancelar && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem variant="destructive" onSelect={() => setDialogo('cancelar')}>

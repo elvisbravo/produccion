@@ -28,7 +28,8 @@ export const INCLUIR_DETALLE = {
   captadoPor: { select: CAMPOS_USUARIO },
   responsable: { select: CAMPOS_USUARIO },
   contactos: { orderBy: [{ esPrincipal: 'desc' }, { orden: 'asc' }], select: { esPrincipal: true, persona: { select: CAMPOS_PERSONA } } },
-  eventos: { orderBy: { fecha: 'desc' }, take: 100, include: { usuario: { select: CAMPOS_USUARIO } } },
+  eventos: { orderBy: [{ fecha: 'desc' }, { id: 'desc' }], take: 100, include: { usuario: { select: CAMPOS_USUARIO } } },
+  trabajo: { select: { id: true, codigo: true } },
 } as const satisfies Prisma.ProspectoInclude;
 
 type ProspectoListado = Prisma.ProspectoGetPayload<{ include: typeof INCLUIR_LISTADO }>;
@@ -81,5 +82,6 @@ export function aDetalle(p: ProspectoConDetalle, tareas: TareaItem[]): Prospecto
     actualizadoEn: p.actualizadoEn.toISOString(),
     eventos: p.eventos.map((e) => ({ id: e.id, tipo: e.tipo, detalle: e.detalle, usuario: e.usuario, fecha: e.fecha.toISOString() })),
     tareas,
+    trabajo: p.trabajo,
   };
 }

@@ -57,6 +57,18 @@ export function describirCuando(t: { fecha: string; inicio: string | null }, hoy
   return t.inicio ? `${dia}, ${formatearHora(t.inicio)}` : dia
 }
 
+/** Suma meses a un día YYYY-MM-DD; si el día no existe en ese mes, usa el último (31 ene + 1 mes = 28/29 feb). */
+export function sumarMeses(dia: string, meses: number): string {
+  const [a, m, d] = dia.split('-').map(Number)
+  const ultimo = new Date(Date.UTC(a, m - 1 + meses + 1, 0)).getUTCDate()
+  return new Date(Date.UTC(a, m - 1 + meses, Math.min(d, ultimo))).toISOString().slice(0, 10)
+}
+
+/** Días entre hoy y un día (negativo si ya pasó). */
+export function diasHasta(dia: string, hoy: string): number {
+  return Math.round((Date.parse(`${dia}T12:00:00Z`) - Date.parse(`${hoy}T12:00:00Z`)) / 86_400_000)
+}
+
 export function duracion(minutos: number): string {
   const h = Math.floor(minutos / 60)
   const m = minutos % 60

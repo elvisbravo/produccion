@@ -1,7 +1,7 @@
 import { diaEnLima, enlaceWhatsapp, formatearCelular, NOMBRE_TIPO_DOCUMENTO, type CatalogosProspecto, type ProspectoEventoItem, type ResultadoCompletar, type TareaItem } from '@grupoes/shared'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
-import { ArrowLeft, CalendarPlus, ClipboardList, ExternalLink, FilePenLine, History, MessageCircle, Pencil, Plus, Star } from 'lucide-react'
+import { ArrowLeft, BadgeCheck, BriefcaseBusiness, CalendarPlus, ClipboardList, ExternalLink, FilePenLine, History, MessageCircle, Pencil, Plus, Star } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Can } from '@/components/can'
 import { Badge } from '@/components/ui/badge'
@@ -72,6 +72,25 @@ function DetalleProspecto() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {p.trabajo ? (
+              <Button asChild>
+                <Link to="/trabajos/$id" params={{ id: p.trabajo.id }}>
+                  <BriefcaseBusiness />
+                  Ver trabajo {p.trabajo.codigo}
+                </Link>
+              </Button>
+            ) : (
+              p.etapa.clase === 'abierta' && (
+                <Can permiso="prospectos.convertir">
+                  <Button asChild>
+                    <Link to="/prospectos/$id/convertir" params={{ id }}>
+                      <BadgeCheck />
+                      Convertir en cliente
+                    </Link>
+                  </Button>
+                </Can>
+              )
+            )}
             <MenuCambioEtapa prospectoId={p.id} codigo={p.codigo} etapaActual={p.etapa} catalogos={catalogos} />
             <Button variant="outline" asChild>
               <a href={enlaceWhatsapp(principal.celular)} target="_blank" rel="noreferrer">
@@ -80,7 +99,7 @@ function DetalleProspecto() {
               </a>
             </Button>
             <Can permiso="prospectos.editar">
-              <Button asChild>
+              <Button variant="outline" asChild>
                 <Link to="/prospectos/$id/editar" params={{ id }}>
                   <Pencil />
                   Editar

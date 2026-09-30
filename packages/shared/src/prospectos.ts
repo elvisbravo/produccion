@@ -20,6 +20,17 @@ const FORMATO_DOCUMENTO: Record<TipoDocumento, { patron: RegExp; mensaje: string
   PASAPORTE: { patron: /^[A-Z0-9]{6,12}$/, mensaje: 'El pasaporte debe tener de 6 a 12 caracteres' },
 }
 
+/** Tipo y número de documento van juntos y con el formato de su tipo. */
+export function validarDocumento(c: { tipoDocumento?: TipoDocumento; numeroDocumento?: string }, ctx: z.RefinementCtx) {
+  if (c.tipoDocumento && !c.numeroDocumento) {
+    ctx.addIssue({ code: 'custom', path: ['numeroDocumento'], message: 'Ingresa el número de documento' })
+  } else if (!c.tipoDocumento && c.numeroDocumento) {
+    ctx.addIssue({ code: 'custom', path: ['tipoDocumento'], message: 'Elige el tipo de documento' })
+  } else if (c.tipoDocumento && c.numeroDocumento && !FORMATO_DOCUMENTO[c.tipoDocumento].patron.test(c.numeroDocumento)) {
+    ctx.addIssue({ code: 'custom', path: ['numeroDocumento'], message: FORMATO_DOCUMENTO[c.tipoDocumento].mensaje })
+  }
+}
+
 /** Texto opcional: recorta espacios y convierte "" en undefined. */
 const textoOpcional = (max: number) =>
   z
@@ -73,15 +84,7 @@ export const contactoSchema = z
       .transform((v) => (v ? v : undefined)),
     esPrincipal: z.boolean().default(false),
   })
-  .superRefine((c, ctx) => {
-    if (c.tipoDocumento && !c.numeroDocumento) {
-      ctx.addIssue({ code: 'custom', path: ['numeroDocumento'], message: 'Ingresa el número de documento' })
-    } else if (!c.tipoDocumento && c.numeroDocumento) {
-      ctx.addIssue({ code: 'custom', path: ['tipoDocumento'], message: 'Elige el tipo de documento' })
-    } else if (c.tipoDocumento && c.numeroDocumento && !FORMATO_DOCUMENTO[c.tipoDocumento].patron.test(c.numeroDocumento)) {
-      ctx.addIssue({ code: 'custom', path: ['numeroDocumento'], message: FORMATO_DOCUMENTO[c.tipoDocumento].mensaje })
-    }
-  })
+  .superRefine(validarDocumento)
 
 export const MAX_CONTACTOS = 5
 
@@ -255,4 +258,6 @@ export interface ProspectoDetalle {
   eventos: ProspectoEventoItem[]
   /** Actividades del prospecto: primero las pendientes. */
   tareas: TareaItem[]
+  /** Trabajo creado al convertirlo en cliente. */
+  trabajo: { id: string; codigo: string } | null
 }

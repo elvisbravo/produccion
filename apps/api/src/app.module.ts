@@ -9,6 +9,7 @@ import { PermisosModule } from './permisos/permisos.module.js';
 import { PersonasModule } from './personas/personas.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProspectosModule } from './prospectos/prospectos.module.js';
+import { TrabajosModule } from './trabajos/trabajos.module.js';
 import { SaludController } from './salud/salud.controller.js';
 
 @Module({
@@ -22,6 +23,7 @@ import { SaludController } from './salud/salud.controller.js';
     CatalogosModule,
     PersonasModule,
     ProspectosModule,
+    TrabajosModule,
   ],
   controllers: [SaludController],
 })

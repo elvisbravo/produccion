@@ -917,3 +917,10 @@ Diferencias entre el diseño de arriba y lo que ya está en `apps/api/prisma/sch
 | `prospecto_evento` | + tipo `tarea` | Programación, asignación, reprogramación y cancelación en la línea de tiempo |
 | `etapa_prospecto` | `CHECK`: actividad y momento del evento automático van juntos | Integridad del embudo |
 | — | `registro_tiempo` aún no se crea | Llega con la agenda y el cronómetro |
+| `trabajo` | `prospecto_id` único (un prospecto se convierte una sola vez); datos académicos copiados del prospecto | El trabajo evoluciona sin tocar el prospecto |
+| `trabajo_equipo` | `desde` / `hasta` en lugar de borrar; índice único parcial: un solo auxiliar principal y un solo jefe vigentes | Historial de cambios de equipo |
+| `trabajo_evento` | Nueva: línea de tiempo del trabajo (creado, equipo, pago, anulación…) | Igual que `prospecto_evento` |
+| `contrato` | Sin código propio (se usa el del trabajo); uno por trabajo; `fin_garantia` se calcula al entregar | Menos códigos que recordar |
+| `cuota` | `CHECK` monto > 0; único por (contrato, número); la suma debe igualar el total (se valida en la API) | Cuotas libres |
+| `pago` | + `numero_recibo` (R-AAAA-NNNN); anulación lógica (`anulado_en`, `anulado_por_id`, `motivo_anulacion`); anular es solo del administrador por defecto | No se borran pagos |
+| `pago_cuota` | Nueva: cuánto de cada pago se aplicó a cada cuota (primero la más antigua) | Pagos parciales y adelantados |

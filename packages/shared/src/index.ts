@@ -4,3 +4,4 @@ export * from './celular.js';
 export * from './prospectos.js';
 export * from './fechas.js';
 export * from './tareas.js';
+export * from './trabajos.js';

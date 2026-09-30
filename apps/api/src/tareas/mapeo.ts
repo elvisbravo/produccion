@@ -12,6 +12,7 @@ export const INCLUIR_TAREA = {
     select: {
       id: true,
       codigo: true,
+      responsableId: true,
       contactos: { orderBy: [{ esPrincipal: 'desc' }, { orden: 'asc' }], take: 1, select: { persona: { select: CAMPOS_PERSONA } } },
     },
   },
@@ -63,7 +64,9 @@ export function aTareaItem(t: TareaCompleta, ahora = new Date()): TareaItem {
     completadaEn: t.completadaEn?.toISOString() ?? null,
     motivoCancelacion: t.motivoCancelacion,
     vecesReprogramada: t.vecesReprogramada,
-    prospecto: t.prospecto ? { id: t.prospecto.id, codigo: t.prospecto.codigo, contacto: t.prospecto.contactos[0]?.persona ?? null } : null,
+    prospecto: t.prospecto
+      ? { id: t.prospecto.id, codigo: t.prospecto.codigo, responsableId: t.prospecto.responsableId, contacto: t.prospecto.contactos[0]?.persona ?? null }
+      : null,
     responsables: t.responsables.map((r) => ({
       usuario: r.usuario,
       participacion: r.participacion.nombre,

@@ -122,7 +122,7 @@ export interface TareaItem {
   completadaEn: string | null
   motivoCancelacion: string | null
   vecesReprogramada: number
-  prospecto: { id: string; codigo: string; contacto: PersonaResumen | null } | null
+  prospecto: { id: string; codigo: string; responsableId: string; contacto: PersonaResumen | null } | null
   responsables: { usuario: UsuarioResumen; participacion: string; rol: string; prioridad: string | null; forzado: boolean }[]
   personas: PersonaResumen[]
   creadaPor: UsuarioResumen

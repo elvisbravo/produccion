@@ -13,11 +13,15 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppSplatRouteImport } from './routes/_app/$'
+import { Route as AppContratosIndexRouteImport } from './routes/_app/contratos/index'
 import { Route as AppProspectosIndexRouteImport } from './routes/_app/prospectos/index'
 import { Route as AppProspectosNuevoRouteImport } from './routes/_app/prospectos/nuevo'
 import { Route as AppSeguimientoIndexRouteImport } from './routes/_app/seguimiento/index'
 import { Route as AppTareasIndexRouteImport } from './routes/_app/tareas/index'
+import { Route as AppTrabajosIndexRouteImport } from './routes/_app/trabajos/index'
+import { Route as AppTrabajosIdRouteImport } from './routes/_app/trabajos/$id'
 import { Route as AppProspectosIdIndexRouteImport } from './routes/_app/prospectos/$id/index'
+import { Route as AppProspectosIdConvertirRouteImport } from './routes/_app/prospectos/$id/convertir'
 import { Route as AppProspectosIdEditarRouteImport } from './routes/_app/prospectos/$id/editar'
 
 const AppRoute = AppRouteImport.update({
@@ -37,6 +41,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppSplatRoute = AppSplatRouteImport.update({
   id: '/$',
   path: '/$',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppContratosIndexRoute = AppContratosIndexRouteImport.update({
+  id: '/contratos/',
+  path: '/contratos/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppProspectosIndexRoute = AppProspectosIndexRouteImport.update({
@@ -59,11 +68,27 @@ const AppTareasIndexRoute = AppTareasIndexRouteImport.update({
   path: '/tareas/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTrabajosIndexRoute = AppTrabajosIndexRouteImport.update({
+  id: '/trabajos/',
+  path: '/trabajos/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTrabajosIdRoute = AppTrabajosIdRouteImport.update({
+  id: '/trabajos/$id',
+  path: '/trabajos/$id',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppProspectosIdIndexRoute = AppProspectosIdIndexRouteImport.update({
   id: '/prospectos/$id/',
   path: '/prospectos/$id/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppProspectosIdConvertirRoute =
+  AppProspectosIdConvertirRouteImport.update({
+    id: '/prospectos/$id/convertir',
+    path: '/prospectos/$id/convertir',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppProspectosIdEditarRoute = AppProspectosIdEditarRouteImport.update({
   id: '/prospectos/$id/editar',
   path: '/prospectos/$id/editar',
@@ -75,9 +100,13 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/$': typeof AppSplatRoute
   '/prospectos/nuevo': typeof AppProspectosNuevoRoute
+  '/trabajos/$id': typeof AppTrabajosIdRoute
+  '/contratos/': typeof AppContratosIndexRoute
   '/prospectos/': typeof AppProspectosIndexRoute
   '/seguimiento/': typeof AppSeguimientoIndexRoute
   '/tareas/': typeof AppTareasIndexRoute
+  '/trabajos/': typeof AppTrabajosIndexRoute
+  '/prospectos/$id/convertir': typeof AppProspectosIdConvertirRoute
   '/prospectos/$id/editar': typeof AppProspectosIdEditarRoute
   '/prospectos/$id/': typeof AppProspectosIdIndexRoute
 }
@@ -86,9 +115,13 @@ export interface FileRoutesByTo {
   '/$': typeof AppSplatRoute
   '/': typeof AppIndexRoute
   '/prospectos/nuevo': typeof AppProspectosNuevoRoute
+  '/trabajos/$id': typeof AppTrabajosIdRoute
+  '/contratos': typeof AppContratosIndexRoute
   '/prospectos': typeof AppProspectosIndexRoute
   '/seguimiento': typeof AppSeguimientoIndexRoute
   '/tareas': typeof AppTareasIndexRoute
+  '/trabajos': typeof AppTrabajosIndexRoute
+  '/prospectos/$id/convertir': typeof AppProspectosIdConvertirRoute
   '/prospectos/$id/editar': typeof AppProspectosIdEditarRoute
   '/prospectos/$id': typeof AppProspectosIdIndexRoute
 }
@@ -99,9 +132,13 @@ export interface FileRoutesById {
   '/_app/$': typeof AppSplatRoute
   '/_app/': typeof AppIndexRoute
   '/_app/prospectos/nuevo': typeof AppProspectosNuevoRoute
+  '/_app/trabajos/$id': typeof AppTrabajosIdRoute
+  '/_app/contratos/': typeof AppContratosIndexRoute
   '/_app/prospectos/': typeof AppProspectosIndexRoute
   '/_app/seguimiento/': typeof AppSeguimientoIndexRoute
   '/_app/tareas/': typeof AppTareasIndexRoute
+  '/_app/trabajos/': typeof AppTrabajosIndexRoute
+  '/_app/prospectos/$id/convertir': typeof AppProspectosIdConvertirRoute
   '/_app/prospectos/$id/editar': typeof AppProspectosIdEditarRoute
   '/_app/prospectos/$id/': typeof AppProspectosIdIndexRoute
 }
@@ -112,9 +149,13 @@ export interface FileRouteTypes {
     | '/login'
     | '/$'
     | '/prospectos/nuevo'
+    | '/trabajos/$id'
+    | '/contratos/'
     | '/prospectos/'
     | '/seguimiento/'
     | '/tareas/'
+    | '/trabajos/'
+    | '/prospectos/$id/convertir'
     | '/prospectos/$id/editar'
     | '/prospectos/$id/'
   fileRoutesByTo: FileRoutesByTo
@@ -123,9 +164,13 @@ export interface FileRouteTypes {
     | '/$'
     | '/'
     | '/prospectos/nuevo'
+    | '/trabajos/$id'
+    | '/contratos'
     | '/prospectos'
     | '/seguimiento'
     | '/tareas'
+    | '/trabajos'
+    | '/prospectos/$id/convertir'
     | '/prospectos/$id/editar'
     | '/prospectos/$id'
   id:
@@ -135,9 +180,13 @@ export interface FileRouteTypes {
     | '/_app/$'
     | '/_app/'
     | '/_app/prospectos/nuevo'
+    | '/_app/trabajos/$id'
+    | '/_app/contratos/'
     | '/_app/prospectos/'
     | '/_app/seguimiento/'
     | '/_app/tareas/'
+    | '/_app/trabajos/'
+    | '/_app/prospectos/$id/convertir'
     | '/_app/prospectos/$id/editar'
     | '/_app/prospectos/$id/'
   fileRoutesById: FileRoutesById
@@ -177,6 +226,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSplatRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/contratos/': {
+      id: '/_app/contratos/'
+      path: '/contratos'
+      fullPath: '/contratos/'
+      preLoaderRoute: typeof AppContratosIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/prospectos/': {
       id: '/_app/prospectos/'
       path: '/prospectos'
@@ -205,11 +261,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTareasIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/trabajos/': {
+      id: '/_app/trabajos/'
+      path: '/trabajos'
+      fullPath: '/trabajos/'
+      preLoaderRoute: typeof AppTrabajosIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/trabajos/$id': {
+      id: '/_app/trabajos/$id'
+      path: '/trabajos/$id'
+      fullPath: '/trabajos/$id'
+      preLoaderRoute: typeof AppTrabajosIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/prospectos/$id/': {
       id: '/_app/prospectos/$id/'
       path: '/prospectos/$id'
       fullPath: '/prospectos/$id/'
       preLoaderRoute: typeof AppProspectosIdIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/prospectos/$id/convertir': {
+      id: '/_app/prospectos/$id/convertir'
+      path: '/prospectos/$id/convertir'
+      fullPath: '/prospectos/$id/convertir'
+      preLoaderRoute: typeof AppProspectosIdConvertirRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/prospectos/$id/editar': {
@@ -226,9 +303,13 @@ interface AppRouteChildren {
   AppSplatRoute: typeof AppSplatRoute
   AppIndexRoute: typeof AppIndexRoute
   AppProspectosNuevoRoute: typeof AppProspectosNuevoRoute
+  AppTrabajosIdRoute: typeof AppTrabajosIdRoute
+  AppContratosIndexRoute: typeof AppContratosIndexRoute
   AppProspectosIndexRoute: typeof AppProspectosIndexRoute
   AppSeguimientoIndexRoute: typeof AppSeguimientoIndexRoute
   AppTareasIndexRoute: typeof AppTareasIndexRoute
+  AppTrabajosIndexRoute: typeof AppTrabajosIndexRoute
+  AppProspectosIdConvertirRoute: typeof AppProspectosIdConvertirRoute
   AppProspectosIdEditarRoute: typeof AppProspectosIdEditarRoute
   AppProspectosIdIndexRoute: typeof AppProspectosIdIndexRoute
 }
@@ -237,9 +318,13 @@ const AppRouteChildren: AppRouteChildren = {
   AppSplatRoute: AppSplatRoute,
   AppIndexRoute: AppIndexRoute,
   AppProspectosNuevoRoute: AppProspectosNuevoRoute,
+  AppTrabajosIdRoute: AppTrabajosIdRoute,
+  AppContratosIndexRoute: AppContratosIndexRoute,
   AppProspectosIndexRoute: AppProspectosIndexRoute,
   AppSeguimientoIndexRoute: AppSeguimientoIndexRoute,
   AppTareasIndexRoute: AppTareasIndexRoute,
+  AppTrabajosIndexRoute: AppTrabajosIndexRoute,
+  AppProspectosIdConvertirRoute: AppProspectosIdConvertirRoute,
   AppProspectosIdEditarRoute: AppProspectosIdEditarRoute,
   AppProspectosIdIndexRoute: AppProspectosIdIndexRoute,
 }
