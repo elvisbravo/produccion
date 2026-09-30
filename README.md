@@ -10,6 +10,7 @@ Sistema interno para gestionar prospectos, trabajos académicos, producción, en
 ```
 apps/
   api/          API (NestJS 12 + Prisma 7 + PostgreSQL 16)
+  web/          Frontend (React 19 + Vite 8 + Tailwind v4 + shadcn/ui + TanStack Router/Query)
 packages/
   shared/       Catálogo de módulos y permisos, esquemas Zod y tipos compartidos
 docker-compose.yml   PostgreSQL para desarrollo (puerto 5433)
@@ -30,7 +31,10 @@ pnpm db:up                        # levanta PostgreSQL en Docker
 pnpm db:deploy                    # aplica las migraciones
 pnpm db:seed                      # roles base, permisos, administrador y parámetros
 pnpm dev:api                      # API en http://localhost:3000/api
+pnpm dev:web                      # Frontend en http://localhost:5173 (en otra terminal)
 ```
+
+En desarrollo, Vite reenvía `/api` a la API (mismo origen), así la cookie de sesión funciona sin configurar CORS.
 
 El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` en `apps/api/.env`.
 
@@ -42,6 +46,7 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | `pnpm db:deploy` | Aplica las migraciones pendientes (producción) |
 | `pnpm db:seed` | Carga los datos iniciales (se puede repetir sin duplicar) |
 | `pnpm db:studio` | Abre Prisma Studio para ver los datos |
+| `pnpm typecheck` / `pnpm lint` | Revisión de tipos y linter de API y frontend |
 | `pnpm test` | Pruebas unitarias |
 | `pnpm test:e2e` | Pruebas e2e (requieren la base de datos y el seed) |
 | `pnpm dev:shared` | Recompila `packages/shared` al guardar |
@@ -67,3 +72,24 @@ editar(@Req() req: SolicitudAutenticada) {
   // req.alcance → 'propios' | 'equipo' | 'todos' para filtrar los datos
 }
 ```
+
+En el frontend, el menú lateral se arma con los módulos permitidos y para ocultar acciones se usa:
+
+```tsx
+<Can permiso="prospectos.crear">
+  <Button>Nuevo prospecto</Button>
+</Can>
+// o usePermiso('prospectos.crear') / useAlcance('prospectos.ver')
+```
+
+## Frontend
+
+| Carpeta | Contenido |
+|---|---|
+| `src/routes/` | Páginas (TanStack Router por archivos). `_app.tsx` es el layout con sesión; `_app/$.tsx` muestra "en construcción" para los módulos aún no hechos |
+| `src/components/ui/` | Componentes de shadcn/ui (generados con `pnpm dlx shadcn add …`). **Ojo:** la CLI actual a veces escribe `import { cn } from "cn"`; hay que cambiarlo a `@/lib/utils` y no instalar el paquete `cn` |
+| `src/components/layout/` | Sidebar, encabezado, búsqueda global (Ctrl+K) y menú de usuario |
+| `src/lib/api.ts` | Cliente de la API: token en memoria, refresh automático ante 401 y errores normalizados |
+| `src/stores/sesion.ts` | Estado de la sesión (Zustand) |
+
+La sesión se cierra sola tras los minutos de inactividad del parámetro `seguridad.inactividad_minutos`.

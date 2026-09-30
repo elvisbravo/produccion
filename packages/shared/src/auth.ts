@@ -32,5 +32,7 @@ export interface LoginRespuesta {
   accessToken: string;
   /** Segundos hasta que vence el access token. */
   expiraEn: number;
+  /** Minutos sin actividad tras los cuales el frontend cierra la sesión. */
+  inactividadMinutos: number;
   usuario: UsuarioSesion;
 }

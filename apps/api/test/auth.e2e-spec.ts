@@ -3,11 +3,13 @@
  *   pnpm db:up && pnpm --filter @grupoes/api db:deploy && pnpm --filter @grupoes/api db:seed
  */
 import 'dotenv/config';
+import { createHash } from 'node:crypto';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { configurarApp } from '../src/app.setup.js';
+import { PrismaService } from '../src/prisma/prisma.service.js';
 
 const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@grupoes.local';
 const password = process.env.SEED_ADMIN_PASSWORD ?? '';
@@ -19,12 +21,23 @@ const cookieRefresh = (res: request.Response) => {
 
 describe('Autenticación (e2e)', () => {
   let app: NestExpressApplication;
+  let prisma: PrismaService;
+
+  /** Simula que la rotación ocurrió hace un minuto (fuera del margen de concurrencia). */
+  const envejecerRevocacion = async (cookie: string) => {
+    const token = decodeURIComponent(cookie.split('=')[1]);
+    await prisma.sesion.update({
+      where: { tokenHash: createHash('sha256').update(token).digest('hex') },
+      data: { revocadaEn: new Date(Date.now() - 60_000) },
+    });
+  };
 
   beforeAll(async () => {
     const modulo = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = modulo.createNestApplication<NestExpressApplication>();
     configurarApp(app);
     await app.init();
+    prisma = app.get(PrismaService);
   });
 
   afterAll(async () => {
@@ -66,10 +79,31 @@ describe('Autenticación (e2e)', () => {
     const refresh = await request(app.getHttpServer()).post('/api/auth/refresh').set('Cookie', cookie1).expect(200);
     const cookie2 = cookieRefresh(refresh)!;
     expect(cookie2).not.toBe(cookie1);
+    expect(refresh.body.inactividadMinutos).toBeGreaterThan(0);
 
-    // Reutilizar el token rotado revoca también el vigente.
+    // Pasado el margen de concurrencia, reutilizar el token rotado revoca también el vigente.
+    await envejecerRevocacion(cookie1);
     await request(app.getHttpServer()).post('/api/auth/refresh').set('Cookie', cookie1).expect(401);
     await request(app.getHttpServer()).post('/api/auth/refresh').set('Cookie', cookie2).expect(401);
+  });
+
+  it('tolera dos refresh casi simultáneos con la misma cookie (varias pestañas)', async () => {
+    const login = await request(app.getHttpServer()).post('/api/auth/login').send({ email, password }).expect(200);
+    const cookie = cookieRefresh(login)!;
+
+    const a = await request(app.getHttpServer()).post('/api/auth/refresh').set('Cookie', cookie).expect(200);
+    const b = await request(app.getHttpServer()).post('/api/auth/refresh').set('Cookie', cookie).expect(200);
+
+    // Ambas pestañas quedan con sesiones válidas.
+    await request(app.getHttpServer()).post('/api/auth/refresh').set('Cookie', cookieRefresh(a)!).expect(200);
+    await request(app.getHttpServer()).post('/api/auth/refresh').set('Cookie', cookieRefresh(b)!).expect(200);
+  });
+
+  it('no permite refrescar después de cerrar sesión', async () => {
+    const login = await request(app.getHttpServer()).post('/api/auth/login').send({ email, password }).expect(200);
+    const cookie = cookieRefresh(login)!;
+    await request(app.getHttpServer()).post('/api/auth/logout').set('Cookie', cookie).expect(204);
+    await request(app.getHttpServer()).post('/api/auth/refresh').set('Cookie', cookie).expect(401);
   });
 
   it('exige sesión en los endpoints protegidos', async () => {

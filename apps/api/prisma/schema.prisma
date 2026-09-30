@@ -38,12 +38,12 @@ model Usuario {
   actualizadoPor String?   @map("actualizado_por") @db.Uuid
   eliminadoEn    DateTime? @map("eliminado_en") @db.Timestamptz(6)
 
-  roles              UsuarioRol[]
-  permisos           UsuarioPermiso[] @relation("PermisoDelUsuario")
-  permisosOtorgados  UsuarioPermiso[] @relation("PermisoOtorgadoPor")
-  sesiones           Sesion[]
-  accesos            AccesoLog[]
-  auditorias         Auditoria[]
+  roles             UsuarioRol[]
+  permisos          UsuarioPermiso[] @relation("PermisoDelUsuario")
+  permisosOtorgados UsuarioPermiso[] @relation("PermisoOtorgadoPor")
+  sesiones          Sesion[]
+  accesos           AccesoLog[]
+  auditorias        Auditoria[]
 
   @@map("usuario")
 }
@@ -164,20 +164,29 @@ model UsuarioPermiso {
 
 /// Refresh tokens emitidos (solo se guarda el hash).
 model Sesion {
-  id          String    @id @default(uuid(7)) @db.Uuid
-  usuarioId   String    @map("usuario_id") @db.Uuid
-  tokenHash   String    @unique @map("token_hash") @db.VarChar(128)
-  expiraEn    DateTime  @map("expira_en") @db.Timestamptz(6)
-  revocadaEn  DateTime? @map("revocada_en") @db.Timestamptz(6)
-  ip          String?   @db.VarChar(64)
-  dispositivo String?   @db.VarChar(255)
-  creadaEn    DateTime  @default(now()) @map("creada_en") @db.Timestamptz(6)
-  ultimoUso   DateTime  @default(now()) @map("ultimo_uso") @db.Timestamptz(6)
+  id               String            @id @default(uuid(7)) @db.Uuid
+  usuarioId        String            @map("usuario_id") @db.Uuid
+  tokenHash        String            @unique @map("token_hash") @db.VarChar(128)
+  expiraEn         DateTime          @map("expira_en") @db.Timestamptz(6)
+  revocadaEn       DateTime?         @map("revocada_en") @db.Timestamptz(6)
+  motivoRevocacion MotivoRevocacion? @map("motivo_revocacion")
+  ip               String?           @db.VarChar(64)
+  dispositivo      String?           @db.VarChar(255)
+  creadaEn         DateTime          @default(now()) @map("creada_en") @db.Timestamptz(6)
+  ultimoUso        DateTime          @default(now()) @map("ultimo_uso") @db.Timestamptz(6)
 
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@index([usuarioId])
   @@map("sesion")
+}
+
+enum MotivoRevocacion {
+  rotada
+  logout
+  reutilizacion
+
+  @@map("motivo_revocacion")
 }
 
 enum ResultadoAcceso {
@@ -189,13 +198,13 @@ enum ResultadoAcceso {
 }
 
 model AccesoLog {
-  id          String          @id @default(uuid(7)) @db.Uuid
-  usuarioId   String?         @map("usuario_id") @db.Uuid
-  emailIntento String         @map("email_intento") @db.VarChar(150)
-  fecha       DateTime        @default(now()) @db.Timestamptz(6)
-  ip          String?         @db.VarChar(64)
-  dispositivo String?         @db.VarChar(255)
-  resultado   ResultadoAcceso
+  id           String          @id @default(uuid(7)) @db.Uuid
+  usuarioId    String?         @map("usuario_id") @db.Uuid
+  emailIntento String          @map("email_intento") @db.VarChar(150)
+  fecha        DateTime        @default(now()) @db.Timestamptz(6)
+  ip           String?         @db.VarChar(64)
+  dispositivo  String?         @db.VarChar(255)
+  resultado    ResultadoAcceso
 
   usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 

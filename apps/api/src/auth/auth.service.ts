@@ -12,6 +12,7 @@ import { obtenerHashRelleno, verificarPassword } from './password.js';
 import type { PayloadAccessToken } from './tipos.js';
 
 const CREDENCIALES_INVALIDAS = 'Correo o contraseña incorrectos';
+const MARGEN_CONCURRENCIA_MS = 10_000;
 
 export interface ResultadoSesion {
   respuesta: LoginRespuesta;
@@ -74,16 +75,29 @@ export class AuthService {
     });
     if (!sesion) throw new UnauthorizedException('Sesión no válida');
 
-    // Un token ya revocado que vuelve a usarse indica robo: se cierran todas las sesiones del usuario.
     if (sesion.revocadaEn) {
-      await this.prisma.sesion.updateMany({ where: { usuarioId: sesion.usuarioId, revocadaEn: null }, data: { revocadaEn: new Date() } });
-      throw new UnauthorizedException('Sesión no válida');
+      // Dos pestañas pueden refrescar casi a la vez con la misma cookie: si el token se rotó
+      // hace muy poco, se trata como una petición concurrente legítima.
+      const esConcurrente =
+        sesion.motivoRevocacion === 'rotada' && Date.now() - sesion.revocadaEn.getTime() < MARGEN_CONCURRENCIA_MS;
+      if (!esConcurrente) {
+        // Un token ya rotado que vuelve a usarse indica robo: se cierran todas las sesiones del usuario.
+        if (sesion.motivoRevocacion === 'rotada') {
+          await this.prisma.sesion.updateMany({
+            where: { usuarioId: sesion.usuarioId, revocadaEn: null },
+            data: { revocadaEn: new Date(), motivoRevocacion: 'reutilizacion' },
+          });
+        }
+        throw new UnauthorizedException('Sesión no válida');
+      }
     }
     if (sesion.expiraEn < new Date() || !sesion.usuario.activo || sesion.usuario.eliminadoEn) {
       throw new UnauthorizedException('Sesión expirada');
     }
 
-    await this.prisma.sesion.update({ where: { id: sesion.id }, data: { revocadaEn: new Date() } });
+    if (!sesion.revocadaEn) {
+      await this.prisma.sesion.update({ where: { id: sesion.id }, data: { revocadaEn: new Date(), motivoRevocacion: 'rotada' } });
+    }
     return this.emitirSesion(sesion.usuarioId, cliente);
   }
 
@@ -91,7 +105,7 @@ export class AuthService {
     if (!refreshToken) return;
     await this.prisma.sesion.updateMany({
       where: { tokenHash: hashToken(refreshToken), revocadaEn: null },
-      data: { revocadaEn: new Date() },
+      data: { revocadaEn: new Date(), motivoRevocacion: 'logout' },
     });
   }
 
@@ -143,7 +157,12 @@ export class AuthService {
     const accessToken = await this.jwt.signAsync(payload, { expiresIn: ttlAccess });
 
     return {
-      respuesta: { accessToken, expiraEn: ttlAccess, usuario: await this.usuarioSesion(usuarioId) },
+      respuesta: {
+        accessToken,
+        expiraEn: ttlAccess,
+        inactividadMinutos: await this.parametros.numero('seguridad.inactividad_minutos'),
+        usuario: await this.usuarioSesion(usuarioId),
+      },
       refreshToken,
       refreshExpira,
     };
