@@ -48,7 +48,7 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | `pnpm db:studio` | Abre Prisma Studio para ver los datos |
 | `pnpm typecheck` / `pnpm lint` | Revisión de tipos y linter de API y frontend |
 | `pnpm test` | Pruebas unitarias |
-| `pnpm test:e2e` | Pruebas e2e (requieren la base de datos y el seed) |
+| `pnpm test:e2e` | Pruebas e2e contra la base `produccion_test` (se crea, migra y carga sola; nunca toca la de desarrollo) |
 | `pnpm dev:shared` | Recompila `packages/shared` al guardar |
 
 ## Endpoints disponibles

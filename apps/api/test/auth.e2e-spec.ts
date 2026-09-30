@@ -1,8 +1,7 @@
 /**
- * Pruebas e2e de autenticación. Requieren la base de datos levantada y el seed aplicado:
- *   pnpm db:up && pnpm --filter @grupoes/api db:deploy && pnpm --filter @grupoes/api db:seed
+ * Pruebas e2e de autenticación. Corren contra la base produccion_test (se prepara sola):
+ *   pnpm db:up && pnpm test:e2e
  */
-import 'dotenv/config';
 import { createHash } from 'node:crypto';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';

@@ -1,8 +1,7 @@
 /**
- * Pruebas e2e de prospectos. Requieren la base de datos con migraciones y seed.
+ * Pruebas e2e de prospectos. Corren contra la base produccion_test (se prepara sola).
  * Crean sus propios usuarios y datos, y los borran al terminar.
  */
-import 'dotenv/config';
 import type { CatalogosProspecto, ProspectoDetalle } from '@grupoes/shared';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
