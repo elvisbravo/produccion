@@ -959,6 +959,11 @@ Diferencias entre el diseño de arriba y lo que ya está en `apps/api/prisma/sch
 | `cuota` | `CHECK` monto > 0; único por (contrato, número); la suma debe igualar el total (se valida en la API) | Cuotas libres |
 | `pago` | + `numero_recibo` (R-AAAA-NNNN); anulación lógica (`anulado_en`, `anulado_por_id`, `motivo_anulacion`); anular es solo del administrador por defecto | No se borran pagos |
 | `pago_cuota` | Nueva: cuánto de cada pago se aplicó a cada cuota (primero la más antigua) | Pagos parciales y adelantados |
+| `plantilla_horario_tramo`, `horario_usuario_tramo` | `minuto_inicio` / `minuto_fin` (smallint, minutos desde las 00:00) en lugar de `time`; `CHECK` de día 1–7 y fin > inicio | Cálculos de disponibilidad sin conversiones de zona horaria |
+| `plantilla_horario` | + `por_defecto` (única, índice parcial); sin `activa` en la UI todavía | Quien no tiene horario propio usa la plantilla por defecto |
+| `horario_usuario` | Sin `vigente_hasta`: rige hasta el siguiente `vigente_desde` (único por usuario y fecha) | Evita rangos que se crucen |
+| `ausencia` | `fecha_desde` / `fecha_hasta` (date) + `minuto_desde` / `minuto_hasta` solo en permisos por horas de un día; estado + `anulada`; `resuelta_por` / `resuelta_en` / `observacion` en lugar de `aprobada_por`; sin sustento adjunto todavía | Días completos y permisos por horas con `CHECK` |
+| `feriado` | `medio_dia` = se trabaja solo la mañana (hasta las 13:00) | Regla fija por ahora |
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>

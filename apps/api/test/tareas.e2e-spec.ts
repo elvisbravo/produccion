@@ -1,7 +1,7 @@
 /**
  * Pruebas e2e de actividades, tareas y seguimiento (base produccion_test).
  */
-import { diaEnLima, sumarDias, type ActividadCatalogo, type CatalogosProspecto, type ProspectoDetalle } from '@grupoes/shared';
+import { diaEnLima, type ActividadCatalogo, type CatalogosProspecto, type ProspectoDetalle } from '@grupoes/shared';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -9,11 +9,13 @@ import { AppModule } from '../src/app.module.js';
 import { configurarApp } from '../src/app.setup.js';
 import { hashPassword } from '../src/auth/password.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { proximoDiaHabil } from './dias.js';
 
 const sufijo = Date.now().toString().slice(-6);
 const celular = (n: number) => `9${sufijo}${String(n).padStart(2, '0')}`;
 const PASSWORD = 'Prueba-e2e-123';
-const manana = sumarDias(diaEnLima(), 1);
+/** Próximo día hábil (se calcula al empezar): las reuniones de prueba caen dentro del horario. */
+let manana: string;
 
 type Quien = 'ana' | 'prod' | 'aux' | 'jefe';
 
@@ -63,6 +65,7 @@ describe('Tareas y seguimiento (e2e)', () => {
     configurarApp(app);
     await app.init();
     prisma = app.get(PrismaService);
+    manana = await proximoDiaHabil(prisma);
 
     await crearUsuario('ana', 'ASIST_ADM');
     await crearUsuario('prod', 'ASIST_PROD');

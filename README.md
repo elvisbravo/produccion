@@ -73,6 +73,11 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | GET/PUT | `/api/trabajos/candidatos-equipo`, `/api/trabajos/:id/equipo` | Candidatos y armado/cambio del equipo (queda el historial) |
 | POST | `/api/contratos/:id/pagos`, `/api/pagos/:id/anular` | Registrar un pago (se reparte a las cuotas más antiguas, emite recibo R-) y anularlo con motivo |
 | GET | `/api/contratos/cobranza` | Cuotas con saldo, de la más atrasada a la más lejana, con totales |
+| GET | `/api/agenda/mia`, `/api/agenda/equipo`, `/api/agenda/usuarios/:id` | Agenda día por día (`?desde&hasta`, máx. 2 meses): horario, días no laborables, carga y tareas |
+| GET/POST/PUT/DELETE | `/api/calendario/feriados`, `/api/calendario/plantillas` | Feriados por año y plantillas de horario |
+| GET/PUT/PATCH | `/api/calendario/personal`, `…/:id/horario`, `…/:id` | Horario de cada persona (con fecha de vigencia) y fecha de nacimiento |
+| GET/POST | `/api/ausencias`, `/api/ausencias/solicitar` | Ausencias (según alcance) y solicitud propia de vacaciones o permisos |
+| POST | `/api/ausencias`, `/api/ausencias/:id/aprobar`, `…/rechazar`, `…/anular` | Registro directo (descanso médico) y resolución de solicitudes |
 | GET | `/api/seguimiento/tablero` | Prospectos abiertos con su próximo paso (kanban) |
 | GET | `/api/catalogos/…`, `/api/personas/…` | Catálogos del formulario y búsqueda de personas |
 

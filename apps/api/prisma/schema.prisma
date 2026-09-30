@@ -55,6 +55,10 @@ model Usuario {
   eventosTrabajo     TrabajoEvento[]
   pagosRegistrados   Pago[]             @relation("PagoRegistradoPor")
   pagosAnulados      Pago[]             @relation("PagoAnuladoPor")
+  horarios           HorarioUsuario[]   @relation("HorarioDelUsuario")
+  ausencias          Ausencia[]         @relation("AusenciaDelUsuario")
+  ausenciasPedidas   Ausencia[]         @relation("AusenciaSolicitadaPor")
+  ausenciasResueltas Ausencia[]         @relation("AusenciaResueltaPor")
 
   @@map("usuario")
 }
@@ -984,4 +988,132 @@ model PagoCuota {
 
   @@id([pagoId, cuotaId])
   @@map("pago_cuota")
+}
+
+// ─── Agenda: horarios, feriados y ausencias ─────────────────
+
+/// Plantilla de horario semanal. Si un usuario no tiene horario propio, se usa la plantilla por defecto.
+model PlantillaHorario {
+  id         String  @id @default(uuid(7)) @db.Uuid
+  nombre     String  @unique @db.VarChar(80)
+  porDefecto Boolean @default(false) @map("por_defecto")
+  activa     Boolean @default(true)
+
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+
+  tramos   PlantillaHorarioTramo[]
+  horarios HorarioUsuario[]
+
+  @@map("plantilla_horario")
+}
+
+/// Tramo de trabajo de un día: minutos desde las 00:00 (480 = 8:00). Varios tramos por día (turno partido).
+model PlantillaHorarioTramo {
+  id           String @id @default(uuid(7)) @db.Uuid
+  plantillaId  String @map("plantilla_id") @db.Uuid
+  diaSemana    Int    @map("dia_semana") @db.SmallInt
+  minutoInicio Int    @map("minuto_inicio") @db.SmallInt
+  minutoFin    Int    @map("minuto_fin") @db.SmallInt
+
+  plantilla PlantillaHorario @relation(fields: [plantillaId], references: [id], onDelete: Cascade)
+
+  @@index([plantillaId])
+  @@map("plantilla_horario_tramo")
+}
+
+/// Horario de un usuario desde una fecha; rige hasta el siguiente cambio.
+model HorarioUsuario {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  usuarioId    String   @map("usuario_id") @db.Uuid
+  plantillaId  String?  @map("plantilla_id") @db.Uuid
+  vigenteDesde DateTime @map("vigente_desde") @db.Date
+  creadoEn     DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  creadoPorId  String?  @map("creado_por_id") @db.Uuid
+
+  usuario   Usuario               @relation("HorarioDelUsuario", fields: [usuarioId], references: [id])
+  plantilla PlantillaHorario?     @relation(fields: [plantillaId], references: [id])
+  tramos    HorarioUsuarioTramo[]
+
+  @@unique([usuarioId, vigenteDesde])
+  @@map("horario_usuario")
+}
+
+model HorarioUsuarioTramo {
+  id           String @id @default(uuid(7)) @db.Uuid
+  horarioId    String @map("horario_id") @db.Uuid
+  diaSemana    Int    @map("dia_semana") @db.SmallInt
+  minutoInicio Int    @map("minuto_inicio") @db.SmallInt
+  minutoFin    Int    @map("minuto_fin") @db.SmallInt
+
+  horario HorarioUsuario @relation(fields: [horarioId], references: [id], onDelete: Cascade)
+
+  @@index([horarioId])
+  @@map("horario_usuario_tramo")
+}
+
+enum AlcanceFeriado {
+  nacional
+  empresa
+
+  @@map("alcance_feriado")
+}
+
+model Feriado {
+  id       String         @id @default(uuid(7)) @db.Uuid
+  fecha    DateTime       @unique @db.Date
+  nombre   String         @db.VarChar(120)
+  alcance  AlcanceFeriado @default(nacional)
+  /// Medio día: se trabaja solo la mañana (hasta las 13:00).
+  medioDia Boolean        @default(false) @map("medio_dia")
+
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+
+  @@map("feriado")
+}
+
+enum TipoAusencia {
+  vacaciones
+  permiso
+  descanso_medico
+  otro
+
+  @@map("tipo_ausencia")
+}
+
+enum EstadoAusencia {
+  solicitada
+  aprobada
+  rechazada
+  anulada
+
+  @@map("estado_ausencia")
+}
+
+/// Días (o, en un permiso, horas de un solo día) en que la persona no trabaja.
+model Ausencia {
+  id              String         @id @default(uuid(7)) @db.Uuid
+  usuarioId       String         @map("usuario_id") @db.Uuid
+  tipo            TipoAusencia
+  fechaDesde      DateTime       @map("fecha_desde") @db.Date
+  fechaHasta      DateTime       @map("fecha_hasta") @db.Date
+  /// Solo en permisos por horas (mismo día): minutos desde las 00:00.
+  minutoDesde     Int?           @map("minuto_desde") @db.SmallInt
+  minutoHasta     Int?           @map("minuto_hasta") @db.SmallInt
+  motivo          String?
+  estado          EstadoAusencia @default(solicitada)
+  solicitadaPorId String         @map("solicitada_por_id") @db.Uuid
+  solicitadaEn    DateTime       @default(now()) @map("solicitada_en") @db.Timestamptz(6)
+  resueltaPorId   String?        @map("resuelta_por_id") @db.Uuid
+  resueltaEn      DateTime?      @map("resuelta_en") @db.Timestamptz(6)
+  observacion     String?
+
+  usuario       Usuario  @relation("AusenciaDelUsuario", fields: [usuarioId], references: [id])
+  solicitadaPor Usuario  @relation("AusenciaSolicitadaPor", fields: [solicitadaPorId], references: [id])
+  resueltaPor   Usuario? @relation("AusenciaResueltaPor", fields: [resueltaPorId], references: [id])
+
+  @@index([usuarioId, fechaDesde])
+  @@index([estado])
+  @@map("ausencia")
 }

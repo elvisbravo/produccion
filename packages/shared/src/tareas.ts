@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { Disponibilidad } from './agenda.js'
 import type { PersonaResumen, Temperatura, UsuarioResumen } from './prospectos.js'
 
 export const ESTADOS_TAREA = ['por_asignar', 'pendiente', 'en_proceso', 'completada', 'cancelada', 'no_asistio'] as const
@@ -149,6 +150,8 @@ export interface CandidatosTarea {
       conflictos: ConflictoAgenda[]
       /** Tareas pendientes de esa persona para ese día. */
       tareasDelDia: number
+      /** Horario, días no laborables y carga de ese día. */
+      disponibilidad: Disponibilidad
     }[]
   }[]
 }

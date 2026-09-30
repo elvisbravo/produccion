@@ -1,5 +1,7 @@
 import {
   BriefcaseBusiness,
+  CalendarClock,
+  CalendarCog,
   CalendarDays,
   CalendarOff,
   ChartColumn,
@@ -25,6 +27,8 @@ import {
  */
 const ICONOS: Record<string, LucideIcon> = {
   BriefcaseBusiness,
+  CalendarClock,
+  CalendarCog,
   CalendarDays,
   CalendarOff,
   ChartColumn,

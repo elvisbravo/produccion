@@ -9,12 +9,14 @@ import {
   type CandidatosTarea,
   type CompletarTareaDatos,
   type ConflictoAgenda,
+  type EstadoDisponibilidad,
   type PermisoCodigo,
   type ProgramarTareaDatos,
   type ReprogramarTareaDatos,
   type ResultadoCompletar,
   type TareaItem,
 } from '@grupoes/shared';
+import { AgendaService } from '../agenda/agenda.service.js';
 import { AuditoriaService } from '../common/auditoria.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { ParametrosService } from '../parametros/parametros.service.js';
@@ -48,6 +50,9 @@ const fechaLegible = (dia: string, hora?: string | null) => {
 
 const nombreDe = (u: { nombres: string; apellidos: string }) => `${u.nombres} ${u.apellidos}`;
 
+/** Orden de los candidatos dentro de la misma prioridad: primero los libres. */
+const RANGO_DISPONIBILIDAD: Record<EstadoDisponibilidad, number> = { libre: 0, sobrecargado: 1, fuera_horario: 2, ocupado: 3, no_laborable: 4 };
+
 @Injectable()
 export class TareasService {
   constructor(
@@ -56,6 +61,7 @@ export class TareasService {
     private readonly parametros: ParametrosService,
     private readonly auditoria: AuditoriaService,
     private readonly embudo: EmbudoService,
+    private readonly agenda: AgendaService,
   ) {}
 
   // ─── Catálogo ─────────────────────────────────────────────
@@ -167,6 +173,8 @@ export class TareasService {
       throw errorCampo(`${prefijo}actividadId`, 'Esta actividad se asigna al responsable de un trabajo (clientes)');
     }
 
+    await this.verificarLaborable(tx, responsables.map((r) => r.usuarioId), { fecha: datos.fecha, inicio, minutos: actividad.minutosEstimados }, actor.usuarioId, `${prefijo}fecha`);
+
     const tarea = await tx.tarea.create({
       data: {
         actividadId: actividad.id,
@@ -259,6 +267,30 @@ export class TareasService {
     return resultado;
   }
 
+  /** Días u horas no laborables (feriado, cumpleaños, ausencia) bloquean la programación: no es solo un aviso. */
+  private async verificarLaborable(
+    db: Prisma.TransactionClient | PrismaService,
+    usuarioIds: string[],
+    tarea: { id?: string; fecha: string; inicio: Date | null; minutos: number },
+    actorId: string,
+    campo: string,
+  ) {
+    if (usuarioIds.length === 0) return;
+    const disponibilidad = await this.agenda.disponibilidad(usuarioIds, tarea, db);
+    const bloqueados = usuarioIds.filter((id) => disponibilidad.get(id)?.estado === 'no_laborable');
+    if (bloqueados.length === 0) return;
+    const usuarios = await db.usuario.findMany({ where: { id: { in: bloqueados } }, select: { id: true, nombres: true, apellidos: true } });
+    const mensaje = bloqueados
+      .map((id) => {
+        const motivo = disponibilidad.get(id)!.bloqueo;
+        if (id === actorId) return `Ese día no trabajas (${motivo})`;
+        const u = usuarios.find((x) => x.id === id);
+        return `${u ? nombreDe(u) : 'La persona'} no trabaja ese día (${motivo})`;
+      })
+      .join('. ');
+    throw errorCampo(campo, mensaje);
+  }
+
   // ─── Asignar (bandeja del coordinador) ────────────────────
 
   /** Tareas por asignar de las actividades que coordina alguno de sus roles (el administrador ve todas). */
@@ -283,6 +315,10 @@ export class TareasService {
       select: { id: true, nombres: true, apellidos: true, roles: { select: { rolId: true } } },
     });
     const agenda = await this.agendaDelDia(usuarios.map((u) => u.id), tarea.fecha, tarea.id);
+    const disponibilidad = await this.agenda.disponibilidad(
+      usuarios.map((u) => u.id),
+      { id: tarea.id, fecha: tarea.fecha.toISOString().slice(0, 10), inicio: tarea.inicio, minutos: tarea.minutosEstimados },
+    );
 
     return {
       tarea: aTareaItem(tarea),
@@ -303,14 +339,16 @@ export class TareasService {
                 prioridad: { nombre: rol.prioridad.nombre, nivel: rol.prioridad.nivel },
                 conflictos: this.conflictos(suyas, tarea.inicio, tarea.minutosEstimados),
                 tareasDelDia: suyas.length,
+                disponibilidad: disponibilidad.get(u.id)!,
               },
             ];
           })
           .sort(
             (a, b) =>
+              Number(a.disponibilidad.estado === 'no_laborable') - Number(b.disponibilidad.estado === 'no_laborable') ||
               a.prioridad.nivel - b.prioridad.nivel ||
-              a.conflictos.length - b.conflictos.length ||
-              a.tareasDelDia - b.tareasDelDia ||
+              RANGO_DISPONIBILIDAD[a.disponibilidad.estado] - RANGO_DISPONIBILIDAD[b.disponibilidad.estado] ||
+              a.disponibilidad.ocupado - b.disponibilidad.ocupado ||
               a.usuario.apellidos.localeCompare(b.usuario.apellidos),
           ),
       })),
@@ -351,16 +389,27 @@ export class TareasService {
     if (!esActiva(tarea.estado)) throw new BadRequestException('Solo se asignan tareas pendientes');
 
     const responsables = await this.resolverResponsables(this.prisma, tarea.actividad, datos.responsables, actor.usuarioId);
-    const agenda = await this.agendaDelDia(responsables.map((r) => r.usuarioId), tarea.fecha, tarea.id);
+    const ids = responsables.map((r) => r.usuarioId);
+    const referencia = { id: tarea.id, fecha: tarea.fecha.toISOString().slice(0, 10), inicio: tarea.inicio, minutos: tarea.minutosEstimados };
+    await this.verificarLaborable(this.prisma, ids, referencia, actor.usuarioId, 'responsables');
+
+    const [agenda, disponibilidad] = await Promise.all([this.agendaDelDia(ids, tarea.fecha, tarea.id), this.agenda.disponibilidad(ids, referencia)]);
     const choques = responsables
-      .map((r) => ({ usuarioId: r.usuarioId, conflictos: this.conflictos(agenda.filter((a) => a.usuarioId === r.usuarioId), tarea.inicio, tarea.minutosEstimados) }))
-      .filter((c) => c.conflictos.length > 0);
+      .map((r) => ({
+        usuarioId: r.usuarioId,
+        conflictos: this.conflictos(agenda.filter((a) => a.usuarioId === r.usuarioId), tarea.inicio, tarea.minutosEstimados),
+        avisos: disponibilidad.get(r.usuarioId)?.avisos ?? [],
+      }))
+      .filter((c) => c.avisos.length > 0);
 
     if (choques.length > 0 && !datos.motivoForzado) {
       throw new ConflictException({
-        message: 'Hay choques de horario. Indica un motivo para asignar de todos modos.',
+        message: 'Hay avisos de agenda (choque, fuera de horario o capacidad). Indica un motivo para asignar de todos modos.',
         choques,
       });
+    }
+    if (choques.length > 0 && !('tareas.forzar_agenda' in (await this.permisos.efectivos(actor.usuarioId)))) {
+      throw new ForbiddenException('No tienes permiso para forzar la agenda');
     }
 
     const usuarios = await this.prisma.usuario.findMany({ where: { id: { in: responsables.map((r) => r.usuarioId) } } });
@@ -485,6 +534,14 @@ export class TareasService {
     const tarea = await this.obtenerVisible(tareaId, actor.usuarioId, 'tareas.editar');
     if (!esActiva(tarea.estado)) throw new BadRequestException('Solo se reprograman tareas pendientes');
     const { fecha, inicio } = this.validarProgramacion(tarea.actividad, { ...datos, modalidad: tarea.modalidad ?? undefined });
+
+    await this.verificarLaborable(
+      this.prisma,
+      tarea.responsables.map((r) => r.usuario.id),
+      { id: tarea.id, fecha: datos.fecha, inicio, minutos: tarea.minutosEstimados },
+      actor.usuarioId,
+      'fecha',
+    );
 
     const antes = `${fechaLegible(tarea.fecha.toISOString().slice(0, 10), tarea.inicio ? horaEnLima(tarea.inicio) : null)}`;
     await this.prisma.$transaction(async (tx) => {

@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { AlertCircle, CalendarClock, Loader2, TriangleAlert } from 'lucide-react'
+import { AlertCircle, CalendarClock, CalendarOff, Loader2, TriangleAlert } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { InsigniaDisponibilidad } from '@/features/agenda/components/insignias'
+import { horas } from '@/features/agenda/semanas'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
@@ -13,6 +15,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ApiError } from '@/lib/api'
 import { describirCuando, formatearHora, nombreCompleto } from '@/lib/formato'
+import { usePermiso } from '@/lib/permisos'
 import { cn } from '@/lib/utils'
 import { candidatosQuery, useAsignarTarea } from '../api'
 
@@ -32,19 +35,20 @@ export function DialogoAsignar({ tareaId, hoy, abierto, onAbiertoChange }: Props
   const [motivo, setMotivo] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  // Por defecto, el primer candidato sin choques de cada participación obligatoria (ya vienen ordenados por prioridad).
+  // Por defecto, el primer candidato libre de cada participación obligatoria (ya vienen ordenados por prioridad y disponibilidad).
   const seleccion = useMemo(() => {
     if (!data) return {}
     const base: Record<string, string> = {}
     for (const p of data.participaciones) {
       const actual = data.tarea.responsables.find((r) => r.participacion === p.nombre)
-      const sugerido = p.obligatoria ? p.candidatos.find((c) => c.conflictos.length === 0) : undefined
+      const sugerido = p.obligatoria ? p.candidatos.find((c) => c.disponibilidad.estado === 'libre') : undefined
       base[p.id] = actual?.usuario.id ?? sugerido?.usuario.id ?? NINGUNO
     }
     return { ...base, ...elegidos }
   }, [data, elegidos])
 
-  const conChoque = data?.participaciones.flatMap((p) => p.candidatos.filter((c) => seleccion[p.id] === c.usuario.id && c.conflictos.length > 0)) ?? []
+  const conChoque = data?.participaciones.flatMap((p) => p.candidatos.filter((c) => seleccion[p.id] === c.usuario.id && c.disponibilidad.avisos.length > 0)) ?? []
+  const puedeForzar = usePermiso('tareas.forzar_agenda')
   const faltan = data?.participaciones.filter((p) => p.obligatoria && seleccion[p.id] === NINGUNO) ?? []
 
   const enviar = async () => {
@@ -113,30 +117,36 @@ export function DialogoAsignar({ tareaId, hoy, abierto, onAbiertoChange }: Props
                   >
                     {p.candidatos.map((c) => {
                       const id = `cand-${p.id}-${c.usuario.id}`
-                      const ocupado = c.conflictos.length > 0
+                      const { disponibilidad: d } = c
+                      const bloqueado = d.estado === 'no_laborable'
+                      const conAvisos = d.avisos.length > 0
                       return (
                         <Label
                           key={c.usuario.id}
                           htmlFor={id}
                           className={cn(
                             'flex cursor-pointer items-start gap-3 border-b px-3 py-2.5 font-normal last:border-b-0 hover:bg-muted/50',
+                            bloqueado && 'cursor-not-allowed opacity-60 hover:bg-transparent',
                             seleccion[p.id] === c.usuario.id && 'bg-muted/60',
                           )}
                         >
-                          <RadioGroupItem value={c.usuario.id} id={id} className="mt-0.5" />
+                          <RadioGroupItem value={c.usuario.id} id={id} className="mt-0.5" disabled={bloqueado} />
                           <div className="flex min-w-0 flex-1 flex-col gap-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="font-medium">{nombreCompleto(c.usuario)}</span>
                               <Badge variant={c.prioridad.nivel === 1 ? 'secondary' : 'outline'}>{c.prioridad.nombre}</Badge>
                               <span className="text-xs text-muted-foreground">{c.rol.nombre}</span>
+                              <InsigniaDisponibilidad estado={d.estado} />
                             </div>
-                            <span className={cn('flex items-center gap-1 text-xs', ocupado ? 'text-destructive' : 'text-muted-foreground')}>
-                              {ocupado ? <TriangleAlert className="size-3.5" /> : <CalendarClock className="size-3.5" />}
-                              {ocupado
-                                ? `Choca con ${c.conflictos.map((x) => `${x.actividad} (${formatearHora(x.inicio)}–${formatearHora(x.fin)})`).join(', ')}`
-                                : c.tareasDelDia === 0
-                                  ? 'Libre ese día'
-                                  : `${c.tareasDelDia} ${c.tareasDelDia === 1 ? 'actividad' : 'actividades'} ese día`}
+                            <span className={cn('flex items-start gap-1 text-xs', bloqueado ? 'text-violet-800 dark:text-violet-300' : conAvisos ? 'text-destructive' : 'text-muted-foreground')}>
+                              {bloqueado ? <CalendarOff className="mt-px size-3.5 shrink-0" /> : conAvisos ? <TriangleAlert className="mt-px size-3.5 shrink-0" /> : <CalendarClock className="mt-px size-3.5 shrink-0" />}
+                              {bloqueado
+                                ? `No trabaja ese día: ${d.bloqueo}`
+                                : conAvisos
+                                  ? d.avisos.join(' · ')
+                                  : d.capacidad > 0
+                                    ? `${horas(d.ocupado)} programadas de ${horas(d.capacidad)} ese día`
+                                    : 'Libre ese día'}
                             </span>
                           </div>
                         </Label>
@@ -155,9 +165,11 @@ export function DialogoAsignar({ tareaId, hoy, abierto, onAbiertoChange }: Props
 
             {conChoque.length > 0 && (
               <Field>
-                <FieldLabel htmlFor="motivo-forzado">Motivo para asignar con choque de horario</FieldLabel>
+                <FieldLabel htmlFor="motivo-forzado">Motivo para asignar pese a los avisos</FieldLabel>
                 <Input id="motivo-forzado" value={motivo} onChange={(ev) => setMotivo(ev.target.value)} placeholder="Ej.: el cliente solo puede a esa hora" />
-                <FieldDescription>Queda registrado junto a la asignación.</FieldDescription>
+                <FieldDescription>
+                  {puedeForzar ? 'Queda registrado junto a la asignación.' : 'No tienes permiso para forzar la agenda: elige a otra persona o reprograma.'}
+                </FieldDescription>
               </Field>
             )}
           </div>
@@ -170,7 +182,7 @@ export function DialogoAsignar({ tareaId, hoy, abierto, onAbiertoChange }: Props
           <Button
             type="button"
             onClick={() => void enviar()}
-            disabled={!data || asignar.isPending || faltan.length > 0 || (conChoque.length > 0 && motivo.trim().length < 3)}
+            disabled={!data || asignar.isPending || faltan.length > 0 || (conChoque.length > 0 && (!puedeForzar || motivo.trim().length < 3))}
           >
             {asignar.isPending && <Loader2 className="animate-spin" />}
             Asignar

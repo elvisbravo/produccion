@@ -35,12 +35,14 @@ const PERMISOS_INICIALES: Record<Exclude<RolBase, 'ADMIN'>, Matriz> = {
     'contratos.ver': 'todos', 'contratos.crear': null, 'contratos.editar': null, 'contratos.imprimir': null,
     'contratos.registrar_pago': null, 'contratos.ver_montos': null,
     'ausencias.ver': 'propios', 'ausencias.solicitar': null,
+    'agenda.ver': null,
   },
   AUXILIAR: {
     'trabajos.ver': 'equipo', 'entregables.ver': 'equipo', 'entregables.editar': 'equipo', 'entregables.enviar_revision': null,
     'tareas.ver': 'propios', 'tareas.editar': 'propios', 'tareas.tiempo_manual': null,
     'ausencias.ver': 'propios', 'ausencias.solicitar': null,
     'horas_extra.ver': 'propios',
+    'agenda.ver': null,
   },
   ASIST_PROD: {
     'prospectos.ver': 'todos',
@@ -53,6 +55,7 @@ const PERMISOS_INICIALES: Record<Exclude<RolBase, 'ADMIN'>, Matriz> = {
     'ausencias.ver': 'todos', 'ausencias.crear': null, 'ausencias.solicitar': null,
     'horas_extra.ver': 'todos',
     'reportes.ver': null,
+    'agenda.ver': null, 'calendario.ver': null,
   },
   JEFE_PROD: {
     'programacion.ver': null,
@@ -62,6 +65,7 @@ const PERMISOS_INICIALES: Record<Exclude<RolBase, 'ADMIN'>, Matriz> = {
     'ausencias.ver': 'propios', 'ausencias.solicitar': null,
     'horas_extra.ver': 'todos', 'horas_extra.aprobar': null,
     'reportes.ver': null,
+    'agenda.ver': null,
   },
 };
 
@@ -71,7 +75,12 @@ async function main() {
   const acciones = await prisma.accion.findMany({ where: { vigente: true }, include: { modulo: true } });
   const accionPorCodigo = new Map(acciones.map((a) => [`${a.modulo.codigo}.${a.codigo}`, a]));
 
-  // Roles base
+  // Roles base. Cada permiso inicial se ofrece una sola vez: lo que el administrador quite después no vuelve.
+  // Así, los módulos nuevos llegan a los roles de una base existente sin pisar sus cambios.
+  const REGISTRO = 'seed.permisos_ofrecidos';
+  const registro = await prisma.parametro.findUnique({ where: { clave: REGISTRO } });
+  const ofrecidos = new Set<string>((registro?.valor as string[] | undefined) ?? []);
+
   for (const [codigo, datos] of Object.entries(ROLES) as [RolBase, (typeof ROLES)[RolBase]][]) {
     const rol = await prisma.rol.upsert({
       where: { codigo },
@@ -79,23 +88,27 @@ async function main() {
       update: { esSistema: true },
     });
 
-    // Los permisos iniciales solo se cargan si el rol aún no tiene ninguno (no pisan cambios del administrador).
-    const yaTiene = await prisma.rolPermiso.count({ where: { rolId: rol.id } });
-    if (yaTiene > 0) continue;
-
     const matriz: Matriz =
       codigo === ROLES_BASE.ADMIN
         ? Object.fromEntries(TODOS_LOS_PERMISOS.map((p) => [p, accionPorCodigo.get(p)?.usaAlcance ? 'todos' : null]))
         : PERMISOS_INICIALES[codigo];
 
+    const nuevos = Object.entries(matriz).filter(([permiso]) => !ofrecidos.has(`${codigo}:${permiso}`));
     await prisma.rolPermiso.createMany({
-      data: Object.entries(matriz).map(([permiso, alcance]) => {
+      data: nuevos.map(([permiso, alcance]) => {
         const accion = accionPorCodigo.get(permiso);
         if (!accion) throw new Error(`Permiso inexistente en el catálogo: ${permiso}`);
         return { rolId: rol.id, accionId: accion.id, alcance: accion.usaAlcance ? (alcance ?? 'propios') : null };
       }),
+      skipDuplicates: true,
     });
+    for (const [permiso] of nuevos) ofrecidos.add(`${codigo}:${permiso}`);
   }
+  await prisma.parametro.upsert({
+    where: { clave: REGISTRO },
+    create: { clave: REGISTRO, valor: [...ofrecidos], descripcion: 'Uso interno del seed: permisos iniciales ya ofrecidos a cada rol' },
+    update: { valor: [...ofrecidos] },
+  });
 
   // Usuario administrador
   const email = (process.env.SEED_ADMIN_EMAIL ?? 'admin@grupoes.local').toLowerCase();
@@ -123,6 +136,7 @@ async function main() {
 
   await sembrarCatalogos();
   await sembrarActividades();
+  await sembrarAgenda();
 
   console.log('Seed completado');
 }
@@ -391,3 +405,36 @@ main()
     process.exitCode = 1;
   })
   .finally(() => prisma.$disconnect());
+
+/** Horario estándar (plantilla por defecto) y feriados nacionales del Perú. */
+async function sembrarAgenda() {
+  const h = (hora: number) => hora * 60;
+  if ((await prisma.plantillaHorario.count()) === 0) {
+    const tramos = [
+      ...[1, 2, 3, 4, 5].flatMap((diaSemana) => [
+        { diaSemana, minutoInicio: h(8), minutoFin: h(13) },
+        { diaSemana, minutoInicio: h(15), minutoFin: h(19) },
+      ]),
+      { diaSemana: 6, minutoInicio: h(8), minutoFin: h(13) },
+    ];
+    await prisma.plantillaHorario.create({ data: { nombre: 'Horario estándar', porDefecto: true, tramos: { createMany: { data: tramos } } } });
+  }
+
+  // El administrador revisa cada año los feriados (el Gobierno puede agregar días no laborables).
+  const feriados: [string, string][] = [
+    ['2026-01-01', 'Año Nuevo'], ['2026-04-02', 'Jueves Santo'], ['2026-04-03', 'Viernes Santo'], ['2026-05-01', 'Día del Trabajo'],
+    ['2026-06-07', 'Batalla de Arica y Día de la Bandera'], ['2026-06-29', 'San Pedro y San Pablo'], ['2026-07-23', 'Día de la Fuerza Aérea del Perú'],
+    ['2026-07-28', 'Fiestas Patrias'], ['2026-07-29', 'Fiestas Patrias'], ['2026-08-06', 'Batalla de Junín'], ['2026-08-30', 'Santa Rosa de Lima'],
+    ['2026-10-08', 'Combate de Angamos'], ['2026-11-01', 'Día de Todos los Santos'], ['2026-12-08', 'Inmaculada Concepción'],
+    ['2026-12-09', 'Batalla de Ayacucho'], ['2026-12-25', 'Navidad'],
+    ['2027-01-01', 'Año Nuevo'], ['2027-03-25', 'Jueves Santo'], ['2027-03-26', 'Viernes Santo'], ['2027-05-01', 'Día del Trabajo'],
+    ['2027-06-07', 'Batalla de Arica y Día de la Bandera'], ['2027-06-29', 'San Pedro y San Pablo'], ['2027-07-23', 'Día de la Fuerza Aérea del Perú'],
+    ['2027-07-28', 'Fiestas Patrias'], ['2027-07-29', 'Fiestas Patrias'], ['2027-08-06', 'Batalla de Junín'], ['2027-08-30', 'Santa Rosa de Lima'],
+    ['2027-10-08', 'Combate de Angamos'], ['2027-11-01', 'Día de Todos los Santos'], ['2027-12-08', 'Inmaculada Concepción'],
+    ['2027-12-09', 'Batalla de Ayacucho'], ['2027-12-25', 'Navidad'],
+  ];
+  await prisma.feriado.createMany({
+    data: feriados.map(([fecha, nombre]) => ({ fecha: new Date(`${fecha}T00:00:00Z`), nombre, alcance: 'nacional' as const })),
+    skipDuplicates: true,
+  });
+}

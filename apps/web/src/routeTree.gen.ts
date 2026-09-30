@@ -13,7 +13,11 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppSplatRouteImport } from './routes/_app/$'
+import { Route as AppAgendaIndexRouteImport } from './routes/_app/agenda/index'
+import { Route as AppAusenciasIndexRouteImport } from './routes/_app/ausencias/index'
+import { Route as AppCalendarioIndexRouteImport } from './routes/_app/calendario/index'
 import { Route as AppContratosIndexRouteImport } from './routes/_app/contratos/index'
+import { Route as AppProgramacionIndexRouteImport } from './routes/_app/programacion/index'
 import { Route as AppProspectosIndexRouteImport } from './routes/_app/prospectos/index'
 import { Route as AppProspectosNuevoRouteImport } from './routes/_app/prospectos/nuevo'
 import { Route as AppSeguimientoIndexRouteImport } from './routes/_app/seguimiento/index'
@@ -43,9 +47,29 @@ const AppSplatRoute = AppSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAgendaIndexRoute = AppAgendaIndexRouteImport.update({
+  id: '/agenda/',
+  path: '/agenda/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAusenciasIndexRoute = AppAusenciasIndexRouteImport.update({
+  id: '/ausencias/',
+  path: '/ausencias/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCalendarioIndexRoute = AppCalendarioIndexRouteImport.update({
+  id: '/calendario/',
+  path: '/calendario/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppContratosIndexRoute = AppContratosIndexRouteImport.update({
   id: '/contratos/',
   path: '/contratos/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppProgramacionIndexRoute = AppProgramacionIndexRouteImport.update({
+  id: '/programacion/',
+  path: '/programacion/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppProspectosIndexRoute = AppProspectosIndexRouteImport.update({
@@ -101,7 +125,11 @@ export interface FileRoutesByFullPath {
   '/$': typeof AppSplatRoute
   '/prospectos/nuevo': typeof AppProspectosNuevoRoute
   '/trabajos/$id': typeof AppTrabajosIdRoute
+  '/agenda/': typeof AppAgendaIndexRoute
+  '/ausencias/': typeof AppAusenciasIndexRoute
+  '/calendario/': typeof AppCalendarioIndexRoute
   '/contratos/': typeof AppContratosIndexRoute
+  '/programacion/': typeof AppProgramacionIndexRoute
   '/prospectos/': typeof AppProspectosIndexRoute
   '/seguimiento/': typeof AppSeguimientoIndexRoute
   '/tareas/': typeof AppTareasIndexRoute
@@ -116,7 +144,11 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/prospectos/nuevo': typeof AppProspectosNuevoRoute
   '/trabajos/$id': typeof AppTrabajosIdRoute
+  '/agenda': typeof AppAgendaIndexRoute
+  '/ausencias': typeof AppAusenciasIndexRoute
+  '/calendario': typeof AppCalendarioIndexRoute
   '/contratos': typeof AppContratosIndexRoute
+  '/programacion': typeof AppProgramacionIndexRoute
   '/prospectos': typeof AppProspectosIndexRoute
   '/seguimiento': typeof AppSeguimientoIndexRoute
   '/tareas': typeof AppTareasIndexRoute
@@ -133,7 +165,11 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/_app/prospectos/nuevo': typeof AppProspectosNuevoRoute
   '/_app/trabajos/$id': typeof AppTrabajosIdRoute
+  '/_app/agenda/': typeof AppAgendaIndexRoute
+  '/_app/ausencias/': typeof AppAusenciasIndexRoute
+  '/_app/calendario/': typeof AppCalendarioIndexRoute
   '/_app/contratos/': typeof AppContratosIndexRoute
+  '/_app/programacion/': typeof AppProgramacionIndexRoute
   '/_app/prospectos/': typeof AppProspectosIndexRoute
   '/_app/seguimiento/': typeof AppSeguimientoIndexRoute
   '/_app/tareas/': typeof AppTareasIndexRoute
@@ -150,7 +186,11 @@ export interface FileRouteTypes {
     | '/$'
     | '/prospectos/nuevo'
     | '/trabajos/$id'
+    | '/agenda/'
+    | '/ausencias/'
+    | '/calendario/'
     | '/contratos/'
+    | '/programacion/'
     | '/prospectos/'
     | '/seguimiento/'
     | '/tareas/'
@@ -165,7 +205,11 @@ export interface FileRouteTypes {
     | '/'
     | '/prospectos/nuevo'
     | '/trabajos/$id'
+    | '/agenda'
+    | '/ausencias'
+    | '/calendario'
     | '/contratos'
+    | '/programacion'
     | '/prospectos'
     | '/seguimiento'
     | '/tareas'
@@ -181,7 +225,11 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/prospectos/nuevo'
     | '/_app/trabajos/$id'
+    | '/_app/agenda/'
+    | '/_app/ausencias/'
+    | '/_app/calendario/'
     | '/_app/contratos/'
+    | '/_app/programacion/'
     | '/_app/prospectos/'
     | '/_app/seguimiento/'
     | '/_app/tareas/'
@@ -226,11 +274,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSplatRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/agenda/': {
+      id: '/_app/agenda/'
+      path: '/agenda'
+      fullPath: '/agenda/'
+      preLoaderRoute: typeof AppAgendaIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/ausencias/': {
+      id: '/_app/ausencias/'
+      path: '/ausencias'
+      fullPath: '/ausencias/'
+      preLoaderRoute: typeof AppAusenciasIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/calendario/': {
+      id: '/_app/calendario/'
+      path: '/calendario'
+      fullPath: '/calendario/'
+      preLoaderRoute: typeof AppCalendarioIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/contratos/': {
       id: '/_app/contratos/'
       path: '/contratos'
       fullPath: '/contratos/'
       preLoaderRoute: typeof AppContratosIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/programacion/': {
+      id: '/_app/programacion/'
+      path: '/programacion'
+      fullPath: '/programacion/'
+      preLoaderRoute: typeof AppProgramacionIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/prospectos/': {
@@ -304,7 +380,11 @@ interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
   AppProspectosNuevoRoute: typeof AppProspectosNuevoRoute
   AppTrabajosIdRoute: typeof AppTrabajosIdRoute
+  AppAgendaIndexRoute: typeof AppAgendaIndexRoute
+  AppAusenciasIndexRoute: typeof AppAusenciasIndexRoute
+  AppCalendarioIndexRoute: typeof AppCalendarioIndexRoute
   AppContratosIndexRoute: typeof AppContratosIndexRoute
+  AppProgramacionIndexRoute: typeof AppProgramacionIndexRoute
   AppProspectosIndexRoute: typeof AppProspectosIndexRoute
   AppSeguimientoIndexRoute: typeof AppSeguimientoIndexRoute
   AppTareasIndexRoute: typeof AppTareasIndexRoute
@@ -319,7 +399,11 @@ const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
   AppProspectosNuevoRoute: AppProspectosNuevoRoute,
   AppTrabajosIdRoute: AppTrabajosIdRoute,
+  AppAgendaIndexRoute: AppAgendaIndexRoute,
+  AppAusenciasIndexRoute: AppAusenciasIndexRoute,
+  AppCalendarioIndexRoute: AppCalendarioIndexRoute,
   AppContratosIndexRoute: AppContratosIndexRoute,
+  AppProgramacionIndexRoute: AppProgramacionIndexRoute,
   AppProspectosIndexRoute: AppProspectosIndexRoute,
   AppSeguimientoIndexRoute: AppSeguimientoIndexRoute,
   AppTareasIndexRoute: AppTareasIndexRoute,

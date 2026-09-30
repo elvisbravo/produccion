@@ -9,6 +9,7 @@ import { AppModule } from '../src/app.module.js';
 import { configurarApp } from '../src/app.setup.js';
 import { hashPassword } from '../src/auth/password.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { proximoDiaHabil } from './dias.js';
 
 const sufijo = Date.now().toString().slice(-6);
 const celular = (n: number) => `9${sufijo}${String(n).padStart(2, '0')}`;
@@ -84,7 +85,7 @@ describe('Trabajos, contratos y pagos (e2e)', () => {
             { celular: celular(1), esPrincipal: true },
             { celular: celular(2), esPrincipal: false },
           ],
-          primeraActividad: { actividadId: actividades.find((a: { nombre: string }) => a.nombre === 'Enfoque').id, fecha: sumarDias(hoy, 1), hora: '10:00', modalidad: 'virtual' },
+          primeraActividad: { actividadId: actividades.find((a: { nombre: string }) => a.nombre === 'Enfoque').id, fecha: await proximoDiaHabil(prisma), hora: '10:00', modalidad: 'virtual' },
         })
         .expect(201)
     ).body;

@@ -101,6 +101,11 @@ export const MODULOS = [
     ],
   },
 
+  {
+    codigo: 'agenda', nombre: 'Mi agenda', padre: 'produccion', ruta: '/agenda', icono: 'CalendarClock', orden: 25,
+    acciones: [ver()],
+  },
+
   // Administración
   {
     codigo: 'contratos', nombre: 'Contratos y pagos', padre: 'administracion', ruta: '/contratos', icono: 'Wallet', orden: 31,
@@ -149,6 +154,10 @@ export const MODULOS = [
   },
   {
     codigo: 'parametros', nombre: 'Parámetros', padre: 'configuracion', ruta: '/parametros', icono: 'SlidersHorizontal', orden: 44,
+    acciones: [ver(), editar()],
+  },
+  {
+    codigo: 'calendario', nombre: 'Horarios y feriados', padre: 'configuracion', ruta: '/calendario', icono: 'CalendarCog', orden: 46,
     acciones: [ver(), editar()],
   },
   {
