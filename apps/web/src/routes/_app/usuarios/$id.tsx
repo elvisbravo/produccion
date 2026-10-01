@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { AlertCircle, ArrowLeft, KeyRound, Loader2, Lock, LockOpen, Power, Timer } from 'lucide-react'
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { FormProvider, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +15,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { CamposDocumentoUsuario } from '@/features/administracion/components/campos-documento-usuario'
 import { useActivarUsuario, useDesbloquear, useEditarUsuario, useRestablecerClave, useTopesUsuario, usuarioQuery } from '@/features/administracion/api'
 import { DialogoClaveTemporal } from '@/features/administracion/components/dialogos-usuario'
 import { CostoHoraUsuario } from '@/features/reportes/components/costo-hora'
@@ -99,7 +100,15 @@ function DatosUsuario({ u }: { u: UsuarioDetalle }) {
   const [error, setError] = useState<string | null>(null)
   const form = useForm<EditarUsuarioFormulario, unknown, EditarUsuarioDatos>({
     resolver: zodResolver(editarUsuarioSchema),
-    defaultValues: { nombres: u.nombres, apellidos: u.apellidos, email: u.email, celular: u.celular ?? '', fechaNacimiento: u.fechaNacimiento ?? '' },
+    defaultValues: {
+      nombres: u.nombres,
+      apellidos: u.apellidos,
+      email: u.email,
+      celular: u.celular ?? '',
+      fechaNacimiento: u.fechaNacimiento ?? '',
+      tipoDocumento: u.tipoDocumento ?? undefined,
+      numeroDocumento: u.numeroDocumento ?? '',
+    },
   })
   const e = form.formState.errors
   const enviar = form.handleSubmit(async (datos) => {
@@ -109,7 +118,7 @@ function DatosUsuario({ u }: { u: UsuarioDetalle }) {
       toast.success('Datos guardados')
       form.reset(datos)
     } catch (err) {
-      setError(aplicarErroresApi(err, form.setError, ['nombres', 'apellidos', 'email', 'celular', 'fechaNacimiento']))
+      setError(aplicarErroresApi(err, form.setError, ['nombres', 'apellidos', 'email', 'celular', 'fechaNacimiento', 'tipoDocumento', 'numeroDocumento']))
     }
   })
 
@@ -126,6 +135,7 @@ function DatosUsuario({ u }: { u: UsuarioDetalle }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        <FormProvider {...form}>
         <form onSubmit={enviar} noValidate className="flex flex-col gap-4">
           {error && (
             <Alert variant="destructive">
@@ -133,6 +143,15 @@ function DatosUsuario({ u }: { u: UsuarioDetalle }) {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+          {!u.numeroDocumento && puede && (
+            <Alert>
+              <AlertCircle />
+              <AlertDescription>Este usuario aún no tiene documento registrado. Complétalo para poder guardar cambios en sus datos.</AlertDescription>
+            </Alert>
+          )}
+          <fieldset disabled={!puede} className="flex flex-col gap-4">
+            <CamposDocumentoUsuario prefijo="editar-usuario" />
+          </fieldset>
           <fieldset disabled={!puede} className="grid gap-4 sm:grid-cols-2">
             <Field data-invalid={Boolean(e.nombres)}>
               <FieldLabel htmlFor="d-nombres">Nombres</FieldLabel>
@@ -166,6 +185,7 @@ function DatosUsuario({ u }: { u: UsuarioDetalle }) {
             </Button>
           )}
         </form>
+        </FormProvider>
       </CardContent>
     </Card>
   )

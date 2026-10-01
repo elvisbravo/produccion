@@ -1,10 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { crearUsuarioSchema, type CrearUsuarioDatos, type CrearUsuarioFormulario } from '@grupoes/shared'
+import { crearUsuarioSchema, type CrearUsuarioDatos, type CrearUsuarioFormulario, type EditarUsuarioFormulario } from '@grupoes/shared'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { AlertCircle, Check, Copy, KeyRound, Loader2 } from 'lucide-react'
 import { useState } from 'react'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, FormProvider, useForm, type UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 import { Requerido } from '@/components/requerido'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { aplicarErroresApi } from '@/lib/formularios'
 import { rolesQuery, useCrearUsuario } from '../api'
+import { CamposDocumentoUsuario } from './campos-documento-usuario'
 
 /** Muestra una contraseña temporal una sola vez, con botón para copiarla. */
 export function DialogoClaveTemporal({ clave, nombre, onCerrar }: { clave: string; nombre: string; onCerrar: () => void }) {
@@ -55,7 +56,7 @@ export function DialogoNuevoUsuario({ onCerrar }: { onCerrar: () => void }) {
   const [temporal, setTemporal] = useState<{ clave: string; nombre: string; id: string } | null>(null)
   const form = useForm<CrearUsuarioFormulario, unknown, CrearUsuarioDatos>({
     resolver: zodResolver(crearUsuarioSchema),
-    defaultValues: { nombres: '', apellidos: '', email: '', celular: '', fechaNacimiento: '', rolIds: [], clave: '' },
+    defaultValues: { nombres: '', apellidos: '', email: '', celular: '', fechaNacimiento: '', tipoDocumento: 'DNI', numeroDocumento: '', rolIds: [], clave: '' },
   })
   const e = form.formState.errors
 
@@ -70,7 +71,7 @@ export function DialogoNuevoUsuario({ onCerrar }: { onCerrar: () => void }) {
         void navigate({ to: '/usuarios/$id', params: { id: r.usuario.id } })
       }
     } catch (err) {
-      setError(aplicarErroresApi(err, form.setError, ['nombres', 'apellidos', 'email', 'celular', 'fechaNacimiento', 'rolIds', 'clave']))
+      setError(aplicarErroresApi(err, form.setError, ['nombres', 'apellidos', 'email', 'celular', 'fechaNacimiento', 'tipoDocumento', 'numeroDocumento', 'rolIds', 'clave']))
     }
   })
 
@@ -90,6 +91,7 @@ export function DialogoNuevoUsuario({ onCerrar }: { onCerrar: () => void }) {
   return (
     <Dialog open onOpenChange={(v) => !v && onCerrar()}>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
+        <FormProvider {...(form as unknown as UseFormReturn<EditarUsuarioFormulario>)}>
         <form onSubmit={enviar} noValidate className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>Nuevo usuario</DialogTitle>
@@ -101,6 +103,7 @@ export function DialogoNuevoUsuario({ onCerrar }: { onCerrar: () => void }) {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+          <CamposDocumentoUsuario prefijo="nuevo-usuario" />
           <div className="grid gap-4 sm:grid-cols-2">
             <Field data-invalid={Boolean(e.nombres)}>
               <FieldLabel htmlFor="u-nombres">
@@ -190,6 +193,7 @@ export function DialogoNuevoUsuario({ onCerrar }: { onCerrar: () => void }) {
             </Button>
           </DialogFooter>
         </form>
+        </FormProvider>
       </DialogContent>
     </Dialog>
   )

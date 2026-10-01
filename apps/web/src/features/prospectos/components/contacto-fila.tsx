@@ -16,6 +16,7 @@ import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Requerido } from '@/components/requerido'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { BotonBuscarDni } from '@/features/consultas/components/boton-buscar-dni'
 import { useDebounce } from '@/hooks/use-debounce'
 import { nombreCompleto } from '@/lib/formato'
 import { buscarPorCelular } from '../api'
@@ -36,6 +37,7 @@ export function ContactoFila({ indice, puedeQuitar, onQuitar, onMarcarPrincipal,
   const errores = formState.errors.contactos?.[indice]
   const esPrincipal = useWatch({ control, name: `contactos.${indice}.esPrincipal` })
   const celular = useWatch({ control, name: `contactos.${indice}.celular` })
+  const [tipoDoc, numeroDoc] = useWatch({ control, name: [`contactos.${indice}.tipoDocumento`, `contactos.${indice}.numeroDocumento`] })
   const normalizado = useDebounce(normalizarCelular(celular ?? ''), 400)
 
   const { data } = useQuery({
@@ -147,6 +149,15 @@ export function ContactoFila({ indice, puedeQuitar, onQuitar, onMarcarPrincipal,
           />
           <FieldError errors={[errores?.numeroDocumento]} />
         </Field>
+        <BotonBuscarDni
+          tipo={tipoDoc}
+          numero={numeroDoc}
+          onEncontrado={(datos) => {
+            const opciones = { shouldDirty: true, shouldValidate: true }
+            setValue(campo('nombres'), datos.nombres, opciones)
+            setValue(campo('apellidos'), datos.apellidos, opciones)
+          }}
+        />
         <Field data-invalid={Boolean(errores?.email)}>
           <FieldLabel htmlFor={id('email')}>Correo</FieldLabel>
           <Input

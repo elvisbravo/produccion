@@ -32,6 +32,14 @@ const soloFecha = (d: Date) => d.toISOString().slice(0, 10);
 const errorCampo = (campo: string, mensaje: string) => new BadRequestException({ message: 'Datos inválidos', errores: [{ campo, mensaje }] });
 const esDuplicado = (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002';
 
+/** El duplicado es del documento (índice parcial) o del correo. */
+function errorDuplicado(e: unknown): ConflictException {
+  const detalle = JSON.stringify((e as Prisma.PrismaClientKnownRequestError).meta ?? {}) + String((e as Error).message);
+  return /documento/i.test(detalle)
+    ? new ConflictException({ message: 'Ya existe un usuario con ese documento', errores: [{ campo: 'numeroDocumento', mensaje: 'Ya existe un usuario con ese documento' }] })
+    : new ConflictException({ message: 'Ya existe un usuario con ese correo', errores: [{ campo: 'email', mensaje: 'Ya existe un usuario con ese correo' }] });
+}
+
 @Injectable()
 export class UsuariosService {
   constructor(
@@ -48,6 +56,8 @@ export class UsuariosService {
       apellidos: u.apellidos,
       email: u.email,
       celular: u.celular,
+      tipoDocumento: u.tipoDocumento,
+      numeroDocumento: u.numeroDocumento,
       activo: u.activo,
       bloqueado: Boolean(u.bloqueadoHasta && u.bloqueadoHasta > new Date()),
       roles: u.roles.filter((r) => r.rol.activo).map((r) => ({ id: r.rol.id, codigo: r.rol.codigo, nombre: r.rol.nombre })),
@@ -63,7 +73,7 @@ export class UsuariosService {
         ...(f.estado !== 'todos' && { activo: f.estado === 'activos' }),
         ...(f.rol && { roles: { some: { rol: { codigo: f.rol } } } }),
         AND: palabras.map((p) => ({
-          OR: [{ nombres: { contains: p, mode: 'insensitive' as const } }, { apellidos: { contains: p, mode: 'insensitive' as const } }, { email: { contains: p, mode: 'insensitive' as const } }],
+          OR: [{ nombres: { contains: p, mode: 'insensitive' as const } }, { apellidos: { contains: p, mode: 'insensitive' as const } }, { email: { contains: p, mode: 'insensitive' as const } }, { numeroDocumento: { contains: p, mode: 'insensitive' as const } }],
         })),
       },
       include: INCLUIR,
@@ -140,6 +150,8 @@ export class UsuariosService {
             apellidos: datos.apellidos,
             email: datos.email,
             celular: datos.celular ?? null,
+            tipoDocumento: datos.tipoDocumento,
+            numeroDocumento: datos.numeroDocumento,
             fechaNacimiento: datos.fechaNacimiento ? new Date(`${datos.fechaNacimiento}T00:00:00Z`) : null,
             passwordHash: await hashPassword(datos.clave ?? claveTemporal!),
             // Quien recibe una contraseña de otro debe cambiarla en su primer ingreso.
@@ -154,7 +166,7 @@ export class UsuariosService {
       });
       return { usuario: await this.detalle(u.id), claveTemporal };
     } catch (e) {
-      if (esDuplicado(e)) throw new ConflictException({ message: 'Ya existe un usuario con ese correo', errores: [{ campo: 'email', mensaje: 'Ya existe un usuario con ese correo' }] });
+      if (esDuplicado(e)) throw errorDuplicado(e);
       throw e;
     }
   }
@@ -169,12 +181,14 @@ export class UsuariosService {
           apellidos: datos.apellidos,
           email: datos.email,
           celular: datos.celular ?? null,
+          tipoDocumento: datos.tipoDocumento,
+          numeroDocumento: datos.numeroDocumento,
           fechaNacimiento: datos.fechaNacimiento ? new Date(`${datos.fechaNacimiento}T00:00:00Z`) : null,
           actualizadoPor: actor.usuarioId,
         },
       });
     } catch (e) {
-      if (esDuplicado(e)) throw new ConflictException({ message: 'Ya existe un usuario con ese correo', errores: [{ campo: 'email', mensaje: 'Ya existe un usuario con ese correo' }] });
+      if (esDuplicado(e)) throw errorDuplicado(e);
       throw e;
     }
     await this.auditoria.registrar({
@@ -182,7 +196,15 @@ export class UsuariosService {
       accion: 'editar',
       entidad: 'usuario',
       entidadId: id,
-      antes: { nombres: antes.nombres, apellidos: antes.apellidos, email: antes.email, celular: antes.celular, fechaNacimiento: antes.fechaNacimiento },
+      antes: {
+        nombres: antes.nombres,
+        apellidos: antes.apellidos,
+        email: antes.email,
+        celular: antes.celular,
+        tipoDocumento: antes.tipoDocumento,
+        numeroDocumento: antes.numeroDocumento,
+        fechaNacimiento: antes.fechaNacimiento,
+      },
       despues: datos,
       ip: actor.ip,
     });

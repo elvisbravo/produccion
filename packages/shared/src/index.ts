@@ -14,3 +14,4 @@ export * from './tiempo.js';
 export * from './reportes.js';
 export * from './documentos.js';
 export * from './comentarios.js';
+export * from './consulta-dni.js';

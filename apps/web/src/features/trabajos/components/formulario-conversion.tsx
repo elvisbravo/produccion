@@ -11,6 +11,7 @@ import {
   NOMBRE_TIPO_DOCUMENTO,
   sumarDias,
   TIPOS_DOCUMENTO,
+  type TipoDocumento,
   type ConvertirProspectoDatos,
   type ConvertirProspectoFormulario,
   type ProspectoDetalle,
@@ -32,6 +33,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { BotonBuscarDni } from '@/features/consultas/components/boton-buscar-dni'
 import { nombreCompleto, sumarMeses } from '@/lib/formato'
 import { aplicarErroresApi } from '@/lib/formularios'
 import { usePermiso } from '@/lib/permisos'
@@ -373,9 +375,10 @@ export function FormularioConversion({ prospecto, maxIntegrantes, onConvertido, 
 }
 
 function FilaIntegrante({ indice, celular }: { indice: number; celular: string }) {
-  const { register, control, formState } = useFormContext<ConvertirProspectoFormulario>()
+  const { register, control, setValue, formState } = useFormContext<ConvertirProspectoFormulario>()
   const errores = formState.errors.integrantes?.[indice]
   const id = (n: string) => `int-${indice}-${n}`
+  const [tipoDoc, numeroDoc] = useWatch({ control, name: [`integrantes.${indice}.tipoDocumento`, `integrantes.${indice}.numeroDocumento`] })
   return (
     <fieldset className="flex flex-col gap-3 rounded-lg border p-4">
       <legend className="sr-only">Integrante {indice + 1}</legend>
@@ -442,6 +445,16 @@ function FilaIntegrante({ indice, celular }: { indice: number; celular: string }
           <Input id={id('num-doc')} className="font-mono uppercase" aria-invalid={Boolean(errores?.numeroDocumento)} {...register(`integrantes.${indice}.numeroDocumento`)} />
           <FieldError errors={[errores?.numeroDocumento]} />
         </Field>
+        <BotonBuscarDni
+          className="sm:col-span-1"
+          tipo={tipoDoc as TipoDocumento | ''}
+          numero={numeroDoc as string}
+          onEncontrado={(datos) => {
+            const opciones = { shouldDirty: true, shouldValidate: true }
+            setValue(`integrantes.${indice}.nombres`, datos.nombres, opciones)
+            setValue(`integrantes.${indice}.apellidos`, datos.apellidos, opciones)
+          }}
+        />
       </div>
     </fieldset>
   )

@@ -24,6 +24,7 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 const sufijo = Date.now().toString().slice(-6);
 const PASSWORD = 'Prueba-e2e-123';
 const emailNuevo = `e2e.adm.nuevo.${sufijo}@grupoes.local`;
+const dniNuevo = `99${sufijo}`;
 
 describe('Administración (e2e)', () => {
   let app: NestExpressApplication;
@@ -82,15 +83,28 @@ describe('Administración (e2e)', () => {
 
   it('el administrador crea usuarios con una contraseña temporal', async () => {
     const asistente = (await http().get('/api/roles').set(como(tokens.admin)).expect(200)).body.find((r: { codigo: string }) => r.codigo === 'AUXILIAR');
-    const datos = { nombres: 'Nuevo', apellidos: 'Auxiliar', email: emailNuevo, rolIds: [asistente.id] };
+    const datos = { nombres: 'Nuevo', apellidos: 'Auxiliar', email: emailNuevo, tipoDocumento: 'DNI', numeroDocumento: dniNuevo, rolIds: [asistente.id] };
     await http().post('/api/usuarios').set(como(tokens.prod)).send(datos).expect(403);
+    // El documento es obligatorio y debe tener el formato de su tipo.
+    const { tipoDocumento: _t, numeroDocumento: _n, ...sinDocumento } = datos;
+    await http().post('/api/usuarios').set(como(tokens.admin)).send(sinDocumento).expect(400);
+    await http().post('/api/usuarios').set(como(tokens.admin)).send({ ...datos, numeroDocumento: '1234' }).expect(400);
     const r = (await http().post('/api/usuarios').set(como(tokens.admin)).send(datos).expect(201)).body as ClaveTemporal;
     nuevo = r.usuario;
     claveNuevo = r.claveTemporal!;
     expect(claveNuevo).toMatch(/^(?=.*[a-zA-Z])(?=.*\d).{12}$/);
-    expect(nuevo).toMatchObject({ debeCambiarClave: true, activo: true, roles: [{ codigo: 'AUXILIAR' }] });
-    // El correo no se repite.
+    expect(nuevo).toMatchObject({ debeCambiarClave: true, activo: true, tipoDocumento: 'DNI', numeroDocumento: dniNuevo, roles: [{ codigo: 'AUXILIAR' }] });
+    // El correo y el documento no se repiten.
     await http().post('/api/usuarios').set(como(tokens.admin)).send(datos).expect(409);
+    const mismoDocumento = await http()
+      .post('/api/usuarios')
+      .set(como(tokens.admin))
+      .send({ ...datos, email: `otro.${emailNuevo}` })
+      .expect(409);
+    expect(mismoDocumento.body.errores[0].campo).toBe('numeroDocumento');
+    // Se busca por documento.
+    const buscados = (await http().get(`/api/usuarios?q=${dniNuevo}`).set(como(tokens.admin)).expect(200)).body as { id: string }[];
+    expect(buscados.map((u) => u.id)).toEqual([nuevo.id]);
   });
 
   it('en el primer ingreso debe cambiar la contraseña, con la política mínima', async () => {

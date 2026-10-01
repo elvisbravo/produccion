@@ -7,6 +7,8 @@ export const envSchema = z.object({
   WEB_ORIGIN: z.string().default('http://localhost:5173'),
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET debe tener al menos 32 caracteres'),
   JWT_ACCESS_TTL_SEGUNDOS: z.coerce.number().int().positive().default(900),
+  /** Servicio de consulta de DNI (sin token); se le agrega /<dni>. */
+  DNI_API_URL: z.string().url().default('https://esconsultoresyasesores.com:9300/api/dni-ruc/dni'),
   REFRESH_TTL_DIAS: z.coerce.number().int().positive().default(7),
 });
 

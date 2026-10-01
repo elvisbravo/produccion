@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { Alcance } from './permisos.js'
-import type { UsuarioResumen } from './prospectos.js'
+import { TIPOS_DOCUMENTO, validarDocumento, type TipoDocumento, type UsuarioResumen } from './prospectos.js'
 
 // ─── Parámetros configurables ───────────────────────────────
 
@@ -136,18 +136,23 @@ const datosUsuario = {
   email: z.email('Correo no válido').trim().toLowerCase().max(150),
   celular: opcional(z.string().trim().max(20)),
   fechaNacimiento: opcional(z.iso.date('Fecha no válida')),
+  /** Obligatorio: identifica a la persona (y evita registrarla dos veces). */
+  tipoDocumento: z.enum(TIPOS_DOCUMENTO, 'Elige el tipo de documento'),
+  numeroDocumento: z.string().trim().toUpperCase().min(1, 'Ingresa el número de documento').max(20, 'Máximo 20 caracteres'),
 }
 
-export const crearUsuarioSchema = z.object({
-  ...datosUsuario,
-  rolIds: z.array(z.uuid()).min(1, 'Asigna al menos un rol'),
-  /** Si se deja vacía, el sistema genera una contraseña temporal. */
-  clave: opcional(claveSchema),
-})
+export const crearUsuarioSchema = z
+  .object({
+    ...datosUsuario,
+    rolIds: z.array(z.uuid()).min(1, 'Asigna al menos un rol'),
+    /** Si se deja vacía, el sistema genera una contraseña temporal. */
+    clave: opcional(claveSchema),
+  })
+  .superRefine(validarDocumento)
 export type CrearUsuarioFormulario = z.input<typeof crearUsuarioSchema>
 export type CrearUsuarioDatos = z.output<typeof crearUsuarioSchema>
 
-export const editarUsuarioSchema = z.object(datosUsuario)
+export const editarUsuarioSchema = z.object(datosUsuario).superRefine(validarDocumento)
 export type EditarUsuarioFormulario = z.input<typeof editarUsuarioSchema>
 export type EditarUsuarioDatos = z.output<typeof editarUsuarioSchema>
 
@@ -180,6 +185,9 @@ export interface UsuarioListadoItem {
   apellidos: string
   email: string
   celular: string | null
+  /** Vacío en los usuarios anteriores a este dato, hasta que se editen. */
+  tipoDocumento: TipoDocumento | null
+  numeroDocumento: string | null
   activo: boolean
   bloqueado: boolean
   roles: { id: string; codigo: string; nombre: string }[]
