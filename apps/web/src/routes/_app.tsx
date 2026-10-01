@@ -6,6 +6,7 @@ import { AppHeader } from '@/components/layout/app-header'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { BusquedaGlobal } from '@/components/layout/busqueda-global'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
+import { useCanalNotificaciones } from '@/features/notificaciones/api'
 import { useInactividad } from '@/hooks/use-inactividad'
 import { cerrarSesion, restaurarSesion } from '@/lib/sesion'
 import { useSesion } from '@/stores/sesion'
@@ -44,6 +45,8 @@ function LayoutApp() {
     void cerrarSesion('inactividad')
   }, [])
   useInactividad(inactividadMinutos, porInactividad)
+  // Avisos en vivo mientras haya sesión.
+  useCanalNotificaciones()
 
   if (!usuario) return null
 

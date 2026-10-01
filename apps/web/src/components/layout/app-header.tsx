@@ -1,5 +1,4 @@
 import { Link, useLocation } from '@tanstack/react-router'
-import { Bell } from 'lucide-react'
 import { Fragment } from 'react'
 import {
   Breadcrumb,
@@ -9,10 +8,9 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
-import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { SidebarTrigger } from '@/components/ui/sidebar'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Campanita } from '@/features/notificaciones/campanita'
 import { ubicarModulo } from '@/lib/menu'
 import { useSesion } from '@/stores/sesion'
 
@@ -51,14 +49,7 @@ export function AppHeader() {
       </Breadcrumb>
 
       <div className="ml-auto flex items-center gap-1">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Notificaciones">
-              <Bell />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Notificaciones (próximamente)</TooltipContent>
-        </Tooltip>
+        <Campanita />
       </div>
     </header>
   )

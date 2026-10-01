@@ -17,6 +17,7 @@ import { AgendaService, aTareaEnCola, type TareaDeAgenda } from '../agenda/agend
 import { holgura, planificar, type PlanCola } from '../agenda/cola.js';
 import { AuditoriaService } from '../common/auditoria.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
+import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { type ActorProduccion } from './produccion.service.js';
 
@@ -51,6 +52,7 @@ export class ContingenciasService {
     private readonly prisma: PrismaService,
     private readonly agenda: AgendaService,
     private readonly auditoria: AuditoriaService,
+    private readonly notificaciones: NotificacionesService,
   ) {}
 
   // ─── Utilidades ──────────────────────────────────────────
@@ -251,6 +253,15 @@ export class ContingenciasService {
       }
       await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'reasignar_por_ausencia', entidad: 'ausencia', entidadId: ausenciaId, despues: datos, ip: actor.ip }, tx);
     });
+    const porPersona = new Map<string, number>();
+    for (const c of datos.cambios) if (c.usuarioId !== u) porPersona.set(c.usuarioId, (porPersona.get(c.usuarioId) ?? 0) + 1);
+    for (const [usuarioId, n] of porPersona) {
+      await this.notificaciones.notificar(
+        [usuarioId],
+        { tipo: 'tarea.reasignada', titulo: `Recibiste ${n} ${n === 1 ? 'tarea' : 'tareas'} de ${nombreDe(ausencia.usuario)}`, mensaje: 'Por su ausencia', enlace: '/tareas' },
+        actor.usuarioId,
+      );
+    }
     return datos.cambios.length;
   }
 
@@ -307,6 +318,11 @@ export class ContingenciasService {
       await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'solicitar_urgente', entidad: 'trabajo', entidadId: trabajoId, despues: { motivo }, ip: actor.ip }, tx);
       return s.id;
     });
+    await this.notificaciones.notificar(
+      await this.notificaciones.conPermiso('programacion.insertar_urgente'),
+      { tipo: 'urgente.solicitada', titulo: `Urgencia por insertar: ${trabajo.codigo}`, mensaje: motivo, enlace: '/programacion?vista=urgentes' },
+      actor.usuarioId,
+    );
     return this.aItem(await this.prisma.solicitudUrgente.findUniqueOrThrow({ where: { id }, include: INCLUIR_URGENTE }));
   }
 
@@ -423,6 +439,20 @@ export class ContingenciasService {
       });
       await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'ejecutar_urgente', entidad: 'solicitud_urgente', entidadId: id, despues: datos, ip: actor.ip }, tx);
     });
+    const trabajo = await this.prisma.trabajo.findUniqueOrThrow({
+      where: { id: s.trabajoId },
+      select: { codigo: true, equipo: { where: { hasta: null, funcion: 'jefe_responsable' }, select: { usuarioId: true } } },
+    });
+    await this.notificaciones.notificar(
+      [datos.usuarioId],
+      { tipo: 'urgente.en_tu_cola', titulo: `Trabajo urgente primero en tu cola: ${trabajo.codigo}`, mensaje: s.motivo, enlace: '/tareas?vista=cola' },
+      actor.usuarioId,
+    );
+    await this.notificaciones.notificar(
+      [s.solicitadaPorId, ...trabajo.equipo.map((e) => e.usuarioId)].filter((x) => x !== datos.usuarioId),
+      { tipo: 'urgente.ejecutada', titulo: `${trabajo.codigo} se insertó como urgente`, mensaje: `En la cola de ${nombreDe(usuario)}`, enlace: `/trabajos/${s.trabajoId}` },
+      actor.usuarioId,
+    );
     return this.aItem(await this.prisma.solicitudUrgente.findUniqueOrThrow({ where: { id }, include: INCLUIR_URGENTE }));
   }
 
@@ -432,6 +462,11 @@ export class ContingenciasService {
       await tx.solicitudUrgente.update({ where: { id }, data: { estado: 'rechazada', resueltaPorId: actor.usuarioId, resueltaEn: new Date(), observacion } });
       await tx.trabajoEvento.create({ data: { trabajoId: s.trabajoId, tipo: 'estado', detalle: `Urgencia no ejecutada — ${observacion}`, usuarioId: actor.usuarioId } });
     });
+    await this.notificaciones.notificar(
+      [s.solicitadaPorId],
+      { tipo: 'urgente.rechazada', titulo: 'Producción no ejecutó la urgencia', mensaje: observacion, enlace: `/trabajos/${s.trabajoId}` },
+      actor.usuarioId,
+    );
     return this.aItem(await this.prisma.solicitudUrgente.findUniqueOrThrow({ where: { id }, include: INCLUIR_URGENTE }));
   }
 

@@ -61,6 +61,7 @@ model Usuario {
   urgentesResueltas  SolicitudUrgente[] @relation("UrgenteResueltaPor")
   urgentesAsignadas  SolicitudUrgente[] @relation("UrgenteAsignadoA")
   extras             HoraExtraBono[]    @relation("ExtraDelUsuario")
+  notificaciones     Notificacion[]     @relation("NotificacionDelUsuario")
   extrasPropuestas   HoraExtraBono[]    @relation("ExtraPropuestaPor")
   extrasAprobadas    HoraExtraBono[]    @relation("ExtraAprobadaPor")
   entregasEnviadas   EntregaCliente[]   @relation("EntregaEnviadaPor")
@@ -1373,4 +1374,28 @@ model HoraExtraBono {
   @@index([usuarioId, fecha])
   @@index([estado])
   @@map("hora_extra_bono")
+}
+
+// ─── Notificaciones ─────────────────────────────────────────
+
+/// Aviso interno para un usuario (campanita). También se envía en vivo por Socket.IO si está conectado.
+model Notificacion {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  usuarioId String    @map("usuario_id") @db.Uuid
+  /// Tipo del evento (p. ej. "tarea.asignada"): sirve para el ícono y para refrescar la pantalla adecuada.
+  tipo      String    @db.VarChar(60)
+  titulo    String    @db.VarChar(200)
+  mensaje   String?
+  /// Ruta de la web a la que lleva (p. ej. /trabajos/<id>).
+  enlace    String?   @db.VarChar(300)
+  /// Evita repetir avisos automáticos (recordatorios, vencimientos): único por usuario.
+  clave     String?   @db.VarChar(150)
+  leidaEn   DateTime? @map("leida_en") @db.Timestamptz(6)
+  creadaEn  DateTime  @default(now()) @map("creada_en") @db.Timestamptz(6)
+
+  usuario Usuario @relation("NotificacionDelUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, clave])
+  @@index([usuarioId, creadaEn])
+  @@map("notificacion")
 }

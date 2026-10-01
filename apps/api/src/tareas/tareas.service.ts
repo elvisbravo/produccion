@@ -22,6 +22,7 @@ import type { Prisma } from '../generated/prisma/client.js';
 import { ParametrosService } from '../parametros/parametros.service.js';
 import { PermisosService } from '../permisos/permisos.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
 import { ProduccionService } from '../produccion/produccion.service.js';
 import { EmbudoService } from './embudo.service.js';
 import { aTareaItem, esActiva, finDe, INCLUIR_TAREA, ORDEN_TAREAS } from './mapeo.js';
@@ -64,6 +65,7 @@ export class TareasService {
     private readonly embudo: EmbudoService,
     private readonly agenda: AgendaService,
     private readonly produccion: ProduccionService,
+    private readonly notificaciones: NotificacionesService,
   ) {}
 
   // ─── Catálogo ─────────────────────────────────────────────
@@ -145,7 +147,11 @@ export class TareasService {
     /** Prefijo de los campos en los errores (p. ej. "primeraActividad.") para que el formulario los ubique. */
     prefijo = '',
   ): Promise<string> {
-    if (!tx) return this.prisma.$transaction((t) => this.programarParaProspecto(prospectoId, datos, actor, t, prefijo));
+    if (!tx) {
+      const id = await this.prisma.$transaction((t) => this.programarParaProspecto(prospectoId, datos, actor, t, prefijo));
+      await this.avisarPorAsignar(id, actor.usuarioId);
+      return id;
+    }
 
     const actividad = await tx.actividad.findFirst({ where: { id: datos.actividadId, activa: true }, include: INCLUIR_ACTIVIDAD });
     if (!actividad || actividad.aplicaA === 'cliente') throw errorCampo(`${prefijo}actividadId`, 'Esta actividad no aplica a prospectos');
@@ -267,6 +273,38 @@ export class TareasService {
       if (cantidad > p.cantidad) throw errorCampo('responsables', `"${p.nombre}" admite ${p.cantidad} persona(s)`);
     }
     return resultado;
+  }
+
+  // ─── Avisos ──────────────────────────────────────────────
+
+  /** "Enfoque · P-2026-0003 · jue. 1 oct., 10:00" y el enlace a su prospecto o trabajo. */
+  private async describir(tareaId: string) {
+    const t = await this.prisma.tarea.findUnique({
+      where: { id: tareaId },
+      include: {
+        actividad: true,
+        prospecto: { select: { id: true, codigo: true, responsableId: true } },
+        trabajo: { select: { id: true, codigo: true } },
+        responsables: { select: { usuarioId: true } },
+      },
+    });
+    if (!t) return null;
+    const referencia = t.prospecto?.codigo ?? t.trabajo?.codigo;
+    const cuando = t.inicio ? fechaLegible(t.fecha.toISOString().slice(0, 10), horaEnLima(t.inicio)) : null;
+    return {
+      tarea: t,
+      texto: [t.titulo ?? t.actividad.nombre, referencia, cuando].filter(Boolean).join(' · '),
+      enlace: t.prospecto ? `/prospectos/${t.prospecto.id}` : t.trabajo ? `/trabajos/${t.trabajo.id}` : '/tareas',
+      responsables: t.responsables.map((r) => r.usuarioId),
+    };
+  }
+
+  /** Una tarea quedó por asignar: avisa a quienes coordinan esa actividad. */
+  async avisarPorAsignar(tareaId: string, autorId: string): Promise<void> {
+    const d = await this.describir(tareaId);
+    if (!d || d.tarea.estado !== 'por_asignar' || !d.tarea.actividad.rolCoordinadorId) return;
+    const coordinadores = await this.notificaciones.conRol(d.tarea.actividad.rolCoordinadorId);
+    await this.notificaciones.notificar(coordinadores, { tipo: 'tarea.por_asignar', titulo: 'Nueva tarea por asignar', mensaje: d.texto, enlace: '/tareas?vista=por-asignar' }, autorId);
   }
 
   /** Días u horas no laborables (feriado, cumpleaños, ausencia) bloquean la programación: no es solo un aviso. */
@@ -440,6 +478,8 @@ export class TareasService {
         tx,
       );
     });
+    const d = await this.describir(tareaId);
+    if (d) await this.notificaciones.notificar(d.responsables, { tipo: 'tarea.asignada', titulo: 'Te asignaron una tarea', mensaje: d.texto, enlace: '/tareas' }, actor.usuarioId);
     return this.detalle(tareaId, actor.usuarioId);
   }
 
@@ -469,6 +509,7 @@ export class TareasService {
     const estado = esReunion && !datos.asistio ? 'no_asistio' : 'completada';
     const efectivos = await this.permisos.efectivos(actor.usuarioId);
     let intentos = 0;
+    let siguienteId: string | null = null;
 
     await this.prisma.$transaction(async (tx) => {
       await tx.tarea.update({
@@ -502,7 +543,7 @@ export class TareasService {
       if (estado === 'completada') await this.embudo.alOcurrir(tx, prospecto.id, actividad.id, 'al_completar', actor.usuarioId);
 
       if (datos.siguiente) {
-        await this.programarParaProspecto(prospecto.id, datos.siguiente, actor, tx, 'siguiente.');
+        siguienteId = await this.programarParaProspecto(prospecto.id, datos.siguiente, actor, tx, 'siguiente.');
       } else if (datos.marcarPerdido) {
         const perdida = await tx.etapaProspecto.findFirst({ where: { clase: 'perdida', activa: true } });
         if (!perdida) throw new BadRequestException('No hay una etapa de pérdida configurada');
@@ -528,6 +569,20 @@ export class TareasService {
       );
     });
 
+    if (siguienteId) await this.avisarPorAsignar(siguienteId, actor.usuarioId);
+    // Al dueño del prospecto le interesa saber que se hizo una reunión (p. ej., el enfoque).
+    if (esReunion && tarea.prospecto) {
+      await this.notificaciones.notificar(
+        [tarea.prospecto.responsableId],
+        {
+          tipo: 'prospecto.reunion',
+          titulo: estado === 'no_asistio' ? `El cliente no asistió a "${actividad.nombre}"` : `Se realizó "${actividad.nombre}"`,
+          mensaje: [tarea.prospecto.codigo, datos.resultado].filter(Boolean).join(' · '),
+          enlace: `/prospectos/${tarea.prospecto.id}`,
+        },
+        actor.usuarioId,
+      );
+    }
     const umbral = await this.parametros.numero('prospectos.intentos_sin_respuesta');
     return {
       tarea: await this.detalle(tareaId, actor.usuarioId),
@@ -581,6 +636,14 @@ export class TareasService {
         tx,
       );
     });
+    const d = await this.describir(tareaId);
+    if (d) {
+      await this.notificaciones.notificar(
+        [...d.responsables, d.tarea.prospecto?.responsableId],
+        { tipo: 'tarea.reprogramada', titulo: 'Se reprogramó una tarea', mensaje: `${d.texto}${datos.motivo ? ` — ${datos.motivo}` : ''}`, enlace: d.enlace },
+        actor.usuarioId,
+      );
+    }
     return this.detalle(tareaId, actor.usuarioId);
   }
 
@@ -604,6 +667,14 @@ export class TareasService {
       }
       await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'cancelar', entidad: 'tarea', entidadId: tareaId, despues: { motivo }, ip: actor.ip }, tx);
     });
+    const d = await this.describir(tareaId);
+    if (d) {
+      await this.notificaciones.notificar(
+        [...d.responsables, d.tarea.prospecto?.responsableId],
+        { tipo: 'tarea.cancelada', titulo: 'Se canceló una tarea', mensaje: `${d.texto} — ${motivo}`, enlace: d.enlace },
+        actor.usuarioId,
+      );
+    }
     return this.detalle(tareaId, actor.usuarioId);
   }
 

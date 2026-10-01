@@ -17,6 +17,7 @@ import type { z } from 'zod';
 import type { listarAusenciasSchema } from '@grupoes/shared';
 import { AuditoriaService } from '../common/auditoria.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
+import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
 import { PermisosService } from '../permisos/permisos.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -35,6 +36,14 @@ const INCLUIR = {
 } as const satisfies Prisma.AusenciaInclude;
 type AusenciaCompleta = Prisma.AusenciaGetPayload<{ include: typeof INCLUIR }>;
 
+/** "12 oct. al 16 oct." o "12 oct., 15:00–17:00" (para los avisos). */
+const formatoDia = new Intl.DateTimeFormat('es-PE', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+const rango = (a: AusenciaItem) => {
+  const d = (x: string) => formatoDia.format(new Date(`${x}T12:00:00Z`));
+  if (a.horaDesde) return `${d(a.fechaDesde)}, ${a.horaDesde}–${a.horaHasta}`;
+  return a.fechaDesde === a.fechaHasta ? d(a.fechaDesde) : `${d(a.fechaDesde)} al ${d(a.fechaHasta)}`;
+};
+
 const errorCampo = (campo: string, mensaje: string) => new BadRequestException({ message: 'Datos inválidos', errores: [{ campo, mensaje }] });
 
 @Injectable()
@@ -43,6 +52,7 @@ export class AusenciasService {
     private readonly prisma: PrismaService,
     private readonly permisos: PermisosService,
     private readonly auditoria: AuditoriaService,
+    private readonly notificaciones: NotificacionesService,
   ) {}
 
   async listar(filtros: z.output<typeof listarAusenciasSchema>, usuarioId: string): Promise<AusenciaItem[]> {
@@ -119,7 +129,35 @@ export class AusenciasService {
       );
       return a;
     });
-    return this.item(creada.id);
+    const item = await this.item(creada.id);
+    const quien = `${item.usuario.nombres} ${item.usuario.apellidos}`;
+    const tipo = NOMBRE_TIPO_AUSENCIA[item.tipo].toLowerCase();
+    if (estado === 'solicitada') {
+      await this.notificaciones.notificar(
+        await this.notificaciones.conPermiso('ausencias.aprobar'),
+        { tipo: 'ausencia.solicitada', titulo: `${quien} solicitó ${tipo}`, mensaje: rango(item), enlace: '/ausencias?estado=solicitada' },
+        actor.usuarioId,
+      );
+    } else {
+      await this.notificaciones.notificar([item.usuario.id], { tipo: 'ausencia.registrada', titulo: `Se registró tu ${tipo}`, mensaje: rango(item), enlace: '/ausencias' }, actor.usuarioId);
+      await this.avisarAfectadas(item, actor.usuarioId);
+    }
+    return item;
+  }
+
+  /** Si la ausencia cae sobre tareas programadas, producción debe reasignarlas. */
+  private async avisarAfectadas(item: AusenciaItem, autorId: string) {
+    if (item.tareasAfectadas.length === 0) return;
+    await this.notificaciones.notificar(
+      await this.notificaciones.conPermiso('programacion.reasignar'),
+      {
+        tipo: 'ausencia.afecta_tareas',
+        titulo: `La ausencia de ${item.usuario.nombres} ${item.usuario.apellidos} afecta ${item.tareasAfectadas.length} ${item.tareasAfectadas.length === 1 ? 'tarea' : 'tareas'}`,
+        mensaje: `${NOMBRE_TIPO_AUSENCIA[item.tipo]} · ${rango(item)}`,
+        enlace: '/ausencias?estado=aprobada',
+      },
+      autorId,
+    );
   }
 
   /** No se permiten dos ausencias vigentes que se crucen (dos permisos por horas del mismo día sí, si no se tocan). */
@@ -194,7 +232,17 @@ export class AusenciasService {
         tx,
       );
     });
-    return this.item(a.id);
+    const item = await this.item(a.id);
+    if (estado !== 'anulada' || a.solicitadaPorId !== actor.usuarioId) {
+      const verbo = { aprobada: 'aprobaron', rechazada: 'rechazaron', anulada: 'anularon' }[estado];
+      await this.notificaciones.notificar(
+        [item.usuario.id],
+        { tipo: `ausencia.${estado}`, titulo: `Te ${verbo} ${NOMBRE_TIPO_AUSENCIA[item.tipo].toLowerCase()}`, mensaje: [rango(item), observacion].filter(Boolean).join(' · '), enlace: '/ausencias' },
+        actor.usuarioId,
+      );
+    }
+    if (estado === 'aprobada') await this.avisarAfectadas(item, actor.usuarioId);
+    return item;
   }
 
   // ─── Mapeo ───────────────────────────────────────────────

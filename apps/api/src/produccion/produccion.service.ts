@@ -23,6 +23,7 @@ import { AgendaService, type ColaDeUsuario } from '../agenda/agenda.service.js';
 import { holgura, type PlanCola } from '../agenda/cola.js';
 import { AuditoriaService } from '../common/auditoria.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
+import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export interface ActorProduccion {
@@ -87,6 +88,7 @@ export class ProduccionService {
     private readonly prisma: PrismaService,
     private readonly agenda: AgendaService,
     private readonly auditoria: AuditoriaService,
+    private readonly notificaciones: NotificacionesService,
   ) {}
 
   // ─── Lectura ─────────────────────────────────────────────
@@ -208,6 +210,33 @@ export class ProduccionService {
       await this.evento(tx, trabajoId, `Plan generado desde la plantilla: ${plantilla.entregables.length} entregables`, actor);
       await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'generar_plan', entidad: 'trabajo', entidadId: trabajoId, ip: actor.ip }, tx);
     });
+    await this.avisarEquipo(trabajoId, ['auxiliar_principal'], 'cola.plan', (codigo) => `Nuevas tareas en tu cola: plan de ${codigo}`, null, actor, '/tareas?vista=cola');
+  }
+
+  /** Avisa a quienes cumplen ciertas funciones en el equipo del trabajo. */
+  private async avisarEquipo(
+    trabajoId: string,
+    funciones: string[],
+    tipo: string,
+    titulo: (codigo: string) => string,
+    mensaje: string | null,
+    actor: ActorProduccion,
+    enlace?: string,
+    extra: (string | null | undefined)[] = [],
+  ) {
+    const t = await this.prisma.trabajo.findUnique({ where: { id: trabajoId }, select: { codigo: true, equipo: { where: { hasta: null }, select: { usuarioId: true, funcion: true } } } });
+    if (!t) return;
+    const destinos = [...t.equipo.filter((e) => funciones.includes(e.funcion)).map((e) => e.usuarioId), ...extra];
+    await this.notificaciones.notificar(destinos, { tipo, titulo: titulo(t.codigo), mensaje, enlace: enlace ?? `/trabajos/${trabajoId}` }, actor.usuarioId);
+  }
+
+  /** Responsables de las tareas activas de un entregable con cierto comportamiento (p. ej. la corrección recién creada). */
+  private async responsablesDe(entregableId: string, comportamiento: 'revision' | 'correccion') {
+    const filas = await this.prisma.tareaResponsable.findMany({
+      where: { tarea: { entregableId, estado: { in: ['pendiente', 'en_proceso'] }, actividad: { tipo: { comportamiento } } } },
+      select: { usuarioId: true },
+    });
+    return filas.map((f) => f.usuarioId);
   }
 
   async crearEntregable(trabajoId: string, datos: EntregableDatos, actor: ActorProduccion): Promise<void> {
@@ -375,6 +404,12 @@ export class ProduccionService {
       await tx.entregable.update({ where: { id: entregableId }, data: { estado: 'en_revision' } });
       await this.evento(tx, e.trabajoId, `${e.nombre} enviado a revisión`, actor);
     });
+    const e = await this.entregable(this.prisma, entregableId);
+    await this.notificaciones.notificar(
+      await this.responsablesDe(entregableId, 'revision'),
+      { tipo: 'entregable.revision', titulo: `${e.nombre} espera tu revisión`, mensaje: e.trabajo.codigo, enlace: `/trabajos/${e.trabajoId}` },
+      actor.usuarioId,
+    );
   }
 
   async revisar(entregableId: string, datos: RevisarEntregableDatos, actor: ActorProduccion): Promise<void> {
@@ -412,6 +447,18 @@ export class ProduccionService {
       await this.evento(tx, e.trabajoId, `${e.nombre}: ${datos.resultado === 'aprobado' ? 'aprobado en la revisión interna' : 'observado en la revisión interna'}`, actor);
       await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'revisar', entidad: 'entregable', entidadId: entregableId, despues: datos, ip: actor.ip }, tx);
     });
+    const e = await this.entregable(this.prisma, entregableId);
+    if (datos.resultado === 'observado') {
+      await this.notificaciones.notificar(
+        await this.responsablesDe(entregableId, 'correccion'),
+        { tipo: 'entregable.observado', titulo: `Observaron ${e.nombre} (${e.trabajo.codigo})`, mensaje: datos.observaciones ?? null, enlace: '/tareas?vista=cola' },
+        actor.usuarioId,
+      );
+    } else {
+      // Quien sigue el prospecto de origen es quien lo entrega al cliente.
+      const prospecto = await this.prisma.prospecto.findFirst({ where: { trabajo: { id: e.trabajoId } }, select: { responsableId: true } });
+      await this.avisarEquipo(e.trabajoId, ['auxiliar_principal'], 'entregable.aprobado', (codigo) => `${e.nombre} aprobado: listo para enviar (${codigo})`, null, actor, undefined, [prospecto?.responsableId]);
+    }
   }
 
   /** La corrección va primero en la cola del auxiliar principal. */
@@ -464,6 +511,14 @@ export class ProduccionService {
         }
       }
     });
+    if (!datos.conforme) {
+      const e = await this.entregable(this.prisma, entregableId);
+      await this.notificaciones.notificar(
+        await this.responsablesDe(entregableId, 'correccion'),
+        { tipo: 'entregable.observado_cliente', titulo: `El cliente observó ${e.nombre} (${e.trabajo.codigo})`, mensaje: datos.observaciones ?? null, enlace: '/tareas?vista=cola' },
+        actor.usuarioId,
+      );
+    }
   }
 
   private evento(tx: Tx, trabajoId: string, detalle: string, actor: ActorProduccion, tipo: 'entregable' | 'estado' = 'entregable') {

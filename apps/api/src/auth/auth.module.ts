@@ -26,5 +26,7 @@ import { JwtAuthGuard } from './jwt-auth.guard.js';
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PermisosGuard },
   ],
+  // El gateway de notificaciones valida el mismo access token.
+  exports: [JwtModule],
 })
 export class AuthModule {}

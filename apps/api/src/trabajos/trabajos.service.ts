@@ -25,6 +25,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import { PermisosService } from '../permisos/permisos.service.js';
 import { PersonasService } from '../personas/personas.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
 import { ProduccionService } from '../produccion/produccion.service.js';
 import { repartirPago } from './cuenta.js';
 import { aCalculo, aDetalle, aListado, INCLUIR_DETALLE, INCLUIR_LISTADO } from './mapeo.js';
@@ -46,6 +47,7 @@ export class TrabajosService {
     private readonly personas: PersonasService,
     private readonly auditoria: AuditoriaService,
     private readonly produccion: ProduccionService,
+    private readonly notificaciones: NotificacionesService,
   ) {}
 
   // ─── Acceso ──────────────────────────────────────────────
@@ -189,6 +191,12 @@ export class TrabajosService {
       return trabajo.id;
     });
 
+    const nuevo = await this.prisma.trabajo.findUniqueOrThrow({ where: { id }, select: { codigo: true, titulo: true, tipoTrabajo: { select: { nombre: true } } } });
+    await this.notificaciones.notificar(
+      await this.notificaciones.conPermiso('trabajos.armar_equipo'),
+      { tipo: 'trabajo.nuevo', titulo: `Nuevo trabajo por asignar: ${nuevo.codigo}`, mensaje: [nuevo.tipoTrabajo.nombre, nuevo.titulo].filter(Boolean).join(' · '), enlace: `/trabajos/${id}` },
+      actor.usuarioId,
+    );
     return this.obtener(id, actor.usuarioId);
   }
 
@@ -356,6 +364,21 @@ export class TrabajosService {
         tx,
       );
     });
+    const enlace = `/trabajos/${trabajoId}`;
+    const entraron = entran.filter((e) => !salen.some((x) => x.usuarioId === e.usuarioId));
+    for (const e of entran) {
+      await this.notificaciones.notificar(
+        [e.usuarioId],
+        { tipo: 'equipo.entra', titulo: `Te sumaron al equipo de ${trabajo.codigo}`, mensaje: NOMBRE_FUNCION_EQUIPO[e.funcion], enlace },
+        actor.usuarioId,
+      );
+    }
+    const salieron = salen.filter((x) => !entraron.some((e) => e.usuarioId === x.usuarioId) && !nuevo.some((n) => n.usuarioId === x.usuarioId));
+    await this.notificaciones.notificar(
+      salieron.map((x) => x.usuarioId),
+      { tipo: 'equipo.sale', titulo: `Saliste del equipo de ${trabajo.codigo}`, mensaje: datos.motivo ?? null, enlace },
+      actor.usuarioId,
+    );
     return this.obtener(trabajoId, actor.usuarioId);
   }
 

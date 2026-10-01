@@ -14,6 +14,7 @@ import {
 import { AgendaService } from '../agenda/agenda.service.js';
 import { AuditoriaService } from '../common/auditoria.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
+import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
 import { PermisosService } from '../permisos/permisos.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { ActorProduccion } from './produccion.service.js';
@@ -38,6 +39,11 @@ const INCLUIR = {
 } as const satisfies Prisma.HoraExtraBonoInclude;
 type ExtraCompleta = Prisma.HoraExtraBonoGetPayload<{ include: typeof INCLUIR }>;
 
+/** "sáb. 3 oct., 14:00–17:00 · T-2026-0001" o "S/ 150.00 · T-2026-0001". */
+const formatoDia = new Intl.DateTimeFormat('es-PE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+const describir = (x: HoraExtraItem) =>
+  [x.modalidad === 'horas_extra' ? `${formatoDia.format(new Date(`${x.fecha}T12:00:00Z`))}, ${x.horaInicio}–${x.horaFin}` : `S/ ${x.monto?.toFixed(2)}`, x.trabajo.codigo, x.descripcion].join(' · ');
+
 const minutosDe = (x: { minutoInicio: number | null; minutoFin: number | null }) => (x.minutoInicio !== null && x.minutoFin !== null ? x.minutoFin - x.minutoInicio : 0);
 
 @Injectable()
@@ -47,6 +53,7 @@ export class ExtrasService {
     private readonly agenda: AgendaService,
     private readonly permisos: PermisosService,
     private readonly auditoria: AuditoriaService,
+    private readonly notificaciones: NotificacionesService,
   ) {}
 
   // ─── Topes ───────────────────────────────────────────────
@@ -147,7 +154,13 @@ export class ExtrasService {
       },
     });
     await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'proponer', entidad: 'hora_extra_bono', entidadId: creada.id, despues: datos, ip: actor.ip });
-    return this.item(creada.id);
+    const item = await this.item(creada.id);
+    await this.notificaciones.notificar(
+      [item.usuario.id],
+      { tipo: 'extra.propuesta', titulo: `Te proponen ${esHoras ? 'horas extra' : 'un bono'}: acéptalo o recházalo`, mensaje: describir(item), enlace: '/horas-extra?vista=mias' },
+      actor.usuarioId,
+    );
+    return item;
   }
 
   private async obtener(id: string): Promise<ExtraCompleta> {
@@ -163,7 +176,22 @@ export class ExtrasService {
     if (x.estado !== 'propuesta') throw new BadRequestException('Ya respondiste esta propuesta');
     if (!acepta && !motivo) throw errorCampo('motivo', 'Cuéntanos por qué no puedes');
     await this.cambiar(x, { estado: acepta ? 'aceptada' : 'rechazada', respondidaEn: new Date(), motivoRechazo: acepta ? null : motivo }, acepta ? 'aceptar' : 'rechazar', actor);
-    return this.item(id);
+    const item = await this.item(id);
+    const quien = `${item.usuario.nombres} ${item.usuario.apellidos}`;
+    if (acepta) {
+      await this.notificaciones.notificar(
+        await this.notificaciones.conPermiso('horas_extra.aprobar'),
+        { tipo: 'extra.aceptada', titulo: `${quien} aceptó: falta aprobar`, mensaje: describir(item), enlace: '/horas-extra?vista=por_aprobar' },
+        actor.usuarioId,
+      );
+    } else {
+      await this.notificaciones.notificar(
+        [x.propuestaPorId],
+        { tipo: 'extra.rechazada', titulo: `${quien} rechazó la propuesta`, mensaje: motivo ?? null, enlace: '/horas-extra' },
+        actor.usuarioId,
+      );
+    }
+    return item;
   }
 
   async aprobar(id: string, actor: ActorProduccion): Promise<HoraExtraItem> {
@@ -171,7 +199,13 @@ export class ExtrasService {
     if (x.estado !== 'aceptada') throw new BadRequestException('Solo se aprueba lo que la persona ya aceptó');
     if (x.modalidad === 'horas_extra') await this.revisarDia(x.usuarioId, soloFecha(x.fecha!), x.minutoInicio!, x.minutoFin!);
     await this.cambiar(x, { estado: 'aprobada', aprobadaPorId: actor.usuarioId, aprobadaEn: new Date() }, 'aprobar', actor);
-    return this.item(id);
+    const item = await this.item(id);
+    await this.notificaciones.notificar(
+      [x.usuarioId, x.propuestaPorId],
+      { tipo: 'extra.aprobada', titulo: `Aprobado: ${x.modalidad === 'bono' ? 'bono' : 'horas extra'} de ${item.usuario.nombres}`, mensaje: describir(item), enlace: '/horas-extra' },
+      actor.usuarioId,
+    );
+    return item;
   }
 
   async realizar(id: string, minutosReales: number | undefined, actor: ActorProduccion): Promise<HoraExtraItem> {

@@ -142,6 +142,7 @@ export class ProspectosService {
       throw new ForbiddenException('No tienes permiso para programar actividades');
     }
 
+    let tareaId: string | null = null;
     const id = await this.prisma.$transaction(async (tx) => {
       const personas = await this.resolverContactos(tx, datos, actor.usuarioId);
       const codigo = await siguienteCodigo(tx, 'P');
@@ -165,11 +166,12 @@ export class ProspectosService {
         tx,
       );
       if (datos.primeraActividad) {
-        await this.tareas.programarParaProspecto(prospecto.id, datos.primeraActividad, actor, tx, 'primeraActividad.');
+        tareaId = await this.tareas.programarParaProspecto(prospecto.id, datos.primeraActividad, actor, tx, 'primeraActividad.');
       }
       return prospecto.id;
     });
 
+    if (tareaId) await this.tareas.avisarPorAsignar(tareaId, actor.usuarioId);
     return this.obtener(id, { ...actor, alcance: 'todos' });
   }
 

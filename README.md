@@ -89,6 +89,17 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | POST/GET | `/api/trabajos/:id/urgente`, `/api/trabajos/:id/urgentes`, `/api/urgentes` | Autorizar una urgencia (asistente administrativa) y bandeja de producción |
 | GET/POST | `/api/urgentes/:id/impacto?usuarioId=`, `…/ejecutar`, `…/rechazar` | Simulación en cascada e inserción en la cola de un auxiliar |
 | GET/POST/PUT | `/api/horas-extra`, `…/:id/responder`, `…/aprobar`, `…/realizar`, `…/anular`, `…/topes` | Horas extra y bonos: propuesta → aceptación → aprobación → realizado; topes y resumen por persona |
+| GET/POST | `/api/notificaciones`, `…/:id/leer`, `…/leer-todas` | Campanita: últimos 50 avisos y no leídas (cada usuario, los suyos) |
+| WS | `/api/socket.io` | Avisos en vivo (Socket.IO). La web se conecta con su access token en `auth.token`; cada usuario tiene su sala |
+
+### Avisos automáticos
+
+`RecordatoriosService` (con `@nestjs/schedule`, hora de Lima) avisa sin repetir (clave única por usuario):
+
+- **Cada minuto:** reuniones que empiezan en los próximos 15 minutos.
+- **Cada día a las 7:30:** tareas vencidas, tareas por asignar para hoy o mañana, entregables y cuotas que vencen en 3 días o ya vencieron, y tareas de la cola que ya no llegan a su fecha.
+
+En las pruebas (`NODE_ENV=test`) no corren solos: las pruebas los llaman a mano.
 | GET | `/api/seguimiento/tablero` | Prospectos abiertos con su próximo paso (kanban) |
 | GET | `/api/catalogos/…`, `/api/personas/…` | Catálogos del formulario y búsqueda de personas |
 

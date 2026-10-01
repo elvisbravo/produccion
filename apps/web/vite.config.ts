@@ -18,7 +18,8 @@ export default defineConfig({
     port: 5173,
     // Mismo origen que la API en desarrollo: la cookie del refresh token funciona sin CORS.
     proxy: {
-      '/api': 'http://localhost:3000',
+      // ws: el canal de notificaciones (Socket.IO en /api/socket.io) pasa por el mismo origen.
+      '/api': { target: 'http://localhost:3000', ws: true },
     },
   },
 })

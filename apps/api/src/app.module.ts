@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AgendaModule } from './agenda/agenda.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { NotificacionesModule } from './notificaciones/notificaciones.module.js';
+import { RecordatoriosModule } from './recordatorios/recordatorios.module.js';
 import { CatalogosModule } from './catalogos/catalogos.module.js';
 import { CommonModule } from './common/common.module.js';
 import { validarEnv } from './config/env.js';
@@ -21,11 +24,14 @@ import { SaludController } from './salud/salud.controller.js';
     ParametrosModule,
     PermisosModule,
     AuthModule,
+    NotificacionesModule,
+    ScheduleModule.forRoot(),
     CatalogosModule,
     PersonasModule,
     ProspectosModule,
     TrabajosModule,
     AgendaModule,
+    RecordatoriosModule,
   ],
   controllers: [SaludController],
 })
