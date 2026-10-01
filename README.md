@@ -90,6 +90,12 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | GET/POST | `/api/urgentes/:id/impacto?usuarioId=`, `…/ejecutar`, `…/rechazar` | Simulación en cascada e inserción en la cola de un auxiliar |
 | GET/POST/PUT | `/api/horas-extra`, `…/:id/responder`, `…/aprobar`, `…/realizar`, `…/anular`, `…/topes` | Horas extra y bonos: propuesta → aceptación → aprobación → realizado; topes y resumen por persona |
 | GET/POST | `/api/notificaciones`, `…/:id/leer`, `…/leer-todas` | Campanita: últimos 50 avisos y no leídas (cada usuario, los suyos) |
+| POST | `/api/auth/cambiar-clave` | Cambiar la contraseña propia (obligatorio en el primer ingreso o tras un restablecimiento) |
+| GET/POST/PUT | `/api/usuarios`, `/api/usuarios/:id` | Usuarios: listado, alta (contraseña temporal) y edición |
+| POST/PUT/DELETE | `/api/usuarios/:id/activar`, `…/desactivar`, `…/roles`, `…/excepciones`, `…/restablecer-clave`, `…/desbloquear`, `…/topes-horas-extra` | Acceso, roles, permisos por persona y tope de horas extra propio |
+| GET/POST/PUT/DELETE | `/api/roles`, `/api/roles/:id`, `/api/roles/:id/permisos` | Roles y su matriz de permisos (el administrador tiene siempre todos) |
+| GET/PUT | `/api/parametros` | Parámetros configurables (definidos en `packages/shared/src/administracion.ts`) |
+| GET | `/api/auditoria` | Registro de cambios con filtros |
 | WS | `/api/socket.io` | Avisos en vivo (Socket.IO). La web se conecta con su access token en `auth.token`; cada usuario tiene su sala |
 
 ### Avisos automáticos

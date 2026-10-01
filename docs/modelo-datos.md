@@ -938,5 +938,7 @@ Diferencias entre el diseño de arriba y lo que ya está en `apps/api/prisma/sch
 | `trabajo_evento` | + tipo `entregable` | Línea de tiempo del trabajo |
 | `solicitud_urgente` | Nueva: trabajo, motivo, estado (pendiente / ejecutada / rechazada), auxiliar en cuya cola se insertó; una sola pendiente por trabajo (índice parcial) | La asistente administrativa autoriza; producción ejecuta |
 | `hora_extra_bono` | `CHECK`: horas extra con día y tramo (minutos); bono con monto > 0. Estados: propuesta, aceptada, rechazada, aprobada, realizada, anulada. Sin "liquidada" (el pago queda fuera del sistema) | Las aprobadas abren capacidad en la agenda |
+| `usuario` | + `debe_cambiar_clave` (primer ingreso o contraseña restablecida) | Cambio obligatorio antes de usar el sistema |
+| `tope_horas_extra_usuario` | Nueva: tope semanal y mensual propio de una persona (vacío = sin tope) | Excepción al tope global de los parámetros |
 | `notificacion` | `tipo` como "área.evento" (texto, no enum: los tipos crecen sin migraciones), `titulo`, `mensaje`, `enlace` (ruta de la web) en lugar de entidad + id; `clave` única por usuario para no repetir avisos automáticos; `leida_en` en lugar de un booleano | La web navega directo al enlace |
 | `parametro` | `horas_extra.tope_semanal` / `horas_extra.tope_mensual` (horas; sin valor = sin tope). `tope_horas_extra_usuario` aún no se crea | Excepciones por persona: con la administración de usuarios |
