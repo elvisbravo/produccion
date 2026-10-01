@@ -259,7 +259,7 @@ export function ReporteCobranzaVista({ desde, hasta }: Props) {
                   <span>{a.tramo}</span>
                   <span className="tabular-nums">
                     <span className="font-medium">{formatearSoles(a.monto)}</span>
-                    <span className="text-muted-foreground"> · {a.cuotas} cuotas</span>
+                    <span className="text-muted-foreground"> · {a.cuotas} {a.cuotas === 1 ? 'cuota' : 'cuotas'}</span>
                   </span>
                 </li>
               ))}
@@ -281,7 +281,7 @@ export function ReporteCobranzaVista({ desde, hasta }: Props) {
                     <span>{nombreCompleto(v.usuario)}</span>
                     <span className="tabular-nums">
                       <span className="font-medium text-red-700 dark:text-red-400">{formatearSoles(v.monto)}</span>
-                      <span className="text-muted-foreground"> · {v.cuotas} cuotas</span>
+                      <span className="text-muted-foreground"> · {v.cuotas} {v.cuotas === 1 ? 'cuota' : 'cuotas'}</span>
                     </span>
                   </li>
                 ))}

@@ -26,7 +26,7 @@ function Agrupado({ titulo, filas }: { titulo: string; filas: (FilaRentabilidad 
           {filas.map((f) => (
             <li key={f.nombre} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
               <span>
-                {f.nombre} <span className="text-xs text-muted-foreground">· {f.trabajos} trabajos</span>
+                {f.nombre} <span className="text-xs text-muted-foreground">· {f.trabajos} {f.trabajos === 1 ? 'trabajo' : 'trabajos'}</span>
               </span>
               <Margen f={f} />
             </li>

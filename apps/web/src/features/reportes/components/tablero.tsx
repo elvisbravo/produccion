@@ -1,6 +1,6 @@
 import { formatearSoles } from '@grupoes/shared'
 import { useQuery } from '@tanstack/react-query'
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from 'recharts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
 import { tableroQuery } from '../api'
@@ -9,9 +9,11 @@ import { Cargando, Indicador, pct, tonoPorcentaje } from './comunes'
 const mesCorto = new Intl.DateTimeFormat('es-PE', { month: 'short', year: '2-digit', timeZone: 'UTC' })
 const etiquetaMes = (mes: string) => mesCorto.format(new Date(`${mes}-15T12:00:00Z`))
 
-const configPuntualidad = { porcentaje: { label: 'A tiempo', color: 'var(--chart-2)' } } satisfies ChartConfig
-const configCobranza = { monto: { label: 'Saldo', color: 'var(--chart-1)' } } satisfies ChartConfig
-const configOcupacion = { porcentaje: { label: 'Ocupación', color: 'var(--chart-3)' } } satisfies ChartConfig
+const configPuntualidad = { porcentaje: { label: 'A tiempo', color: 'var(--color-green-600)' } } satisfies ChartConfig
+const configCobranza = { monto: { label: 'Saldo', color: 'var(--color-red-500)' } } satisfies ChartConfig
+/** Por vencer en gris; con atraso, ámbar y luego rojo. */
+const COLOR_TRAMO = ['var(--color-zinc-400)', 'var(--color-amber-500)', 'var(--color-red-400)', 'var(--color-red-500)', 'var(--color-red-700)']
+const configOcupacion = { porcentaje: { label: 'Ocupación', color: 'var(--color-sky-600)' } } satisfies ChartConfig
 
 export function ResumenTablero({ desde, hasta }: { desde: string; hasta: string }) {
   const { data } = useQuery(tableroQuery(desde, hasta))
@@ -27,7 +29,7 @@ export function ResumenTablero({ desde, hasta }: { desde: string; hasta: string 
           etiqueta="Retrabajo"
           valor={data.retrabajo.toLocaleString('es-PE', { maximumFractionDigits: 2 })}
           detalle="observaciones por entregable"
-          tono={data.retrabajo <= 1 ? 'bien' : data.retrabajo <= 2 ? 'atencion' : 'mal'}
+          tono={data.entregables === 0 ? undefined : data.retrabajo <= 1 ? 'bien' : data.retrabajo <= 2 ? 'atencion' : 'mal'}
         />
         <Indicador etiqueta="Ocupación del equipo" valor={pct(data.ocupacion)} detalle="horas registradas sobre las disponibles" />
         <Indicador etiqueta="Cobrado en el periodo" valor={formatearSoles(data.cobrado)} />
@@ -82,7 +84,11 @@ export function ResumenTablero({ desde, hasta }: { desde: string; hasta: string 
                 <XAxis dataKey="tramo" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
                 <YAxis tickFormatter={(v) => `S/ ${Number(v).toLocaleString('es-PE')}`} tickLine={false} axisLine={false} width={72} />
                 <ChartTooltip content={<ChartTooltipContent formatter={(v) => formatearSoles(Number(v))} />} />
-                <Bar dataKey="monto" fill="var(--color-monto)" radius={4} />
+                <Bar dataKey="monto" radius={4}>
+                  {data.antiguedad.map((a, i) => (
+                    <Cell key={a.tramo} fill={COLOR_TRAMO[i] ?? 'var(--color-monto)'} />
+                  ))}
+                </Bar>
               </BarChart>
             </ChartContainer>
           </CardContent>
