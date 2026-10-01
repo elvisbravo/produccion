@@ -8,11 +8,16 @@ import type {
   ProspectoDatos,
   ProspectoDetalle,
   ProspectoListadoItem,
+  ReasignarLoteDatos,
+  ReasignarProspectoDatos,
+  ResultadoReasignarLote,
+  UsuarioResumen,
 } from '@grupoes/shared';
 import { AuditoriaService } from '../common/auditoria.service.js';
 import { contieneDigitos, contieneTodas, digitosDe, MAX_COINCIDENCIAS, palabrasDe } from '../common/busqueda.js';
 import { siguienteCodigo } from '../common/correlativo.js';
 import { Prisma } from '../generated/prisma/client.js';
+import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
 import { PermisosService } from '../permisos/permisos.service.js';
 import { PersonasService } from '../personas/personas.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -52,6 +57,7 @@ export class ProspectosService {
     private readonly tareas: TareasService,
     private readonly embudo: EmbudoService,
     private readonly permisos: PermisosService,
+    private readonly notificaciones: NotificacionesService,
   ) {}
 
   /** Cambio manual de etapa (kanban, marcar perdido, reactivar). */
@@ -70,6 +76,121 @@ export class ProspectosService {
       await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'cambiar_etapa', entidad: 'prospecto', entidadId: id, despues: datos, ip: actor.ip }, tx);
     });
     return this.obtener(id, actor);
+  }
+
+  // ─── Reasignar responsable ───────────────────────────────
+
+  /** Personas que pueden seguir prospectos: las que tienen permiso para verlos. */
+  async posiblesResponsables(): Promise<UsuarioResumen[]> {
+    const ids = await this.notificaciones.conPermiso('prospectos.ver');
+    return this.prisma.usuario.findMany({
+      where: { id: { in: ids }, activo: true, eliminadoEn: null },
+      select: { id: true, nombres: true, apellidos: true },
+      orderBy: [{ nombres: 'asc' }, { apellidos: 'asc' }],
+    });
+  }
+
+  private async validarNuevoResponsable(usuarioId: string): Promise<UsuarioResumen> {
+    const u = (await this.posiblesResponsables()).find((x) => x.id === usuarioId);
+    if (!u) {
+      throw new BadRequestException({ message: 'Datos inválidos', errores: [{ campo: 'usuarioId', mensaje: 'Debe ser una persona activa que pueda seguir prospectos' }] });
+    }
+    return u;
+  }
+
+  /** Tareas pendientes de un prospecto que tiene a su nombre quien lo dejó: no se mueven solas, porque tienen día, hora y agenda propios. */
+  private tareasConLaPersona(prospectoIds: string[], usuarioId: string) {
+    return this.prisma.tarea.count({ where: { prospectoId: { in: prospectoIds }, estado: { in: ['pendiente', 'en_proceso'] }, responsables: { some: { usuarioId } } } });
+  }
+
+  /** "Reasignar" no lleva alcance propio: se rige por el de "ver prospectos" (con "propios" solo mueve los suyos). */
+  private async alcanceDeVer(usuarioId: string): Promise<Alcance | null> {
+    return (await this.permisos.efectivos(usuarioId))['prospectos.ver'] ?? null;
+  }
+
+  async reasignar(id: string, datos: ReasignarProspectoDatos, actor: Actor): Promise<ProspectoDetalle> {
+    const alcance = await this.alcanceDeVer(actor.usuarioId);
+    const prospecto = await this.prisma.prospecto.findFirst({
+      where: { id, eliminadoEn: null, ...this.filtroAlcance({ ...actor, alcance }) },
+      include: { etapa: { select: { clase: true } }, trabajo: { select: { id: true } }, responsable: { select: { id: true, nombres: true, apellidos: true } } },
+    });
+    if (!prospecto) throw new NotFoundException('Prospecto no encontrado');
+    if (prospecto.trabajo || prospecto.etapa.clase !== 'abierta') throw new BadRequestException('Solo se reasignan prospectos abiertos');
+    if (prospecto.responsableId === datos.usuarioId) throw new BadRequestException({ message: 'Datos inválidos', errores: [{ campo: 'usuarioId', mensaje: 'Ya es el responsable de este prospecto' }] });
+    const nuevo = await this.validarNuevoResponsable(datos.usuarioId);
+    const nombre = (u: { nombres: string; apellidos: string }) => `${u.nombres} ${u.apellidos}`;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.prospecto.update({ where: { id }, data: { responsableId: nuevo.id, actualizadoPor: actor.usuarioId } });
+      await tx.prospectoEvento.create({
+        data: {
+          prospectoId: id,
+          tipo: 'reasignado',
+          detalle: `Responsable: ${nombre(prospecto.responsable)} → ${nombre(nuevo)}${datos.motivo ? ` — ${datos.motivo}` : ''}`,
+          datos: { desde: prospecto.responsableId, hacia: nuevo.id },
+          usuarioId: actor.usuarioId,
+        },
+      });
+      await this.auditoria.registrar(
+        { usuarioId: actor.usuarioId, accion: 'reasignar', entidad: 'prospecto', entidadId: id, antes: { responsableId: prospecto.responsableId }, despues: { responsableId: nuevo.id, motivo: datos.motivo }, ip: actor.ip },
+        tx,
+      );
+    });
+    await this.notificaciones.notificar(
+      [nuevo.id],
+      { tipo: 'prospecto.reasignado', titulo: `Te asignaron el prospecto ${prospecto.codigo}`, mensaje: datos.motivo ?? null, enlace: `/prospectos/${id}` },
+      actor.usuarioId,
+    );
+    await this.notificaciones.notificar(
+      [prospecto.responsableId],
+      { tipo: 'prospecto.reasignado', titulo: `Ya no sigues el prospecto ${prospecto.codigo}`, mensaje: `Ahora lo sigue ${nombre(nuevo)}`, enlace: `/prospectos/${id}` },
+      actor.usuarioId,
+    );
+    // Después de reasignarlo, quien actúa puede dejar de verlo según su alcance.
+    return this.obtener(id, { ...actor, alcance: 'todos' });
+  }
+
+  /** Todos los prospectos abiertos de una persona pasan a otra. Mueve cartera ajena: exige ver todos los prospectos. */
+  async reasignarLote(datos: ReasignarLoteDatos, actor: Actor): Promise<ResultadoReasignarLote> {
+    if ((await this.alcanceDeVer(actor.usuarioId)) !== 'todos') throw new ForbiddenException('Reasignar la cartera de otra persona exige ver todos los prospectos');
+    const nuevo = await this.validarNuevoResponsable(datos.aUsuarioId);
+    const origen = await this.prisma.usuario.findFirst({ where: { id: datos.desdeUsuarioId, eliminadoEn: null }, select: { id: true, nombres: true, apellidos: true } });
+    if (!origen) throw new NotFoundException('Usuario no encontrado');
+    const prospectos = await this.prisma.prospecto.findMany({
+      where: { responsableId: origen.id, eliminadoEn: null, trabajo: null, etapa: { clase: 'abierta' } },
+      select: { id: true },
+    });
+    if (prospectos.length === 0) return { reasignados: 0, tareasPendientes: 0 };
+    const ids = prospectos.map((p) => p.id);
+    const nombre = (u: { nombres: string; apellidos: string }) => `${u.nombres} ${u.apellidos}`;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.prospecto.updateMany({ where: { id: { in: ids } }, data: { responsableId: nuevo.id, actualizadoPor: actor.usuarioId } });
+      await tx.prospectoEvento.createMany({
+        data: ids.map((prospectoId) => ({
+          prospectoId,
+          tipo: 'reasignado' as const,
+          detalle: `Responsable: ${nombre(origen)} → ${nombre(nuevo)}${datos.motivo ? ` — ${datos.motivo}` : ''}`,
+          datos: { desde: origen.id, hacia: nuevo.id },
+          usuarioId: actor.usuarioId,
+        })),
+      });
+      await this.auditoria.registrar(
+        { usuarioId: actor.usuarioId, accion: 'reasignar_lote', entidad: 'usuario', entidadId: origen.id, despues: { aUsuarioId: nuevo.id, cantidad: ids.length, motivo: datos.motivo }, ip: actor.ip },
+        tx,
+      );
+    });
+    await this.notificaciones.notificar(
+      [nuevo.id],
+      {
+        tipo: 'prospecto.reasignado',
+        titulo: `Te asignaron ${ids.length} ${ids.length === 1 ? 'prospecto' : 'prospectos'} de ${nombre(origen)}`,
+        mensaje: datos.motivo ?? null,
+        enlace: '/prospectos',
+      },
+      actor.usuarioId,
+    );
+    return { reasignados: ids.length, tareasPendientes: await this.tareasConLaPersona(ids, origen.id) };
   }
 
   /** Filtro según el alcance del permiso: con "propios" (o "equipo") solo los que tiene a cargo. */

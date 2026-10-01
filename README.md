@@ -109,6 +109,9 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | GET/POST/DELETE | `/api/usuarios/:id/costos-hora` | Costo por hora con vigencia (confidencial; para guardarlo, además `usuarios.editar`) |
 | GET | `/api/reportes/tiempos?desde&hasta` | Estimado frente a real por actividad, por persona y mayores diferencias |
 | GET | `/api/consultas/dni/:dni` | Busca un DNI (8 dígitos) en el servicio externo (`DNI_API_URL`, sin token) para rellenar nombres, apellidos y fecha de nacimiento. Siempre responde 200 con `encontrado`, `no_encontrado` o `no_disponible`; espera 8 s como máximo, limita a 30 consultas cada 10 min por persona y audita sin guardar el número |
+| GET | `/api/prospectos/posibles-responsables` | Personas activas que pueden recibir un prospecto (exige `prospectos.reasignar`) |
+| POST | `/api/prospectos/:id/reasignar` | Cambia el responsable de un prospecto abierto: queda en su línea de tiempo y se avisa a ambos. Con alcance "propios" solo mueve los suyos |
+| POST | `/api/prospectos/reasignar-lote` | Pasa todos los prospectos abiertos de una persona a otra (exige ver todos los prospectos). Las tareas pendientes no se mueven solas |
 | GET/POST | `/api/prospectos/:id/cotizaciones` | Cotizaciones del prospecto; emitir una (ítems, validez, forma de pago) guarda el monto cotizado y lo pasa a la etapa marcada "al cotizar" |
 | GET/POST | `/api/cotizaciones`, `/api/cotizaciones/:id/anular` | Listado (búsqueda y estado: vigente, vencida, anulada) y anulación con motivo |
 | GET | `/api/documentos/cotizacion/:id`, `…/contrato/:trabajoId`, `…/recibo/:pagoId` | Datos para imprimir, con el texto de la plantilla ya rellenado y el monto en letras |

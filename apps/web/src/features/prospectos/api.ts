@@ -8,6 +8,10 @@ import type {
   ProspectoDatos,
   ProspectoDetalle,
   ProspectoListadoItem,
+  ReasignarLoteDatos,
+  ReasignarProspectoDatos,
+  ResultadoReasignarLote,
+  UsuarioResumen,
 } from '@grupoes/shared'
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -75,3 +79,35 @@ export const buscarCatalogo = (catalogo: CatalogoBuscable, q: string, signal?: A
 
 export const crearEnCatalogo = (catalogo: CatalogoBuscable, nombre: string) =>
   api<Opcion>(`/catalogos/${catalogo}`, { method: 'POST', body: { nombre } })
+
+/** Quiénes pueden recibir un prospecto (personas activas con permiso para verlos). */
+export const posiblesResponsablesQuery = queryOptions({
+  queryKey: [...clavesProspectos.todo, 'posibles-responsables'] as const,
+  queryFn: () => api<UsuarioResumen[]>('/prospectos/posibles-responsables'),
+  staleTime: 60_000,
+})
+
+export function useReasignarProspecto(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (datos: ReasignarProspectoDatos) => api<ProspectoDetalle>(`/prospectos/${id}/reasignar`, { method: 'POST', body: datos }),
+    onSuccess: (prospecto) => {
+      queryClient.setQueryData(clavesProspectos.detalle(prospecto.id), prospecto)
+      void queryClient.invalidateQueries({ queryKey: clavesProspectos.listas() })
+      void queryClient.invalidateQueries({ queryKey: ['tareas'] })
+    },
+  })
+}
+
+/** Pasa todos los prospectos abiertos de una persona a otra (al desactivarla). */
+export function useReasignarLote() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (datos: ReasignarLoteDatos) => api<ResultadoReasignarLote>('/prospectos/reasignar-lote', { method: 'POST', body: datos }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: clavesProspectos.todo })
+      void queryClient.invalidateQueries({ queryKey: ['usuarios', 'pendientes'] })
+      void queryClient.invalidateQueries({ queryKey: ['tareas'] })
+    },
+  })
+}

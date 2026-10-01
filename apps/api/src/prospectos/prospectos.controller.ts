@@ -1,15 +1,21 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req } from '@nestjs/common';
 import {
   cambiarEtapaSchema,
   crearProspectoSchema,
   listarProspectosSchema,
   prospectoSchema,
+  reasignarLoteSchema,
+  reasignarProspectoSchema,
   type CambiarEtapaDatos,
   type CrearProspectoDatos,
   type Paginado,
   type ProspectoDatos,
   type ProspectoDetalle,
   type ProspectoListadoItem,
+  type ReasignarLoteDatos,
+  type ReasignarProspectoDatos,
+  type ResultadoReasignarLote,
+  type UsuarioResumen,
 } from '@grupoes/shared';
 import type { z } from 'zod';
 import type { SolicitudAutenticada } from '../auth/tipos.js';
@@ -32,6 +38,20 @@ export class ProspectosController {
     return this.prospectos.listar(filtros, actor(req));
   }
 
+  /** Quiénes pueden recibir un prospecto. Va antes de ":id" para que no se tome como un id. */
+  @RequierePermiso('prospectos.reasignar')
+  @Get('posibles-responsables')
+  posiblesResponsables(): Promise<UsuarioResumen[]> {
+    return this.prospectos.posiblesResponsables();
+  }
+
+  @RequierePermiso('prospectos.reasignar')
+  @Post('reasignar-lote')
+  @HttpCode(200)
+  reasignarLote(@Body(new ZodValidationPipe(reasignarLoteSchema)) datos: ReasignarLoteDatos, @Req() req: SolicitudAutenticada): Promise<ResultadoReasignarLote> {
+    return this.prospectos.reasignarLote(datos, actor(req));
+  }
+
   @RequierePermiso('prospectos.ver')
   @Get(':id')
   obtener(@Param('id', ParseUUIDPipe) id: string, @Req() req: SolicitudAutenticada): Promise<ProspectoDetalle> {
@@ -52,6 +72,17 @@ export class ProspectosController {
     @Req() req: SolicitudAutenticada,
   ): Promise<ProspectoDetalle> {
     return this.prospectos.editar(id, datos, actor(req));
+  }
+
+  @RequierePermiso('prospectos.reasignar')
+  @Post(':id/reasignar')
+  @HttpCode(200)
+  reasignar(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(reasignarProspectoSchema)) datos: ReasignarProspectoDatos,
+    @Req() req: SolicitudAutenticada,
+  ): Promise<ProspectoDetalle> {
+    return this.prospectos.reasignar(id, datos, actor(req));
   }
 
   @RequierePermiso('prospectos.editar')

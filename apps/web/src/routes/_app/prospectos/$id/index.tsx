@@ -1,7 +1,7 @@
 import { diaEnLima, enlaceWhatsapp, formatearCelular, formatearSoles, NOMBRE_TIPO_DOCUMENTO, type CatalogosProspecto, type ProspectoEventoItem, type ResultadoCompletar, type TareaItem } from '@grupoes/shared'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
-import { ArrowLeft, BadgeCheck, BriefcaseBusiness, CalendarPlus, ClipboardList, ExternalLink, FilePenLine, FileText, History, MessageCircle, Pencil, Plus, Star } from 'lucide-react'
+import { ArrowLeft, BadgeCheck, BriefcaseBusiness, CalendarPlus, ClipboardList, ExternalLink, FilePenLine, FileText, History, MessageCircle, Pencil, Plus, Star, UserRoundCog } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Can } from '@/components/can'
 import { Badge } from '@/components/ui/badge'
@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { HiloComentarios } from '@/features/comentarios/components/hilo-comentarios'
 import { CotizacionesProspecto } from '@/features/documentos/components/cotizaciones-prospecto'
 import { catalogosProspectoQuery, prospectoQuery } from '@/features/prospectos/api'
+import { DialogoReasignarProspecto } from '@/features/prospectos/components/dialogo-reasignar'
 import { InsigniaEtapa, InsigniaPrioridad, InsigniaTemperatura } from '@/features/prospectos/components/insignias'
 import { MenuCambioEtapa, DialogoPerdido } from '@/features/seguimiento/components/cambio-etapa'
 import { actividadesQuery } from '@/features/tareas/api'
@@ -43,6 +44,7 @@ function DetalleProspecto() {
   const { data: catalogos } = useSuspenseQuery(catalogosProspectoQuery)
   const principal = p.contactos.find((c) => c.esPrincipal) ?? p.contactos[0]
   const [sugerirPerdido, setSugerirPerdido] = useState<number | null>(null)
+  const [reasignando, setReasignando] = useState(false)
   const perdida = catalogos.etapas.find((e) => e.clase === 'perdida')
 
   const alCompletar = (r: ResultadoCompletar) => {
@@ -108,9 +110,19 @@ function DetalleProspecto() {
                 </Link>
               </Button>
             </Can>
+            {p.etapa.clase === 'abierta' && !p.trabajo && (
+              <Can permiso="prospectos.reasignar">
+                <Button variant="outline" onClick={() => setReasignando(true)}>
+                  <UserRoundCog />
+                  Reasignar
+                </Button>
+              </Can>
+            )}
           </div>
         </div>
       </div>
+
+      {reasignando && <DialogoReasignarProspecto prospecto={p} abierto onAbiertoChange={setReasignando} />}
 
       {sugerirPerdido !== null && perdida && (
         <DialogoPerdido

@@ -13,15 +13,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CamposDocumentoUsuario } from '@/features/administracion/components/campos-documento-usuario'
+import { posiblesResponsablesQuery, useReasignarLote } from '@/features/prospectos/api'
 import { pendientesQuery, useActivarUsuario, useDesbloquear, useEditarUsuario, useRestablecerClave, useTopesUsuario, usuarioQuery } from '@/features/administracion/api'
 import { DialogoClaveTemporal } from '@/features/administracion/components/dialogos-usuario'
 import { CostoHoraUsuario } from '@/features/reportes/components/costo-hora'
 import { ExcepcionesDelUsuario, PermisosEfectivos, RolesDelUsuario } from '@/features/administracion/components/permisos-usuario'
 import { ApiError } from '@/lib/api'
-import { formatearFechaHora, haceCuanto } from '@/lib/formato'
+import { formatearFechaHora, haceCuanto, nombreCompleto } from '@/lib/formato'
 import { aplicarErroresApi } from '@/lib/formularios'
 import { exigirPermiso } from '@/lib/guardas'
 import { usePermiso } from '@/lib/permisos'
@@ -233,11 +235,50 @@ function TopesHorasExtra({ u }: { u: UsuarioDetalle }) {
   )
 }
 
+/** Pasa de una vez todos los prospectos abiertos de la persona a otra. */
+function PasarProspectos({ desdeUsuarioId, cantidad }: { desdeUsuarioId: string; cantidad: number }) {
+  const { data: personas } = useQuery(posiblesResponsablesQuery)
+  const pasar = useReasignarLote()
+  const [aUsuarioId, setAUsuarioId] = useState('')
+  const hacer = async () => {
+    try {
+      const r = await pasar.mutateAsync({ desdeUsuarioId, aUsuarioId, motivo: 'Cambio de cartera' })
+      toast.success(`${r.reasignados} ${r.reasignados === 1 ? 'prospecto pasó' : 'prospectos pasaron'} a su nuevo responsable`)
+      if (r.tareasPendientes > 0) toast.info(`Quedan ${r.tareasPendientes} ${r.tareasPendientes === 1 ? 'tarea pendiente' : 'tareas pendientes'} de esos prospectos a nombre de la persona anterior: reasígnalas desde cada tarea.`)
+    } catch (err) {
+      toast.error(mensaje(err))
+    }
+  }
+  return (
+    <span className="mt-1.5 flex flex-wrap items-center gap-2">
+      <Select value={aUsuarioId} onValueChange={setAUsuarioId}>
+        <SelectTrigger size="sm" aria-label="Pasar los prospectos a" className="w-52 bg-background">
+          <SelectValue placeholder="Pasarlos a…" />
+        </SelectTrigger>
+        <SelectContent>
+          {personas
+            ?.filter((x) => x.id !== desdeUsuarioId)
+            .map((x) => (
+              <SelectItem key={x.id} value={x.id}>
+                {nombreCompleto(x)}
+              </SelectItem>
+            ))}
+        </SelectContent>
+      </Select>
+      <Button type="button" size="sm" variant="outline" className="bg-background" disabled={!aUsuarioId || pasar.isPending} onClick={() => void hacer()}>
+        {pasar.isPending && <Loader2 className="animate-spin" />}
+        Pasar {cantidad === 1 ? 'el prospecto' : `los ${cantidad}`}
+      </Button>
+    </span>
+  )
+}
+
 function Seguridad({ u }: { u: UsuarioDetalle }) {
   const yo = useSesion((s) => s.usuario?.id)
   const puedeRestablecer = usePermiso('usuarios.restablecer_clave')
   const puedeDesactivar = usePermiso('usuarios.desactivar')
   const puedeEditar = usePermiso('usuarios.editar')
+  const puedeReasignarProspectos = usePermiso('prospectos.reasignar')
   const restablecer = useRestablecerClave(u.id)
   const activar = useActivarUsuario(u.id)
   const desbloquear = useDesbloquear(u.id)
@@ -359,7 +400,8 @@ function Seguridad({ u }: { u: UsuarioDetalle }) {
                       )}
                       {pend.prospectos > 0 && (
                         <li>
-                          {pend.prospectos} {pend.prospectos === 1 ? 'prospecto abierto' : 'prospectos abiertos'} a su cargo. Por ahora el sistema no permite cambiar el responsable de un prospecto: seguirán a su nombre.
+                          {pend.prospectos} {pend.prospectos === 1 ? 'prospecto abierto' : 'prospectos abiertos'} a su cargo.
+                          {puedeReasignarProspectos ? <PasarProspectos desdeUsuarioId={u.id} cantidad={pend.prospectos} /> : ' Pídele a quien pueda reasignarlos que los pase a otra persona.'}
                         </li>
                       )}
                     </ul>

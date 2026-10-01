@@ -264,3 +264,32 @@ export interface ProspectoDetalle {
   /** Trabajo creado al convertirlo en cliente. */
   trabajo: { id: string; codigo: string } | null
 }
+
+// ─── Reasignar el responsable de un prospecto ───────────────
+
+const motivoReasignacion = z
+  .string()
+  .trim()
+  .max(300, 'Máximo 300 caracteres')
+  .optional()
+  .transform((v) => (v ? v : undefined))
+
+export const reasignarProspectoSchema = z.object({ usuarioId: z.string().min(1, 'Elige a la persona').pipe(z.uuid()), motivo: motivoReasignacion })
+export type ReasignarProspectoFormulario = z.input<typeof reasignarProspectoSchema>
+export type ReasignarProspectoDatos = z.output<typeof reasignarProspectoSchema>
+
+/** Pasa todos los prospectos abiertos de una persona a otra (p. ej. al desactivarla). */
+export const reasignarLoteSchema = z
+  .object({
+    desdeUsuarioId: z.string().pipe(z.uuid()),
+    aUsuarioId: z.string().min(1, 'Elige a la persona').pipe(z.uuid()),
+    motivo: motivoReasignacion,
+  })
+  .refine((d) => d.desdeUsuarioId !== d.aUsuarioId, { message: 'Elige a otra persona', path: ['aUsuarioId'] })
+export type ReasignarLoteDatos = z.output<typeof reasignarLoteSchema>
+
+export interface ResultadoReasignarLote {
+  reasignados: number
+  /** Tareas pendientes de esos prospectos que siguen a nombre de la persona anterior (se reasignan desde cada tarea). */
+  tareasPendientes: number
+}
