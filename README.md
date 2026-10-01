@@ -100,6 +100,7 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | POST | `/api/tareas/:id/cronometro/iniciar`, `…/pausar` | Cronómetro por tarea (uno a la vez: iniciar otra pausa la anterior) |
 | GET/POST/DELETE | `/api/tareas/:id/tiempo`, `…/tiempo/:registroId` | Tramos registrados y registro manual (con motivo) |
 | GET | `/api/reportes/tablero`, `…/puntualidad`, `…/retrabajo`, `…/ocupacion`, `…/cobranza` | Indicadores del periodo (`?desde&hasta`; por defecto, el mes en curso) |
+| GET | `/api/reportes/conversion` | Conversión del embudo: prospectos registrados en el periodo y en qué terminaron (convertidos, perdidos, abiertos), embudo por etapa, por origen, por asistente, por tipo, por mes y motivos de pérdida |
 | GET | `/api/reportes/rentabilidad` | Margen por trabajo y agrupado (confidencial: exige `usuarios.ver_costo_hora`) |
 | GET/POST/DELETE | `/api/usuarios/:id/costos-hora` | Costo por hora con vigencia (confidencial; para guardarlo, además `usuarios.editar`) |
 | GET | `/api/reportes/tiempos?desde&hasta` | Estimado frente a real por actividad, por persona y mayores diferencias |

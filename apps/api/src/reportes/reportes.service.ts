@@ -6,12 +6,14 @@ import {
   sumarDias,
   type CostoHoraDatos,
   type CostoHoraItem,
+  type FilaConversion,
   type FilaOcupacion,
   type FilaPuntualidad,
   type FilaRentabilidad,
   type FilaRetrabajo,
   type Periodo,
   type ReporteCobranza,
+  type ReporteConversion,
   type ReporteOcupacion,
   type ReportePuntualidad,
   type ReporteRentabilidad,
@@ -368,17 +370,126 @@ export class ReportesService {
     };
   }
 
+  // ─── Conversión del embudo comercial ─────────────────────
+
+  /**
+   * Prospectos registrados en el periodo (cohorte) y en qué terminaron: convertidos en cliente, perdidos o aún abiertos.
+   * Para el embudo, un prospecto "alcanzó" una etapa si llegó a ella o a una posterior (por su etapa actual o su historial).
+   */
+  async conversion(p: Periodo): Promise<ReporteConversion> {
+    const [prospectos, etapas] = await Promise.all([
+      this.prisma.prospecto.findMany({
+        where: { eliminadoEn: null, creadoEn: { gte: instanteDesdeLima(p.desde, '00:00'), lt: instanteDesdeLima(sumarDias(p.hasta, 1), '00:00') } },
+        select: {
+          creadoEn: true,
+          etapaId: true,
+          etapa: { select: { clase: true } },
+          origen: { select: { id: true, nombre: true } },
+          captadoPor: { select: CAMPOS_USUARIO },
+          tipoTrabajo: { select: { id: true, nombre: true } },
+          motivoPerdida: { select: { nombre: true } },
+          eventos: { where: { tipo: 'cambio_etapa' }, select: { datos: true } },
+          trabajo: {
+            select: {
+              creadoEn: true,
+              eliminadoEn: true,
+              estado: true,
+              contrato: { select: { estado: true, cuotas: { select: { monto: true } } } },
+            },
+          },
+        },
+      }),
+      this.prisma.etapaProspecto.findMany({ orderBy: { orden: 'asc' } }),
+    ]);
+    const inicial = etapas.find((e) => e.inicial);
+    const ordenDe = new Map(etapas.map((e) => [e.id, e]));
+
+    const filas = prospectos.map((x) => {
+      const convertido = !!x.trabajo && !x.trabajo.eliminadoEn;
+      const contrato = convertido && x.trabajo!.estado !== 'cancelado' && x.trabajo!.contrato?.estado === 'vigente' ? x.trabajo!.contrato : null;
+      const visitadas = new Set([x.etapaId, ...(inicial ? [inicial.id] : [])]);
+      for (const ev of x.eventos) {
+        const hacia = (ev.datos as { hacia?: unknown } | null)?.hacia;
+        if (typeof hacia === 'string') visitadas.add(hacia);
+      }
+      // La etapa más avanzada a la que llegó, sin contar las de pérdida.
+      const maximo = Math.max(0, ...[...visitadas].map((id) => ordenDe.get(id)).filter((e) => e && e.clase !== 'perdida').map((e) => e!.orden));
+      return {
+        mes: diaEnLima(x.creadoEn).slice(0, 7),
+        etapaId: x.etapaId,
+        visitadas,
+        maximo,
+        origen: x.origen,
+        captadoPor: x.captadoPor,
+        tipoTrabajo: x.tipoTrabajo,
+        motivo: x.motivoPerdida?.nombre ?? 'Sin motivo',
+        convertido,
+        perdido: !convertido && x.etapa.clase === 'perdida',
+        monto: contrato ? contrato.cuotas.reduce((s, c) => s + Number(c.monto), 0) : 0,
+        dias: convertido ? dias(diaEnLima(x.creadoEn), diaEnLima(x.trabajo!.creadoEn)) : null,
+      };
+    });
+
+    const fila = (clave: string, nombreFila: string, lista: typeof filas): FilaConversion => {
+      const convertidos = lista.filter((x) => x.convertido).length;
+      const perdidos = lista.filter((x) => x.perdido).length;
+      return {
+        clave,
+        nombre: nombreFila,
+        prospectos: lista.length,
+        convertidos,
+        perdidos,
+        abiertos: lista.length - convertidos - perdidos,
+        tasa: lista.length ? Math.round((convertidos / lista.length) * 1000) / 1000 : null,
+        monto: redondear(lista.reduce((s, x) => s + x.monto, 0)),
+      };
+    };
+    const grupo = (clave: (x: (typeof filas)[number]) => { id: string; nombre: string }) =>
+      [...agrupar(filas, (x) => clave(x).id)]
+        .map(([id, lista]) => fila(id, clave(lista[0]).nombre, lista))
+        .sort((a, b) => b.convertidos - a.convertidos || b.prospectos - a.prospectos || a.nombre.localeCompare(b.nombre));
+
+    const total = fila('total', 'Total', filas);
+    const conDias = filas.filter((x) => x.dias !== null);
+    return {
+      ...p,
+      total: {
+        ...total,
+        diasPromedio: conDias.length ? Math.round((conDias.reduce((s, x) => s + x.dias!, 0) / conDias.length) * 10) / 10 : null,
+        ticketPromedio: total.convertidos ? redondear(total.monto / total.convertidos) : null,
+      },
+      embudo: etapas
+        .filter((e) => e.activa || filas.some((x) => x.visitadas.has(e.id)))
+        .map((e) => ({
+          id: e.id,
+          nombre: e.nombre,
+          color: e.color,
+          clase: e.clase,
+          alcanzaron: filas.filter((x) => (e.clase === 'perdida' ? x.visitadas.has(e.id) : x.maximo >= e.orden)).length,
+          actuales: filas.filter((x) => x.etapaId === e.id).length,
+        })),
+      porOrigen: grupo((x) => x.origen),
+      porAsistente: grupo((x) => ({ id: x.captadoPor.id, nombre: nombre(x.captadoPor) })),
+      porTipo: grupo((x) => x.tipoTrabajo),
+      porMes: [...agrupar(filas, (x) => x.mes)].sort(([a], [b]) => a.localeCompare(b)).map(([mes, lista]) => fila(mes, mes, lista)),
+      motivosPerdida: [...agrupar(filas.filter((x) => x.perdido), (x) => x.motivo)]
+        .map(([n, lista]) => ({ nombre: n, cantidad: lista.length }))
+        .sort((a, b) => b.cantidad - a.cantidad),
+    };
+  }
+
   // ─── Tablero ─────────────────────────────────────────────
 
   async tablero(p: Periodo, usuarioId: string): Promise<Tablero> {
     const verCostos = 'usuarios.ver_costo_hora' in (await this.permisos.efectivos(usuarioId));
     const periodoOcupacion = dias(p.desde, p.hasta) > MAX_DIAS_OCUPACION ? { desde: sumarDias(p.hasta, -MAX_DIAS_OCUPACION), hasta: p.hasta } : p;
-    const [puntualidad, retrabajo, ocupacion, cobranza, rentabilidad] = await Promise.all([
+    const [puntualidad, retrabajo, ocupacion, cobranza, rentabilidad, conversion] = await Promise.all([
       this.puntualidad(p),
       this.retrabajo(p),
       this.ocupacion(periodoOcupacion),
       this.cobranza(p),
       verCostos ? this.rentabilidad(p) : Promise.resolve(null),
+      this.conversion(p),
     ]);
     return {
       ...p,
@@ -391,6 +502,8 @@ export class ReportesService {
       cobrado: cobranza.cobradoEnPeriodo,
       margen: rentabilidad?.total.margen ?? null,
       margenPorcentaje: rentabilidad?.total.margenPorcentaje ?? null,
+      prospectos: conversion.total.prospectos,
+      conversion: conversion.total.tasa,
       puntualidadPorMes: puntualidad.porMes,
       antiguedad: cobranza.antiguedad,
       ocupacionPorPersona: ocupacion.personas.map((x) => ({ nombre: x.usuario.nombres, porcentaje: x.porcentaje })),

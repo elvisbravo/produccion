@@ -32,6 +32,11 @@ export function ResumenTablero({ desde, hasta }: { desde: string; hasta: string 
           tono={data.entregables === 0 ? undefined : data.retrabajo <= 1 ? 'bien' : data.retrabajo <= 2 ? 'atencion' : 'mal'}
         />
         <Indicador etiqueta="Ocupación del equipo" valor={pct(data.ocupacion)} detalle="horas registradas sobre las disponibles" />
+        <Indicador
+          etiqueta="Conversión de prospectos"
+          valor={pct(data.conversion, 1)}
+          detalle={`de ${data.prospectos.toLocaleString('es-PE')} ${data.prospectos === 1 ? 'prospecto registrado' : 'prospectos registrados'}`}
+        />
         <Indicador etiqueta="Cobrado en el periodo" valor={formatearSoles(data.cobrado)} />
         <Indicador
           etiqueta="Vencido por cobrar"

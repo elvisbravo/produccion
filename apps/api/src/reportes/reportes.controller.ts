@@ -5,6 +5,7 @@ import {
   type CostoHoraDatos,
   type CostoHoraItem,
   type ReporteCobranza,
+  type ReporteConversion,
   type ReporteOcupacion,
   type ReportePuntualidad,
   type ReporteRentabilidad,
@@ -52,6 +53,12 @@ export class ReportesController {
   @Get('reportes/cobranza')
   cobranza(@Query(new ZodValidationPipe(periodoSchema)) q: Consulta): Promise<ReporteCobranza> {
     return this.reportes.cobranza(resolverPeriodo(q.desde, q.hasta));
+  }
+
+  @RequierePermiso('reportes.ver')
+  @Get('reportes/conversion')
+  conversion(@Query(new ZodValidationPipe(periodoSchema)) q: Consulta): Promise<ReporteConversion> {
+    return this.reportes.conversion(resolverPeriodo(q.desde, q.hasta));
   }
 
   /** Confidencial: usa el costo por hora de cada persona. */

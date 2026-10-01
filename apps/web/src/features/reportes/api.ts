@@ -2,6 +2,7 @@ import type {
   CostoHoraDatos,
   CostoHoraItem,
   ReporteCobranza,
+  ReporteConversion,
   ReporteOcupacion,
   ReportePuntualidad,
   ReporteRentabilidad,
@@ -24,6 +25,7 @@ export const puntualidadQuery = reporte<ReportePuntualidad>('puntualidad')
 export const retrabajoQuery = reporte<ReporteRetrabajo>('retrabajo')
 export const ocupacionQuery = reporte<ReporteOcupacion>('ocupacion')
 export const cobranzaReporteQuery = reporte<ReporteCobranza>('cobranza')
+export const conversionQuery = reporte<ReporteConversion>('conversion')
 export const rentabilidadQuery = reporte<ReporteRentabilidad>('rentabilidad')
 
 export const costosHoraQuery = (usuarioId: string) =>

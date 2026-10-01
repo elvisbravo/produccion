@@ -7,13 +7,14 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { ReporteCobranzaVista, ReporteOcupacionVista, ReportePuntualidadVista, ReporteRetrabajoVista } from '@/features/reportes/components/indicadores'
+import { ReporteConversionVista } from '@/features/reportes/components/conversion'
 import { ReporteRentabilidadVista } from '@/features/reportes/components/rentabilidad'
 import { ResumenTablero } from '@/features/reportes/components/tablero'
 import { ReporteTiemposVista } from '@/features/reportes/components/tiempos'
 import { exigirPermiso } from '@/lib/guardas'
 import { usePermiso } from '@/lib/permisos'
 
-const PESTANAS = ['resumen', 'puntualidad', 'retrabajo', 'ocupacion', 'cobranza', 'rentabilidad', 'tiempos'] as const
+const PESTANAS = ['resumen', 'puntualidad', 'retrabajo', 'ocupacion', 'cobranza', 'conversion', 'rentabilidad', 'tiempos'] as const
 type Pestana = (typeof PESTANAS)[number]
 
 export const Route = createFileRoute('/_app/reportes/')({
@@ -54,7 +55,7 @@ function Reportes() {
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 md:p-8">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Reportes</h1>
-        <p className="text-sm text-muted-foreground">Indicadores de la producción, la cobranza y la rentabilidad del periodo.</p>
+        <p className="text-sm text-muted-foreground">Indicadores de la producción, la cobranza, la conversión comercial y la rentabilidad del periodo.</p>
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
@@ -88,6 +89,7 @@ function Reportes() {
           <TabsTrigger value="retrabajo">Retrabajo</TabsTrigger>
           <TabsTrigger value="ocupacion">Ocupación</TabsTrigger>
           <TabsTrigger value="cobranza">Cobranza</TabsTrigger>
+          <TabsTrigger value="conversion">Conversión</TabsTrigger>
           {verCostos && (
             <TabsTrigger value="rentabilidad">
               <Lock />
@@ -110,6 +112,9 @@ function Reportes() {
         </TabsContent>
         <TabsContent value="cobranza" className="mt-4">
           <ReporteCobranzaVista desde={desde} hasta={hasta} />
+        </TabsContent>
+        <TabsContent value="conversion" className="mt-4">
+          <ReporteConversionVista desde={desde} hasta={hasta} />
         </TabsContent>
         {verCostos && (
           <TabsContent value="rentabilidad" className="mt-4">

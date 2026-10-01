@@ -148,7 +148,45 @@ export interface Tablero extends Periodo {
   /** Solo con permiso de costos. */
   margen: number | null
   margenPorcentaje: number | null
+  /** Prospectos registrados en el periodo y cuántos de ellos se convirtieron (0 a 1). */
+  prospectos: number
+  conversion: number | null
   puntualidadPorMes: FilaPuntualidad[]
   antiguedad: ReporteCobranza['antiguedad']
   ocupacionPorPersona: { nombre: string; porcentaje: number | null }[]
+}
+
+// ─── Conversión del embudo comercial ────────────────────────
+
+export interface FilaConversion {
+  clave: string
+  nombre: string
+  /** Prospectos registrados en el periodo. */
+  prospectos: number
+  /** Se convirtieron en cliente (tienen trabajo). */
+  convertidos: number
+  perdidos: number
+  /** Siguen en una etapa abierta. */
+  abiertos: number
+  /** convertidos / prospectos (0 a 1); null sin prospectos. */
+  tasa: number | null
+  /** Suma de los contratos de los convertidos. */
+  monto: number
+}
+
+export interface ReporteConversion extends Periodo {
+  total: FilaConversion & {
+    /** Días promedio desde el registro del prospecto hasta su conversión. */
+    diasPromedio: number | null
+    /** monto / convertidos. */
+    ticketPromedio: number | null
+  }
+  /** Cuántos prospectos del periodo llegaron a cada etapa (por la etapa actual o por su historial). */
+  embudo: { id: string; nombre: string; color: string; clase: 'abierta' | 'ganada' | 'perdida'; alcanzaron: number; actuales: number }[]
+  porOrigen: FilaConversion[]
+  /** Por el asistente administrativo que captó al prospecto. */
+  porAsistente: FilaConversion[]
+  porTipo: FilaConversion[]
+  porMes: FilaConversion[]
+  motivosPerdida: { nombre: string; cantidad: number }[]
 }
