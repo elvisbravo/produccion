@@ -124,7 +124,8 @@ export function calcularDia(e: EntradaDia): DiaAgenda {
  * - Choques, fuera de horario y capacidad superada son **avisos** que se pueden forzar con un motivo.
  */
 export function evaluar(dia: DiaAgenda, tarea: { id?: string; inicio: number | null; minutos: number }): Disponibilidad {
-  const otras = dia.tareas.filter((t) => t.id !== tarea.id);
+  // La cola de trabajo se acomoda sola alrededor de lo nuevo: no choca ni cuenta para la capacidad.
+  const otras = dia.tareas.filter((t) => t.id !== tarea.id && !t.enCola);
   const ocupado = otras.filter((t) => ESTADOS_QUE_OCUPAN.includes(t.estado)).reduce((s, t) => s + t.minutos, 0);
   const base = { capacidad: dia.capacidad, ocupado };
 

@@ -25,6 +25,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import { PermisosService } from '../permisos/permisos.service.js';
 import { PersonasService } from '../personas/personas.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ProduccionService } from '../produccion/produccion.service.js';
 import { repartirPago } from './cuenta.js';
 import { aCalculo, aDetalle, aListado, INCLUIR_DETALLE, INCLUIR_LISTADO } from './mapeo.js';
 
@@ -44,6 +45,7 @@ export class TrabajosService {
     private readonly permisos: PermisosService,
     private readonly personas: PersonasService,
     private readonly auditoria: AuditoriaService,
+    private readonly produccion: ProduccionService,
   ) {}
 
   // ─── Acceso ──────────────────────────────────────────────
@@ -52,11 +54,17 @@ export class TrabajosService {
    * Alcance de "trabajos.ver": todos; "equipo" = donde está en el equipo vigente;
    * "propios" = además, los que vienen de sus prospectos.
    */
-  private async filtroVisibles(usuarioId: string): Promise<Prisma.TrabajoWhereInput> {
+  async filtroVisibles(usuarioId: string): Promise<Prisma.TrabajoWhereInput> {
     const alcance = (await this.permisos.efectivos(usuarioId))['trabajos.ver'];
     if (alcance === 'todos') return {};
     const enEquipo: Prisma.TrabajoWhereInput = { equipo: { some: { usuarioId, hasta: null } } };
     return alcance === 'propios' ? { OR: [enEquipo, { prospecto: { responsableId: usuarioId } }] } : enEquipo;
+  }
+
+  /** 404 si el trabajo no existe o el usuario no lo puede ver. */
+  async verificarVisible(trabajoId: string, usuarioId: string): Promise<void> {
+    const visible = await this.prisma.trabajo.count({ where: { id: trabajoId, eliminadoEn: null, ...(await this.filtroVisibles(usuarioId)) } });
+    if (!visible) throw new NotFoundException('Trabajo no encontrado');
   }
 
   private async permisosDeMontos(usuarioId: string) {
@@ -236,7 +244,13 @@ export class TrabajosService {
       include: INCLUIR_DETALLE,
     });
     if (!trabajo) throw new NotFoundException('Trabajo no encontrado');
-    return aDetalle(trabajo, await this.permisosDeMontos(usuarioId), diaEnLima(), await this.dioElEnfoque(trabajo.prospectoId));
+    const [permisos, dioElEnfoque, entregables, hayPlantilla] = await Promise.all([
+      this.permisosDeMontos(usuarioId),
+      this.dioElEnfoque(trabajo.prospectoId),
+      this.produccion.deTrabajo(id),
+      this.produccion.hayPlantilla(trabajo.tipoTrabajoId),
+    ]);
+    return { ...aDetalle(trabajo, permisos, diaEnLima(), dioElEnfoque), entregables, hayPlantilla };
   }
 
   /** Responsable principal de la última actividad coordinada completada del prospecto (el enfoque). */
@@ -311,9 +325,17 @@ export class TrabajosService {
           data: entran.map((e) => ({ ...e, trabajoId, desde: ahora, asignadoPorId: actor.usuarioId, motivo: datos.motivo ?? null })),
         });
       }
+      // Las tareas pendientes de quien deja una función pasan a quien la toma.
+      let transferidas = 0;
+      for (const funcion of ['auxiliar_principal', 'jefe_responsable'] as const) {
+        const antes = trabajo.equipo.find((e) => e.funcion === funcion)?.usuarioId;
+        const despues = nuevo.find((e) => e.funcion === funcion)!.usuarioId;
+        if (antes && antes !== despues) transferidas += await this.produccion.transferirTareas(tx, trabajoId, antes, despues, actor);
+      }
       const partes = [
         entran.length ? `Entran: ${entran.map(describir).join(', ')}` : null,
         salen.length ? `Salen: ${salen.map(describir).join(', ')}` : null,
+        transferidas ? `${transferidas} ${transferidas === 1 ? 'tarea pendiente pasó' : 'tareas pendientes pasaron'} a quien entra` : null,
       ].filter(Boolean);
       await tx.trabajo.update({
         where: { id: trabajoId },

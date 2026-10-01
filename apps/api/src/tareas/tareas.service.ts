@@ -22,6 +22,7 @@ import type { Prisma } from '../generated/prisma/client.js';
 import { ParametrosService } from '../parametros/parametros.service.js';
 import { PermisosService } from '../permisos/permisos.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ProduccionService } from '../produccion/produccion.service.js';
 import { EmbudoService } from './embudo.service.js';
 import { aTareaItem, esActiva, finDe, INCLUIR_TAREA, ORDEN_TAREAS } from './mapeo.js';
 
@@ -62,6 +63,7 @@ export class TareasService {
     private readonly auditoria: AuditoriaService,
     private readonly embudo: EmbudoService,
     private readonly agenda: AgendaService,
+    private readonly produccion: ProduccionService,
   ) {}
 
   // ─── Catálogo ─────────────────────────────────────────────
@@ -454,6 +456,9 @@ export class TareasService {
     }
 
     const { actividad } = tarea;
+    if (tarea.entregableId && actividad.tipo.comportamiento === 'revision') {
+      throw new BadRequestException('Las revisiones se cierran aprobando u observando el entregable');
+    }
     const esReunion = actividad.tipo.comportamiento === 'reunion';
     const resultadoContacto = datos.resultadoContactoId
       ? await this.prisma.resultadoContacto.findFirst({ where: { id: datos.resultadoContactoId, activo: true } })
@@ -470,6 +475,7 @@ export class TareasService {
         where: { id: tareaId },
         data: { estado, completadaEn: new Date(), resultado: datos.resultado ?? null, resultadoContactoId: resultadoContacto?.id ?? null },
       });
+      if (tarea.trabajoId) await this.produccion.alAvanzarTarea(tx, tareaId, true);
       if (!tarea.prospectoId) return;
 
       const prospecto = await tx.prospecto.findUniqueOrThrow({ where: { id: tarea.prospectoId }, include: { etapa: true } });
@@ -528,6 +534,19 @@ export class TareasService {
       sugerirPerdido: !datos.marcarPerdido && actividad.esSeguimiento && intentos >= umbral,
       intentosSinRespuesta: intentos,
     };
+  }
+
+  /** Quien la realiza marca que empezó (en producción, el entregable y el trabajo pasan a "en proceso"). */
+  async iniciar(tareaId: string, actor: ActorTarea): Promise<TareaItem> {
+    const tarea = await this.obtenerVisible(tareaId, actor.usuarioId, 'tareas.editar');
+    if (tarea.estado !== 'pendiente') throw new BadRequestException('Solo se empiezan tareas pendientes');
+    if (!tarea.responsables.some((r) => r.usuario.id === actor.usuarioId)) throw new ForbiddenException('Solo el responsable puede empezarla');
+    await this.prisma.$transaction(async (tx) => {
+      await tx.tarea.update({ where: { id: tareaId }, data: { estado: 'en_proceso' } });
+      if (tarea.trabajoId) await this.produccion.alAvanzarTarea(tx, tareaId, false);
+      await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'iniciar', entidad: 'tarea', entidadId: tareaId, ip: actor.ip }, tx);
+    });
+    return this.detalle(tareaId, actor.usuarioId);
   }
 
   async reprogramar(tareaId: string, datos: ReprogramarTareaDatos, actor: ActorTarea): Promise<TareaItem> {

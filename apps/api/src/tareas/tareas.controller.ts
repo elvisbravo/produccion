@@ -90,6 +90,12 @@ export class TareasController {
     return this.tareas.completar(id, datos, actor(req));
   }
 
+  @RequierePermiso('tareas.editar')
+  @Post('tareas/:id/iniciar')
+  iniciar(@Param('id', ParseUUIDPipe) id: string, @Req() req: SolicitudAutenticada): Promise<TareaItem> {
+    return this.tareas.iniciar(id, actor(req));
+  }
+
   @RequierePermiso('tareas.reprogramar')
   @Post('tareas/:id/reprogramar')
   reprogramar(

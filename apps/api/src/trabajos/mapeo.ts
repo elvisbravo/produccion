@@ -132,7 +132,7 @@ export function aDetalle(
   permisos: { verContrato: boolean; verMontos: boolean },
   hoy: string,
   dioElEnfoque: TrabajoDetalle['dioElEnfoque'] = null,
-): TrabajoDetalle {
+): Omit<TrabajoDetalle, 'entregables' | 'hayPlantilla'> {
   return {
     id: t.id,
     codigo: t.codigo,

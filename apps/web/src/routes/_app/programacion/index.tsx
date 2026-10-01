@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { z } from 'zod'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { agendaEquipoQuery, agendaUsuarioQuery } from '@/features/agenda/api'
 import { COLOR_ESTADO_DIA } from '@/features/agenda/components/insignias'
@@ -12,6 +13,7 @@ import { Leyenda } from '@/features/agenda/components/leyenda'
 import { NavegacionSemana } from '@/features/agenda/components/navegacion-semana'
 import { Semana } from '@/features/agenda/components/semana'
 import { TablaEquipo } from '@/features/agenda/components/tabla-equipo'
+import { VistaColas } from '@/features/produccion/components/vista-colas'
 import { describirSemana, lunesDe } from '@/features/agenda/semanas'
 import { nombreCompleto } from '@/lib/formato'
 import { exigirPermiso } from '@/lib/guardas'
@@ -24,10 +26,36 @@ export const Route = createFileRoute('/_app/programacion/')({
   validateSearch: z.object({
     semana: z.iso.date().optional().catch(undefined),
     rol: z.enum(['todos', 'auxiliares', 'jefes']).optional().catch(undefined),
+    vista: z.enum(['agenda', 'colas']).optional().catch(undefined),
   }),
   beforeLoad: () => exigirPermiso('programacion.ver'),
-  component: AgendaEquipo,
+  component: Programacion,
 })
+
+function Programacion() {
+  const { vista } = Route.useSearch()
+  const navigate = useNavigate({ from: Route.fullPath })
+  return (
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-8">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight">Programación</h1>
+        <p className="text-sm text-muted-foreground">Disponibilidad del equipo y la cola de trabajo de cada persona.</p>
+      </div>
+      <Tabs value={vista ?? 'agenda'} onValueChange={(v) => void navigate({ search: (x) => ({ ...x, vista: v === 'agenda' ? undefined : 'colas' }), replace: true })}>
+        <TabsList>
+          <TabsTrigger value="agenda">Agenda del equipo</TabsTrigger>
+          <TabsTrigger value="colas">Colas de trabajo</TabsTrigger>
+        </TabsList>
+        <TabsContent value="agenda" className="mt-4">
+          <AgendaEquipo />
+        </TabsContent>
+        <TabsContent value="colas" className="mt-4">
+          <VistaColas />
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
 
 function AgendaEquipo() {
   const { semana, rol } = Route.useSearch()
@@ -42,14 +70,11 @@ function AgendaEquipo() {
   const noLaborablesHoy = data?.personas.filter((p) => p.dias.find((d) => d.fecha === hoy)?.estado === 'no_laborable') ?? []
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-8">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Agenda del equipo</h1>
-        <p className="text-sm text-muted-foreground">
-          Horas programadas sobre las disponibles de cada persona. Toca una fila para ver su semana.
-          {noLaborablesHoy.length > 0 && ` Hoy no trabajan: ${noLaborablesHoy.map((p) => nombreCompleto(p.usuario)).join(', ')}.`}
-        </p>
-      </div>
+    <div className="flex flex-col gap-6">
+      <p className="text-sm text-muted-foreground">
+        Horas programadas sobre las disponibles de cada persona (incluye su cola de trabajo). Toca una fila para ver su semana.
+        {noLaborablesHoy.length > 0 && ` Hoy no trabajan: ${noLaborablesHoy.map((p) => nombreCompleto(p.usuario)).join(', ')}.`}
+      </p>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <NavegacionSemana lunes={lunes} lunesActual={lunesActual} onCambiar={(s) => void navigate({ search: (x) => ({ ...x, semana: s }), replace: true })} />

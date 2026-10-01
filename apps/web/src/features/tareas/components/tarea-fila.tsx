@@ -80,7 +80,7 @@ export function TareaFila({ tarea, hoy, actividades, catalogos, mostrarProspecto
       <span className="mt-1.5 size-2.5 shrink-0 rounded-full" style={{ backgroundColor: tarea.actividad.color }} aria-hidden="true" />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">{tarea.actividad.nombre}</span>
+          <span className="font-medium">{tarea.titulo ?? tarea.actividad.nombre}</span>
           <InsigniaEstadoTarea tarea={tarea} />
           {tarea.modalidad && <span className="text-xs text-muted-foreground">{NOMBRE_MODALIDAD[tarea.modalidad]}</span>}
         </div>
@@ -101,6 +101,12 @@ export function TareaFila({ tarea, hoy, actividades, catalogos, mostrarProspecto
               {contacto && ` · ${nombreCompleto(contacto) ?? formatearCelular(contacto.celular)}`}
             </ReferenciaProspecto>
           )}
+          {tarea.trabajo && (
+            <Link to="/trabajos/$id" params={{ id: tarea.trabajo.id }} className="hover:text-foreground hover:underline">
+              <span className="font-mono text-xs">{tarea.trabajo.codigo}</span>
+              {tarea.entregable && ` · ${tarea.entregable.nombre}`}
+            </Link>
+          )}
         </div>
         {tarea.notas && activa && <p className="text-sm">{tarea.notas}</p>}
         {!activa && (tarea.resultadoContacto || tarea.resultado || tarea.motivoCancelacion) && (
@@ -112,7 +118,15 @@ export function TareaFila({ tarea, hoy, actividades, catalogos, mostrarProspecto
 
       {activa && (
         <div className="flex shrink-0 items-center gap-1">
-          {tarea.estado === 'por_asignar' && puedeAsignar ? (
+          {tarea.entregable && tarea.actividad.comportamiento === 'revision' ? (
+            // La revisión se cierra aprobando u observando el entregable, en el trabajo.
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/trabajos/$id" params={{ id: tarea.trabajo!.id }}>
+                <Check />
+                Revisar
+              </Link>
+            </Button>
+          ) : tarea.estado === 'por_asignar' && puedeAsignar ? (
             <Button size="sm" onClick={() => setDialogo('asignar')}>
               <UserPlus />
               Asignar

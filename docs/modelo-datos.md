@@ -929,3 +929,10 @@ Diferencias entre el diseño de arriba y lo que ya está en `apps/api/prisma/sch
 | `horario_usuario` | Sin `vigente_hasta`: rige hasta el siguiente `vigente_desde` (único por usuario y fecha) | Evita rangos que se crucen |
 | `ausencia` | `fecha_desde` / `fecha_hasta` (date) + `minuto_desde` / `minuto_hasta` solo en permisos por horas de un día; estado + `anulada`; `resuelta_por` / `resuelta_en` / `observacion` en lugar de `aprobada_por`; sin sustento adjunto todavía | Días completos y permisos por horas con `CHECK` |
 | `feriado` | `medio_dia` = se trabaja solo la mañana (hasta las 13:00) | Regla fija por ahora |
+| `tarea` | + `trabajo_id`, `entregable_id`, `titulo`; `CHECK`: prospecto o trabajo (no ambos) y entregable solo con trabajo; en la cola, `fecha` = "no empieza antes de" | Tareas de producción |
+| `tarea_responsable` | + `orden_cola`; el inicio, fin y holgura **no se guardan**: se calculan al leer con la agenda (siempre al día) | Evita recalcular y guardar en cada cambio |
+| `plantilla_trabajo` | Una por tipo de trabajo (único); `plantilla_entregable` con `porcentaje_plazo` (1–100) y `plantilla_tarea` con actividad, título y minutos | Plantillas **provisionales** hasta que GRUPO ES defina la estructura |
+| `entregable` | Estados: pendiente, en_proceso, en_revision, observado, aprobado, entregado, observado_cliente, cerrado; `similitud` e `ia` (último registro) | Flujo interno y con el cliente |
+| `revision` | Sin checklist todavía; similitud e IA opcionales | Llega con el checklist por tipo de trabajo |
+| `entrega_cliente` | Una fila por envío con su respuesta (pendiente / conforme / observado) | Historial de entregas |
+| `trabajo_evento` | + tipo `entregable` | Línea de tiempo del trabajo |

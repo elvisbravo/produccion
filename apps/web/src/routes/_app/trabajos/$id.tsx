@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { SeccionEntregables } from '@/features/produccion/components/seccion-entregables'
 import { InsigniaPrioridad } from '@/features/prospectos/components/insignias'
 import { trabajoQuery } from '@/features/trabajos/api'
 import { DialogoAnularPago, DialogoEquipo, DialogoPago } from '@/features/trabajos/components/dialogos-trabajo'
@@ -84,6 +85,7 @@ function DetalleTrabajo() {
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="flex flex-col gap-6">
+          <SeccionEntregables t={t} />
           {t.contrato && <Contrato contrato={t.contrato} />}
           <Card>
             <CardHeader>

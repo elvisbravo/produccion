@@ -147,15 +147,21 @@ function BloqueTarea({ tarea: t, className, style, conHora }: { tarea: TareaAgen
   const estilo: React.CSSProperties = {
     ...style,
     backgroundColor: `color-mix(in oklab, ${color} 16%, var(--background))`,
-    borderLeft: `3px solid ${color}`,
+    // Los tramos de la cola son un plan que se reacomoda solo: borde punteado.
+    borderLeft: `3px ${t.enCola ? 'dashed' : 'solid'} ${color}`,
   }
   const clases = cn('text-foreground', hecha && 'opacity-60', className)
+  const enlace = cn(clases, 'hover:ring-2 hover:ring-ring/40')
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        {t.referencia ? (
-          <Link to="/prospectos/$id" params={{ id: t.referencia.id }} className={cn(clases, 'hover:ring-2 hover:ring-ring/40')} style={estilo}>
+        {t.referencia?.tipo === 'trabajo' ? (
+          <Link to="/trabajos/$id" params={{ id: t.referencia.id }} className={enlace} style={estilo}>
+            {contenido}
+          </Link>
+        ) : t.referencia ? (
+          <Link to="/prospectos/$id" params={{ id: t.referencia.id }} className={enlace} style={estilo}>
             {contenido}
           </Link>
         ) : (
@@ -169,6 +175,7 @@ function BloqueTarea({ tarea: t, className, style, conHora }: { tarea: TareaAgen
         <p>
           {t.inicio !== null ? `${horaCorta(t.inicio)}–${horaCorta(t.fin!)}` : `Sin hora fija · ${horas(t.minutos)}`} · {NOMBRE_ESTADO_TAREA[t.estado]}
         </p>
+        {t.enCola && <p>Tramo planificado de la cola de trabajo</p>}
         {t.referencia && (
           <p>
             {t.referencia.codigo}

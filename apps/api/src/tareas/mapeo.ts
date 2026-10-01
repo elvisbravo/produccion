@@ -26,6 +26,8 @@ export const INCLUIR_TAREA = {
     },
   },
   personas: { select: { persona: { select: CAMPOS_PERSONA } } },
+  trabajo: { select: { id: true, codigo: true, titulo: true } },
+  entregable: { select: { id: true, nombre: true } },
 } as const satisfies Prisma.TareaInclude;
 
 export type TareaCompleta = Prisma.TareaGetPayload<{ include: typeof INCLUIR_TAREA }>;
@@ -67,6 +69,9 @@ export function aTareaItem(t: TareaCompleta, ahora = new Date()): TareaItem {
     prospecto: t.prospecto
       ? { id: t.prospecto.id, codigo: t.prospecto.codigo, responsableId: t.prospecto.responsableId, contacto: t.prospecto.contactos[0]?.persona ?? null }
       : null,
+    trabajo: t.trabajo,
+    entregable: t.entregable,
+    titulo: t.titulo,
     responsables: t.responsables.map((r) => ({
       usuario: r.usuario,
       participacion: r.participacion.nombre,

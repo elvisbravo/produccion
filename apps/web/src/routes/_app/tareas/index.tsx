@@ -1,7 +1,7 @@
-import { diaEnLima, type TareaItem } from '@grupoes/shared'
+import { diaEnLima, type ColaPersona, type TareaItem } from '@grupoes/shared'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { CalendarCheck2, Inbox } from 'lucide-react'
+import { CalendarCheck2, Inbox, ListOrdered } from 'lucide-react'
 import { z } from 'zod'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,11 +10,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { actividadesQuery, misTareasQuery, porAsignarQuery, useCatalogosSeguimiento } from '@/features/tareas/api'
 import { TareaFila } from '@/features/tareas/components/tarea-fila'
+import { miColaQuery } from '@/features/produccion/api'
+import { ListaCola } from '@/features/produccion/components/lista-cola'
+import { formatearFechaHora } from '@/lib/formato'
 import { exigirPermiso } from '@/lib/guardas'
 import { usePermiso } from '@/lib/permisos'
 
 export const Route = createFileRoute('/_app/tareas/')({
-  validateSearch: z.object({ vista: z.enum(['mias', 'por-asignar']).optional().catch(undefined) }),
+  validateSearch: z.object({ vista: z.enum(['mias', 'cola', 'por-asignar']).optional().catch(undefined) }),
   beforeLoad: () => exigirPermiso('tareas.ver'),
   component: PaginaTareas,
 })
@@ -24,6 +27,11 @@ function PaginaTareas() {
   const navigate = useNavigate({ from: Route.fullPath })
   const puedeAsignar = usePermiso('tareas.asignar')
   const { data: porAsignar } = useQuery({ ...porAsignarQuery, enabled: puedeAsignar })
+  const { data: miCola } = useQuery(miColaQuery)
+  // Quien participa en producción (auxiliar, jefe) tiene cola de trabajo.
+  const editaEntregables = usePermiso('entregables.editar')
+  const apruebaEntregables = usePermiso('entregables.aprobar')
+  const conCola = editaEntregables || apruebaEntregables || (miCola?.items.length ?? 0) > 0
   const pestana = vista ?? 'mias'
 
   return (
@@ -33,25 +41,64 @@ function PaginaTareas() {
         <p className="text-sm text-muted-foreground">Tus actividades programadas{puedeAsignar ? ' y las que esperan responsable' : ''}.</p>
       </div>
 
-      <Tabs value={pestana} onValueChange={(v) => void navigate({ search: { vista: v === 'mias' ? undefined : (v as 'por-asignar') }, replace: true })}>
-        {puedeAsignar && (
+      <Tabs value={pestana} onValueChange={(v) => void navigate({ search: { vista: v === 'mias' ? undefined : (v as 'cola' | 'por-asignar') }, replace: true })}>
+        {(puedeAsignar || conCola) && (
           <TabsList>
             <TabsTrigger value="mias">Mis tareas</TabsTrigger>
-            <TabsTrigger value="por-asignar">
-              Por asignar
-              {porAsignar && porAsignar.length > 0 && <Badge className="ml-1 h-5 min-w-5 px-1.5">{porAsignar.length}</Badge>}
-            </TabsTrigger>
+            {conCola && (
+              <TabsTrigger value="cola">
+                Mi cola
+                {miCola && miCola.items.length > 0 && <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5">{miCola.items.length}</Badge>}
+              </TabsTrigger>
+            )}
+            {puedeAsignar && (
+              <TabsTrigger value="por-asignar">
+                Por asignar
+                {porAsignar && porAsignar.length > 0 && <Badge className="ml-1 h-5 min-w-5 px-1.5">{porAsignar.length}</Badge>}
+              </TabsTrigger>
+            )}
           </TabsList>
         )}
         <TabsContent value="mias" className="mt-4">
           <MisTareas />
         </TabsContent>
+        {conCola && (
+          <TabsContent value="cola" className="mt-4">
+            <MiCola cola={miCola} />
+          </TabsContent>
+        )}
         {puedeAsignar && (
           <TabsContent value="por-asignar" className="mt-4">
             <PorAsignar tareas={porAsignar} />
           </TabsContent>
         )}
       </Tabs>
+    </div>
+  )
+}
+
+function MiCola({ cola }: { cola: ColaPersona | undefined }) {
+  if (!cola) return <Skeleton className="h-40" />
+  if (cola.items.length === 0) {
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <ListOrdered />
+          </EmptyMedia>
+          <EmptyTitle>Tu cola está vacía</EmptyTitle>
+          <EmptyDescription>Aquí aparecen, en orden, las tareas de producción que te asignen.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-sm text-muted-foreground">
+        Hazlas en este orden. Las fechas se calculan con tu horario, tus reuniones y tus días libres
+        {cola.finCola && `; terminas el ${formatearFechaHora(cola.finCola)}`}.
+      </p>
+      <ListaCola usuarioId={cola.usuario.id} items={cola.items} acciones />
     </div>
   )
 }

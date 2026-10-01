@@ -78,6 +78,13 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | GET/PUT/PATCH | `/api/calendario/personal`, `…/:id/horario`, `…/:id` | Horario de cada persona (con fecha de vigencia) y fecha de nacimiento |
 | GET/POST | `/api/ausencias`, `/api/ausencias/solicitar` | Ausencias (según alcance) y solicitud propia de vacaciones o permisos |
 | POST | `/api/ausencias`, `/api/ausencias/:id/aprobar`, `…/rechazar`, `…/anular` | Registro directo (descanso médico) y resolución de solicitudes |
+| POST | `/api/trabajos/:id/plan`, `/api/trabajos/:id/entregables` | Plan de producción desde la plantilla del tipo de trabajo; entregable nuevo |
+| PUT/DELETE | `/api/entregables/:id` | Editar o eliminar (si aún no empieza) un entregable |
+| POST | `/api/entregables/:id/tareas` | Tarea nueva del entregable (entra a la cola del responsable) |
+| POST | `/api/entregables/:id/enviar-revision`, `…/revisar`, `…/entregar`, `…/respuesta-cliente` | Flujo: revisión interna (aprobar u observar), entrega al cliente y su conformidad |
+| GET | `/api/entregables?vista=` | Bandeja: en revisión, por entregar, con el cliente o todos los abiertos |
+| GET/PUT/POST | `/api/produccion/colas`, `…/mia`, `…/:usuarioId/orden`, `…/:usuarioId/orden-sugerido` | Colas de trabajo planificadas (inicio, fin, holgura) y su orden |
+| POST | `/api/tareas/:id/iniciar` | Quien la realiza marca que empezó |
 | GET | `/api/seguimiento/tablero` | Prospectos abiertos con su próximo paso (kanban) |
 | GET | `/api/catalogos/…`, `/api/personas/…` | Catálogos del formulario y búsqueda de personas |
 

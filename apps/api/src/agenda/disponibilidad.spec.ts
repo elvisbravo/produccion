@@ -23,6 +23,7 @@ const tarea = (id: string, inicio: number | null, minutos: number, estado: Tarea
   fin: inicio === null ? null : inicio + minutos,
   minutos,
   referencia: null,
+  enCola: false,
 });
 
 const dia = (extra: Partial<EntradaDia> = {}) =>

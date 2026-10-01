@@ -219,6 +219,8 @@ export interface TareaAgenda {
   fin: number | null
   minutos: number
   referencia: { tipo: 'prospecto' | 'trabajo'; id: string; codigo: string; nombre: string | null } | null
+  /** Tramo planificado de una tarea de la cola de trabajo (se acomoda sola alrededor de las reuniones). */
+  enCola: boolean
 }
 
 export interface DiaAgenda {

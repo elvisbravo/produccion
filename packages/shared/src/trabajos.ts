@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { EntregableItem } from './produccion.js'
 import { TIPOS_DOCUMENTO, validarDocumento, type Opcion, type PersonaResumen, type UsuarioResumen } from './prospectos.js'
 
 // ─── Dinero ─────────────────────────────────────────────────
@@ -243,7 +244,7 @@ export interface TrabajoListadoItem {
 
 export interface TrabajoEventoItem {
   id: string
-  tipo: 'creado' | 'editado' | 'equipo' | 'contrato' | 'pago' | 'estado'
+  tipo: 'creado' | 'editado' | 'equipo' | 'contrato' | 'pago' | 'estado' | 'entregable'
   detalle: string
   usuario: UsuarioResumen | null
   fecha: string
@@ -273,6 +274,9 @@ export interface TrabajoDetalle {
   creadoEn: string
   /** Quien dio el enfoque al prospecto (se sugiere para el equipo). */
   dioElEnfoque: { usuario: UsuarioResumen; rol: string } | null
+  entregables: EntregableItem[]
+  /** Hay una plantilla de entregables para su tipo de trabajo. */
+  hayPlantilla: boolean
 }
 
 /** Una cuota por cobrar (para la bandeja de cobranza). */

@@ -56,6 +56,8 @@ model Usuario {
   pagosRegistrados   Pago[]             @relation("PagoRegistradoPor")
   pagosAnulados      Pago[]             @relation("PagoAnuladoPor")
   horarios           HorarioUsuario[]   @relation("HorarioDelUsuario")
+  revisiones         Revision[]         @relation("RevisionRevisor")
+  entregasEnviadas   EntregaCliente[]   @relation("EntregaEnviadaPor")
   ausencias          Ausencia[]         @relation("AusenciaDelUsuario")
   ausenciasPedidas   Ausencia[]         @relation("AusenciaSolicitadaPor")
   ausenciasResueltas Ausencia[]         @relation("AusenciaResueltaPor")
@@ -285,6 +287,7 @@ model TipoTrabajo {
 
   prospectos Prospecto[]
   trabajos   Trabajo[]
+  plantilla  PlantillaTrabajo?
 
   @@map("tipo_trabajo")
 }
@@ -626,6 +629,7 @@ model Actividad {
   participaciones ActividadParticipacion[]
   tareas          Tarea[]
   etapasEvento    EtapaProspecto[]
+  plantillaTareas PlantillaTarea[]
 
   @@map("actividad")
 }
@@ -693,9 +697,13 @@ enum Modalidad {
 model Tarea {
   id                  String      @id @default(uuid(7)) @db.Uuid
   actividadId         String      @map("actividad_id") @db.Uuid
-  /// Por ahora solo tareas de prospectos; las de trabajos se agregan con el módulo de trabajos.
+  /// Una tarea es de un prospecto o de un trabajo (y, en producción, de un entregable).
   prospectoId         String?     @map("prospecto_id") @db.Uuid
-  /// Día planificado (hora de Lima).
+  trabajoId           String?     @map("trabajo_id") @db.Uuid
+  entregableId        String?     @map("entregable_id") @db.Uuid
+  /// Descripción corta, p. ej. "Redacción del Capítulo I".
+  titulo              String?     @db.VarChar(150)
+  /// Día planificado (hora de Lima). En la cola de trabajo: no empieza antes de este día.
   fecha               DateTime    @db.Date
   /// Inicio exacto, si la tarea tiene hora (obligatorio en reuniones).
   inicio              DateTime?   @db.Timestamptz(6)
@@ -715,12 +723,17 @@ model Tarea {
 
   actividad         Actividad          @relation(fields: [actividadId], references: [id])
   prospecto         Prospecto?         @relation(fields: [prospectoId], references: [id], onDelete: Cascade)
+  trabajo           Trabajo?           @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
+  entregable        Entregable?        @relation(fields: [entregableId], references: [id], onDelete: Cascade)
+  revisiones        Revision[]
   resultadoContacto ResultadoContacto? @relation(fields: [resultadoContactoId], references: [id])
   creadaPor         Usuario            @relation("TareaCreadaPor", fields: [creadaPorId], references: [id])
   responsables      TareaResponsable[]
   personas          TareaPersona[]
 
   @@index([prospectoId, estado])
+  @@index([trabajoId, estado])
+  @@index([entregableId])
   @@index([estado, fecha])
   @@map("tarea")
 }
@@ -738,6 +751,8 @@ model TareaResponsable {
   /// Se asignó pese a un choque de horario o a una prioridad menor.
   forzado         Boolean  @default(false)
   motivoForzado   String?  @map("motivo_forzado")
+  /// Posición en la cola de trabajo de la persona (tareas sin hora fija de producción). null = fuera de la cola.
+  ordenCola       Int?     @map("orden_cola")
 
   tarea         Tarea                  @relation(fields: [tareaId], references: [id], onDelete: Cascade)
   usuario       Usuario                @relation("TareaResponsableUsuario", fields: [usuarioId], references: [id])
@@ -748,6 +763,7 @@ model TareaResponsable {
 
   @@unique([tareaId, usuarioId])
   @@index([usuarioId])
+  @@index([usuarioId, ordenCola])
   @@map("tarea_responsable")
 }
 
@@ -812,6 +828,8 @@ model Trabajo {
   equipo      TrabajoEquipo[]
   eventos     TrabajoEvento[]
   contrato    Contrato?
+  entregables Entregable[]
+  tareas      Tarea[]
 
   @@index([estado])
   @@index([fechaLimite])
@@ -868,6 +886,7 @@ enum TipoEventoTrabajo {
   contrato
   pago
   estado
+  entregable
 
   @@map("tipo_evento_trabajo")
 }
@@ -1116,4 +1135,142 @@ model Ausencia {
   @@index([usuarioId, fechaDesde])
   @@index([estado])
   @@map("ausencia")
+}
+
+// ─── Producción: entregables, revisiones y entregas ─────────
+
+/// Plantilla de entregables y tareas por tipo de trabajo. Al generar el plan de un trabajo se copian y se ajustan.
+model PlantillaTrabajo {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  tipoTrabajoId String   @unique @map("tipo_trabajo_id") @db.Uuid
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+
+  tipoTrabajo TipoTrabajo           @relation(fields: [tipoTrabajoId], references: [id])
+  entregables PlantillaEntregable[]
+
+  @@map("plantilla_trabajo")
+}
+
+model PlantillaEntregable {
+  id              String  @id @default(uuid(7)) @db.Uuid
+  plantillaId     String  @map("plantilla_id") @db.Uuid
+  nombre          String  @db.VarChar(120)
+  orden           Int
+  esFinal         Boolean @default(false) @map("es_final")
+  /// Su fecha límite cae en este % del plazo del trabajo (100 = fecha límite final).
+  porcentajePlazo Int     @map("porcentaje_plazo") @db.SmallInt
+
+  plantilla PlantillaTrabajo @relation(fields: [plantillaId], references: [id], onDelete: Cascade)
+  tareas    PlantillaTarea[]
+
+  @@index([plantillaId, orden])
+  @@map("plantilla_entregable")
+}
+
+model PlantillaTarea {
+  id                    String @id @default(uuid(7)) @db.Uuid
+  plantillaEntregableId String @map("plantilla_entregable_id") @db.Uuid
+  actividadId           String @map("actividad_id") @db.Uuid
+  titulo                String @db.VarChar(150)
+  minutosEstimados      Int    @map("minutos_estimados")
+  orden                 Int
+
+  entregable PlantillaEntregable @relation(fields: [plantillaEntregableId], references: [id], onDelete: Cascade)
+  actividad  Actividad           @relation(fields: [actividadId], references: [id])
+
+  @@index([plantillaEntregableId, orden])
+  @@map("plantilla_tarea")
+}
+
+enum EstadoEntregable {
+  pendiente
+  en_proceso
+  en_revision
+  observado
+  aprobado
+  entregado
+  observado_cliente
+  cerrado
+
+  @@map("estado_entregable")
+}
+
+model Entregable {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  trabajoId   String           @map("trabajo_id") @db.Uuid
+  nombre      String           @db.VarChar(120)
+  orden       Int
+  esFinal     Boolean          @default(false) @map("es_final")
+  fechaLimite DateTime         @map("fecha_limite") @db.Date
+  estado      EstadoEntregable @default(pendiente)
+  /// Último % de similitud (Turnitin) y de detección de IA registrados en la revisión.
+  similitud   Decimal?         @db.Decimal(5, 2)
+  ia          Decimal?         @db.Decimal(5, 2)
+
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+
+  trabajo    Trabajo          @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
+  tareas     Tarea[]
+  revisiones Revision[]
+  entregas   EntregaCliente[]
+
+  @@index([trabajoId, orden])
+  @@index([estado])
+  @@map("entregable")
+}
+
+enum ResultadoRevision {
+  aprobado
+  observado
+
+  @@map("resultado_revision")
+}
+
+/// Revisión interna del jefe de producción.
+model Revision {
+  id            String            @id @default(uuid(7)) @db.Uuid
+  entregableId  String            @map("entregable_id") @db.Uuid
+  tareaId       String?           @map("tarea_id") @db.Uuid
+  revisorId     String            @map("revisor_id") @db.Uuid
+  resultado     ResultadoRevision
+  observaciones String?
+  similitud     Decimal?          @db.Decimal(5, 2)
+  ia            Decimal?          @db.Decimal(5, 2)
+  fecha         DateTime          @default(now()) @db.Timestamptz(6)
+
+  entregable Entregable @relation(fields: [entregableId], references: [id], onDelete: Cascade)
+  tarea      Tarea?     @relation(fields: [tareaId], references: [id], onDelete: SetNull)
+  revisor    Usuario    @relation("RevisionRevisor", fields: [revisorId], references: [id])
+
+  @@index([entregableId, fecha])
+  @@map("revision")
+}
+
+enum RespuestaCliente {
+  pendiente
+  conforme
+  observado
+
+  @@map("respuesta_cliente")
+}
+
+/// Envío de un entregable aprobado al cliente y su respuesta.
+model EntregaCliente {
+  id                   String           @id @default(uuid(7)) @db.Uuid
+  entregableId         String           @map("entregable_id") @db.Uuid
+  enviadoPorId         String           @map("enviado_por_id") @db.Uuid
+  fecha                DateTime         @default(now()) @db.Timestamptz(6)
+  canal                String           @default("whatsapp") @db.VarChar(30)
+  notas                String?
+  respuesta            RespuestaCliente @default(pendiente)
+  observacionesCliente String?          @map("observaciones_cliente")
+  respondidoEn         DateTime?        @map("respondido_en") @db.Timestamptz(6)
+
+  entregable Entregable @relation(fields: [entregableId], references: [id], onDelete: Cascade)
+  enviadoPor Usuario    @relation("EntregaEnviadaPor", fields: [enviadoPorId], references: [id])
+
+  @@index([entregableId, fecha])
+  @@map("entrega_cliente")
 }

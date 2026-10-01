@@ -6,3 +6,4 @@ export * from './fechas.js';
 export * from './tareas.js';
 export * from './trabajos.js';
 export * from './agenda.js';
+export * from './produccion.js';

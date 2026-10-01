@@ -137,6 +137,7 @@ async function main() {
   await sembrarCatalogos();
   await sembrarActividades();
   await sembrarAgenda();
+  await sembrarPlantillasTrabajo();
 
   console.log('Seed completado');
 }
@@ -350,6 +351,37 @@ async function sembrarActividades() {
       seguimiento: true,
       participaciones: [{ nombre: 'Responsable', obligatoria: true, roles: [['ASIST_ADM', 'Principal']] }],
     },
+    // Producción: se asignan al equipo del trabajo y entran a la cola de cada persona.
+    {
+      nombre: 'Elaboración',
+      tipo: 'Producción',
+      minutos: 240,
+      aplicaA: 'cliente',
+      horaFija: false,
+      modo: 'responsable_trabajo',
+      coordinador: 'ASIST_PROD',
+      participaciones: [{ nombre: 'Responsable', obligatoria: true, roles: [['AUXILIAR', 'Principal'], ['JEFE_PROD', 'Secundaria']] }],
+    },
+    {
+      nombre: 'Corrección de observaciones',
+      tipo: 'Corrección',
+      minutos: 120,
+      aplicaA: 'cliente',
+      horaFija: false,
+      modo: 'responsable_trabajo',
+      coordinador: 'ASIST_PROD',
+      participaciones: [{ nombre: 'Responsable', obligatoria: true, roles: [['AUXILIAR', 'Principal'], ['JEFE_PROD', 'Secundaria']] }],
+    },
+    {
+      nombre: 'Revisión interna',
+      tipo: 'Revisión / Calidad',
+      minutos: 60,
+      aplicaA: 'cliente',
+      horaFija: false,
+      modo: 'responsable_trabajo',
+      coordinador: 'ASIST_PROD',
+      participaciones: [{ nombre: 'Revisor', obligatoria: true, roles: [['JEFE_PROD', 'Principal']] }],
+    },
   ];
 
   const [tiposDb, roles, prioridades] = await Promise.all([
@@ -405,6 +437,64 @@ main()
     process.exitCode = 1;
   })
   .finally(() => prisma.$disconnect());
+
+/**
+ * Plantillas PROVISIONALES de entregables y tareas por tipo de trabajo.
+ * GRUPO ES definirá la estructura real (capítulos y tiempos); solo se crean si el tipo aún no tiene plantilla.
+ */
+async function sembrarPlantillasTrabajo() {
+  type Entregable = { nombre: string; porcentaje: number; esFinal?: boolean; tareas: [string, number][] };
+  const h = (horas: number) => horas * 60;
+  const tesis: Entregable[] = [
+    { nombre: 'Plan de tesis', porcentaje: 15, tareas: [['Redacción del plan de tesis', h(12)]] },
+    { nombre: 'Capítulo I: Problema de investigación', porcentaje: 30, tareas: [['Redacción del Capítulo I', h(12)]] },
+    { nombre: 'Capítulo II: Marco teórico', porcentaje: 50, tareas: [['Búsqueda bibliográfica', h(8)], ['Redacción del Capítulo II', h(16)]] },
+    { nombre: 'Capítulo III: Metodología', porcentaje: 65, tareas: [['Redacción del Capítulo III', h(10)]] },
+    { nombre: 'Capítulo IV: Resultados', porcentaje: 80, tareas: [['Procesamiento estadístico', h(10)], ['Redacción del Capítulo IV', h(10)]] },
+    { nombre: 'Capítulo V: Discusión y conclusiones', porcentaje: 90, tareas: [['Redacción del Capítulo V', h(8)]] },
+    { nombre: 'Informe final', porcentaje: 100, esFinal: true, tareas: [['Integración, formato y referencias', h(8)]] },
+  ];
+  const plantillas: Record<string, Entregable[]> = {
+    Tesis: tesis,
+    'Plan de tesis': [
+      { nombre: 'Avance: problema y objetivos', porcentaje: 50, tareas: [['Redacción del avance', h(10)]] },
+      { nombre: 'Plan de tesis final', porcentaje: 100, esFinal: true, tareas: [['Redacción del plan completo', h(12)]] },
+    ],
+    'Trabajo de investigación (bachiller)': [
+      { nombre: 'Avance', porcentaje: 50, tareas: [['Redacción del avance', h(12)]] },
+      { nombre: 'Informe final', porcentaje: 100, esFinal: true, tareas: [['Redacción del informe final', h(16)]] },
+    ],
+    'Artículo científico': [
+      { nombre: 'Borrador del artículo', porcentaje: 60, tareas: [['Búsqueda bibliográfica', h(6)], ['Redacción del borrador', h(12)]] },
+      { nombre: 'Artículo final', porcentaje: 100, esFinal: true, tareas: [['Ajustes y formato de la revista', h(6)]] },
+    ],
+    Monografía: [{ nombre: 'Monografía final', porcentaje: 100, esFinal: true, tareas: [['Redacción de la monografía', h(16)]] }],
+    'Trabajo de suficiencia profesional': [
+      { nombre: 'Avance', porcentaje: 50, tareas: [['Redacción del avance', h(12)]] },
+      { nombre: 'Informe final', porcentaje: 100, esFinal: true, tareas: [['Redacción del informe final', h(12)]] },
+    ],
+  };
+
+  const elaboracion = await prisma.actividad.findUniqueOrThrow({ where: { nombre: 'Elaboración' } });
+  for (const [tipo, entregables] of Object.entries(plantillas)) {
+    const tipoTrabajo = await prisma.tipoTrabajo.findUnique({ where: { nombre: tipo }, include: { plantilla: true } });
+    if (!tipoTrabajo || tipoTrabajo.plantilla) continue;
+    await prisma.plantillaTrabajo.create({
+      data: {
+        tipoTrabajoId: tipoTrabajo.id,
+        entregables: {
+          create: entregables.map((e, i) => ({
+            nombre: e.nombre,
+            orden: i + 1,
+            esFinal: e.esFinal ?? false,
+            porcentajePlazo: e.porcentaje,
+            tareas: { create: e.tareas.map(([titulo, minutos], j) => ({ actividadId: elaboracion.id, titulo, minutosEstimados: minutos, orden: j + 1 })) },
+          })),
+        },
+      },
+    });
+  }
+}
 
 /** Horario estándar (plantilla por defecto) y feriados nacionales del Perú. */
 async function sembrarAgenda() {

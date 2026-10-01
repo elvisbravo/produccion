@@ -124,6 +124,10 @@ export interface TareaItem {
   motivoCancelacion: string | null
   vecesReprogramada: number
   prospecto: { id: string; codigo: string; responsableId: string; contacto: PersonaResumen | null } | null
+  /** Tareas de producción: el trabajo y, si aplica, el entregable. */
+  trabajo: { id: string; codigo: string; titulo: string | null } | null
+  entregable: { id: string; nombre: string } | null
+  titulo: string | null
   responsables: { usuario: UsuarioResumen; participacion: string; rol: string; prioridad: string | null; forzado: boolean }[]
   personas: PersonaResumen[]
   creadaPor: UsuarioResumen
