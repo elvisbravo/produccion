@@ -28,11 +28,17 @@ export const INCLUIR_TAREA = {
   personas: { select: { persona: { select: CAMPOS_PERSONA } } },
   trabajo: { select: { id: true, codigo: true, titulo: true } },
   entregable: { select: { id: true, nombre: true } },
+  tiempos: { select: { usuarioId: true, inicio: true, fin: true, minutos: true } },
 } as const satisfies Prisma.TareaInclude;
 
 export type TareaCompleta = Prisma.TareaGetPayload<{ include: typeof INCLUIR_TAREA }>;
 
 export const esActiva = (estado: EstadoTarea) => ESTADOS_ACTIVOS.includes(estado);
+
+/** Minutos reales de una tarea: tramos cerrados más lo que lleva corriendo un cronómetro abierto. */
+export function minutosReales(tiempos: { inicio: Date; fin: Date | null; minutos: number | null }[], ahora = new Date()): number {
+  return tiempos.reduce((s, t) => s + (t.fin ? (t.minutos ?? 0) : Math.max(0, Math.round((ahora.getTime() - t.inicio.getTime()) / 60_000))), 0);
+}
 
 export const finDe = (inicio: Date, minutos: number) => new Date(inicio.getTime() + minutos * 60_000);
 
@@ -72,6 +78,9 @@ export function aTareaItem(t: TareaCompleta, ahora = new Date()): TareaItem {
     trabajo: t.trabajo,
     entregable: t.entregable,
     titulo: t.titulo,
+    // Solo tramos cerrados: la web suma en vivo el tramo en curso (enCurso).
+    minutosReales: minutosReales(t.tiempos.filter((x) => x.fin), ahora),
+    enCurso: t.tiempos.filter((x) => !x.fin).map((x) => ({ usuarioId: x.usuarioId, inicio: x.inicio.toISOString() })),
     responsables: t.responsables.map((r) => ({
       usuario: r.usuario,
       participacion: r.participacion.nombre,

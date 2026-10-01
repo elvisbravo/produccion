@@ -9,7 +9,7 @@ import {
   type TareaItem,
 } from '@grupoes/shared'
 import { Link } from '@tanstack/react-router'
-import { CalendarClock, Check, CircleSlash, EllipsisVertical, Repeat2, UserPlus, Users } from 'lucide-react'
+import { CalendarClock, Check, CircleSlash, Clock, EllipsisVertical, Repeat2, UserPlus, Users } from 'lucide-react'
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,8 @@ import { describirCuando, duracion, nombreCompleto } from '@/lib/formato'
 import { useAlcance, usePermiso } from '@/lib/permisos'
 import { useSesion } from '@/stores/sesion'
 import { cn } from '@/lib/utils'
+import { BotonCronometro, TiempoTarea } from '@/features/tiempo/components/cronometro'
+import { DialogoTiempos } from '@/features/tiempo/components/dialogo-tiempos'
 import { DialogoAsignar } from './dialogo-asignar'
 import { DialogoCompletar } from './dialogo-completar'
 import { DialogoCancelar, DialogoReprogramar } from './dialogos-simples'
@@ -57,7 +59,7 @@ interface Props {
   onCompletada?: (resultado: ResultadoCompletar) => void
 }
 
-type Dialogo = 'completar' | 'reprogramar' | 'cancelar' | 'asignar' | null
+type Dialogo = 'completar' | 'reprogramar' | 'cancelar' | 'asignar' | 'tiempo' | null
 
 export function TareaFila({ tarea, hoy, actividades, catalogos, mostrarProspecto, hayOtrasPendientes = false, onCompletada }: Props) {
   const [dialogo, setDialogo] = useState<Dialogo>(null)
@@ -72,6 +74,8 @@ export function TareaFila({ tarea, hoy, actividades, catalogos, mostrarProspecto
   const puedeCompletar = puedeEditar && (alcanceEditar === 'todos' || tarea.responsables.some((r) => r.usuario.id === usuarioId))
   const activa = ['por_asignar', 'pendiente', 'en_proceso'].includes(tarea.estado)
   const cerrar = (abierto: boolean) => !abierto && setDialogo(null)
+  const esResponsable = tarea.responsables.some((r) => r.usuario.id === usuarioId)
+  const miTramo = tarea.enCurso.find((e) => e.usuarioId === usuarioId)
   const contacto = tarea.prospecto?.contacto
   const puedeVerProspecto = usePermiso('prospectos.ver')
 
@@ -89,6 +93,7 @@ export function TareaFila({ tarea, hoy, actividades, catalogos, mostrarProspecto
             <CalendarClock className="size-3.5" />
             {describirCuando(tarea, hoy)} · {duracion(tarea.minutosEstimados)}
           </span>
+          <TiempoTarea minutosReales={tarea.minutosReales} minutosEstimados={tarea.minutosEstimados} enCursoDesde={miTramo?.inicio ?? tarea.enCurso[0]?.inicio} />
           {tarea.responsables.length > 0 && (
             <span className="inline-flex items-center gap-1">
               <Users className="size-3.5" />
@@ -118,6 +123,7 @@ export function TareaFila({ tarea, hoy, actividades, catalogos, mostrarProspecto
 
       {activa && (
         <div className="flex shrink-0 items-center gap-1">
+          {esResponsable && tarea.estado !== 'por_asignar' && <BotonCronometro tareaId={tarea.id} enCurso={Boolean(miTramo)} compacto />}
           {tarea.entregable && tarea.actividad.comportamiento === 'revision' ? (
             // La revisión se cierra aprobando u observando el entregable, en el trabajo.
             <Button size="sm" variant="outline" asChild>
@@ -140,7 +146,7 @@ export function TareaFila({ tarea, hoy, actividades, catalogos, mostrarProspecto
               </Button>
             )
           )}
-          {(puedeCancelar || puedeReprogramar || puedeAsignar) && (
+          {(puedeCancelar || puedeReprogramar || puedeAsignar || esResponsable) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon-sm" aria-label="Más acciones">
@@ -148,6 +154,10 @@ export function TareaFila({ tarea, hoy, actividades, catalogos, mostrarProspecto
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setDialogo('tiempo')}>
+                  <Clock />
+                  Tiempo registrado
+                </DropdownMenuItem>
                 {puedeReprogramar && (
                   <DropdownMenuItem onSelect={() => setDialogo('reprogramar')}>
                     <Repeat2 />
@@ -189,6 +199,7 @@ export function TareaFila({ tarea, hoy, actividades, catalogos, mostrarProspecto
       {dialogo === 'reprogramar' && <DialogoReprogramar tarea={tarea} abierto onAbiertoChange={cerrar} />}
       {dialogo === 'cancelar' && <DialogoCancelar tarea={tarea} abierto onAbiertoChange={cerrar} />}
       {dialogo === 'asignar' && <DialogoAsignar tareaId={tarea.id} hoy={hoy} abierto onAbiertoChange={cerrar} />}
+      {dialogo === 'tiempo' && <DialogoTiempos tareaId={tarea.id} titulo={tarea.titulo ?? tarea.actividad.nombre} esResponsable={esResponsable} onCerrar={() => setDialogo(null)} />}
     </li>
   )
 }

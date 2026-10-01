@@ -155,6 +155,10 @@ export interface ColaItem {
   actividad: { nombre: string; comportamiento: Comportamiento; color: string }
   estado: EstadoTarea
   minutos: number
+  /** Minutos reales de los tramos cerrados (la cola planifica solo lo que falta). */
+  minutosReales: number
+  /** Si la persona tiene el cronómetro corriendo en esta tarea, desde cuándo. */
+  enCursoDesde: string | null
   trabajo: { id: string; codigo: string; titulo: string | null; prioridad: { nombre: string; color: string } }
   entregable: { id: string; nombre: string } | null
   /** Fecha límite del entregable (o del trabajo). */

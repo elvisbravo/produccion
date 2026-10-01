@@ -5,6 +5,7 @@ import { NotificacionesService } from '../notificaciones/notificaciones.service.
 import { ParametrosService } from '../parametros/parametros.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProduccionService } from '../produccion/produccion.service.js';
+import { cerrarTramos } from '../tareas/tramos.js';
 
 const aFecha = (dia: string) => new Date(`${dia}T00:00:00Z`);
 const soloFecha = (d: Date) => d.toISOString().slice(0, 10);
@@ -35,6 +36,25 @@ export class RecordatoriosService {
   @Cron('30 7 * * *', { name: 'vencimientos', timeZone: 'America/Lima' })
   async cadaManana(): Promise<void> {
     if (this.activo) await this.seguro('vencimientos', () => this.vencimientos());
+  }
+
+  @Cron('0 22 * * *', { name: 'cronometros', timeZone: 'America/Lima' })
+  async cadaNoche(): Promise<void> {
+    if (this.activo) await this.seguro('cronometros', () => this.cerrarCronometros());
+  }
+
+  /** Cronómetros que quedaron corriendo: se detienen y se avisa a la persona para que corrija si hace falta. */
+  async cerrarCronometros(ahora = new Date()): Promise<void> {
+    const cerrados = await cerrarTramos(this.prisma, {}, ahora, true);
+    for (const c of cerrados) {
+      await this.notificaciones.notificar([c.usuarioId], {
+        tipo: 'recordatorio.cronometro',
+        titulo: 'Tu cronómetro quedó corriendo y se detuvo',
+        mensaje: `Se registraron ${Math.floor(c.minutos / 60)} h ${c.minutos % 60} min. Si no es correcto, corrígelo en la tarea.`,
+        enlace: '/tareas',
+        clave: `cronometro:${c.tareaId}:${ahora.toISOString().slice(0, 10)}`,
+      });
+    }
   }
 
   private async seguro(nombre: string, tarea: () => Promise<void>) {

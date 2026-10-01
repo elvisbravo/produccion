@@ -15,6 +15,7 @@ import {
 import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ahoraEnLima, HORIZONTE_DIAS, huecosDelDia, planificar, type DiaLibre, type PlanCola, type TareaEnCola } from './cola.js';
+import { minutosReales } from '../tareas/mapeo.js';
 import { calcularDia, esCumpleanos, evaluar, tramosDelDia, type EntradaDia, type HorarioVigencia } from './disponibilidad.js';
 
 type Cliente = PrismaService | Prisma.TransactionClient;
@@ -49,6 +50,7 @@ const INCLUIR_TAREA_AGENDA = {
     },
   },
   entregable: { select: { id: true, nombre: true, fechaLimite: true } },
+  tiempos: { select: { usuarioId: true, inicio: true, fin: true, minutos: true } },
 } as const satisfies Prisma.TareaInclude;
 export type TareaDeAgenda = Prisma.TareaGetPayload<{ include: typeof INCLUIR_TAREA_AGENDA }>;
 
@@ -61,12 +63,18 @@ export interface BaseDeCola {
   ahora: { fecha: string; minuto: number };
 }
 
-/** Una tarea de la agenda como entrada del planificador. */
-export const aTareaEnCola = (t: { id: string; minutosEstimados: number; fecha: Date }): TareaEnCola => ({
-  id: t.id,
-  minutos: t.minutosEstimados,
-  noAntesDe: soloFecha(t.fecha),
-});
+/** Lo que falta de una tarea ya empezada: lo estimado menos lo trabajado (al menos 15 minutos mientras siga abierta). */
+const MINIMO_RESTANTE = 15;
+
+/** Una tarea de la agenda como entrada del planificador (con lo que le falta, si ya se trabajó en ella). */
+export const aTareaEnCola = (t: { id: string; minutosEstimados: number; fecha: Date; tiempos?: { inicio: Date; fin: Date | null; minutos: number | null }[] }): TareaEnCola => {
+  const real = t.tiempos ? minutosReales(t.tiempos) : 0;
+  return {
+    id: t.id,
+    minutos: real > 0 ? Math.max(t.minutosEstimados - real, MINIMO_RESTANTE) : t.minutosEstimados,
+    noAntesDe: soloFecha(t.fecha),
+  };
+};
 
 export interface ColaDeUsuario {
   /** Tareas en la cola, en orden. */

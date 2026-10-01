@@ -25,6 +25,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
 import { ProduccionService } from '../produccion/produccion.service.js';
 import { EmbudoService } from './embudo.service.js';
+import { cerrarTramos } from './tramos.js';
 import { aTareaItem, esActiva, finDe, INCLUIR_TAREA, ORDEN_TAREAS } from './mapeo.js';
 
 export interface ActorTarea {
@@ -516,6 +517,8 @@ export class TareasService {
         where: { id: tareaId },
         data: { estado, completadaEn: new Date(), resultado: datos.resultado ?? null, resultadoContactoId: resultadoContacto?.id ?? null },
       });
+      // Al terminar la tarea se detiene el cronómetro de quien lo tuviera corriendo.
+      await cerrarTramos(tx, { tareaId });
       if (tarea.trabajoId) await this.produccion.alAvanzarTarea(tx, tareaId, true);
       if (!tarea.prospectoId) return;
 
@@ -660,6 +663,7 @@ export class TareasService {
     if (!puede) throw new ForbiddenException('Solo el coordinador o el responsable del prospecto pueden cancelar esta actividad');
     await this.prisma.$transaction(async (tx) => {
       await tx.tarea.update({ where: { id: tareaId }, data: { estado: 'cancelada', motivoCancelacion: motivo } });
+      await cerrarTramos(tx, { tareaId });
       if (tarea.prospectoId) {
         await tx.prospectoEvento.create({
           data: { prospectoId: tarea.prospectoId, tipo: 'tarea', detalle: `Se canceló "${tarea.actividad.nombre}" — ${motivo}`, datos: { tareaId }, usuarioId: actor.usuarioId },

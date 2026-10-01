@@ -940,5 +940,6 @@ Diferencias entre el diseño de arriba y lo que ya está en `apps/api/prisma/sch
 | `hora_extra_bono` | `CHECK`: horas extra con día y tramo (minutos); bono con monto > 0. Estados: propuesta, aceptada, rechazada, aprobada, realizada, anulada. Sin "liquidada" (el pago queda fuera del sistema) | Las aprobadas abren capacidad en la agenda |
 | `usuario` | + `debe_cambiar_clave` (primer ingreso o contraseña restablecida) | Cambio obligatorio antes de usar el sistema |
 | `tope_horas_extra_usuario` | Nueva: tope semanal y mensual propio de una persona (vacío = sin tope) | Excepción al tope global de los parámetros |
+| `registro_tiempo` | Tramos con `inicio`, `fin` y `minutos` (al cerrar), `manual` con `motivo` obligatorio, `auto_cerrado`; un solo tramo abierto por persona (índice parcial) | Cronómetro por tarea; la cola planifica solo lo que falta |
 | `notificacion` | `tipo` como "área.evento" (texto, no enum: los tipos crecen sin migraciones), `titulo`, `mensaje`, `enlace` (ruta de la web) en lugar de entidad + id; `clave` única por usuario para no repetir avisos automáticos; `leida_en` en lugar de un booleano | La web navega directo al enlace |
 | `parametro` | `horas_extra.tope_semanal` / `horas_extra.tope_mensual` (horas; sin valor = sin tope). `tope_horas_extra_usuario` aún no se crea | Excepciones por persona: con la administración de usuarios |

@@ -65,6 +65,7 @@ model Usuario {
   extras             HoraExtraBono[]    @relation("ExtraDelUsuario")
   notificaciones     Notificacion[]     @relation("NotificacionDelUsuario")
   topeHorasExtra     TopeHorasExtraUsuario?
+  tiempos            RegistroTiempo[]   @relation("TiempoDelUsuario")
   extrasPropuestas   HoraExtraBono[]    @relation("ExtraPropuestaPor")
   extrasAprobadas    HoraExtraBono[]    @relation("ExtraAprobadaPor")
   entregasEnviadas   EntregaCliente[]   @relation("EntregaEnviadaPor")
@@ -737,6 +738,7 @@ model Tarea {
   entregable        Entregable?        @relation(fields: [entregableId], references: [id], onDelete: Cascade)
   revisiones        Revision[]
   extras            HoraExtraBono[]
+  tiempos           RegistroTiempo[]
   resultadoContacto ResultadoContacto? @relation(fields: [resultadoContactoId], references: [id])
   creadaPor         Usuario            @relation("TareaCreadaPor", fields: [creadaPorId], references: [id])
   responsables      TareaResponsable[]
@@ -1413,4 +1415,30 @@ model TopeHorasExtraUsuario {
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@map("tope_horas_extra_usuario")
+}
+
+// ─── Tiempo real ────────────────────────────────────────────
+
+/// Tramo de trabajo real en una tarea (cronómetro o registro manual). Abierto mientras fin es null.
+model RegistroTiempo {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  tareaId     String    @map("tarea_id") @db.Uuid
+  usuarioId   String    @map("usuario_id") @db.Uuid
+  inicio      DateTime  @db.Timestamptz(6)
+  fin         DateTime? @db.Timestamptz(6)
+  /// Se calcula al cerrar el tramo.
+  minutos     Int?
+  /// Ingresado a mano (olvidó marcar): queda indicado y con su motivo.
+  manual      Boolean   @default(false)
+  motivo      String?
+  /// Lo cerró el sistema al final del día porque quedó corriendo.
+  autoCerrado Boolean   @default(false) @map("auto_cerrado")
+  creadoEn    DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
+
+  tarea   Tarea   @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  usuario Usuario @relation("TiempoDelUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([tareaId])
+  @@index([usuarioId, inicio])
+  @@map("registro_tiempo")
 }

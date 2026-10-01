@@ -11,6 +11,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Campanita } from '@/features/notificaciones/campanita'
+import { CronometroActivo } from '@/features/tiempo/components/cronometro'
 import { ubicarModulo } from '@/lib/menu'
 import { useSesion } from '@/stores/sesion'
 
@@ -49,6 +50,7 @@ export function AppHeader() {
       </Breadcrumb>
 
       <div className="ml-auto flex items-center gap-1">
+        <CronometroActivo />
         <Campanita />
       </div>
     </header>

@@ -25,6 +25,8 @@ import { AuditoriaService } from '../common/auditoria.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { minutosReales } from '../tareas/mapeo.js';
+import { cerrarTramos } from '../tareas/tramos.js';
 
 export interface ActorProduccion {
   usuarioId: string;
@@ -422,6 +424,7 @@ export class ProduccionService {
         where: { id: { in: tareasRevision.map((t) => t.id) } },
         data: { estado: 'completada', completadaEn: ahora, fecha: aFecha(diaEnLima()), resultado: datos.resultado === 'aprobado' ? 'Aprobado' : datos.observaciones },
       });
+      await cerrarTramos(tx, { tareaId: { in: tareasRevision.map((t) => t.id) } }, ahora);
       await tx.revision.create({
         data: {
           entregableId,
@@ -598,6 +601,8 @@ export class ProduccionService {
           actividad: { nombre: t.actividad.nombre, comportamiento: t.actividad.tipo.comportamiento, color: t.actividad.tipo.color },
           estado: t.estado,
           minutos: t.minutosEstimados,
+          minutosReales: minutosReales(t.tiempos.filter((x) => x.fin)),
+          enCursoDesde: t.tiempos.find((x) => !x.fin && x.usuarioId === u.id)?.inicio.toISOString() ?? null,
           trabajo: { id: t.trabajo!.id, codigo: t.trabajo!.codigo, titulo: t.trabajo!.titulo, prioridad: { nombre: t.trabajo!.prioridad.nombre, color: t.trabajo!.prioridad.color } },
           entregable: t.entregable ? { id: t.entregable.id, nombre: t.entregable.nombre } : null,
           fechaLimite,

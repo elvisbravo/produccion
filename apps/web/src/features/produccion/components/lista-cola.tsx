@@ -3,7 +3,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities'
 import type { ColaItem } from '@grupoes/shared'
 import { Link } from '@tanstack/react-router'
-import { Check, GripVertical, Loader2, Play } from 'lucide-react'
+import { Check, Clock, GripVertical, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -11,7 +11,9 @@ import { Button } from '@/components/ui/button'
 import { ApiError } from '@/lib/api'
 import { duracion, formatearFecha, formatearFechaHora } from '@/lib/formato'
 import { cn } from '@/lib/utils'
-import { useCompletarTareaCola, useIniciarTarea, useReordenarCola } from '../api'
+import { BotonCronometro, TiempoTarea } from '@/features/tiempo/components/cronometro'
+import { DialogoTiempos } from '@/features/tiempo/components/dialogo-tiempos'
+import { useCompletarTareaCola, useReordenarCola } from '../api'
 import { describirHolgura, PuntoSemaforo } from './insignias'
 
 interface Props {
@@ -54,15 +56,14 @@ export function ListaCola({ usuarioId, items, ordenable, acciones }: Props) {
 
 function FilaCola({ item, posicion, ordenable, acciones }: { item: ColaItem; posicion: number; ordenable?: boolean; acciones?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.tareaId, disabled: !ordenable })
-  const iniciar = useIniciarTarea()
   const completar = useCompletarTareaCola()
   const esRevision = item.actividad.comportamiento === 'revision'
 
-  const hacer = async (accion: 'iniciar' | 'completar') => {
+  const [verTiempos, setVerTiempos] = useState(false)
+  const completarTarea = async () => {
     try {
-      if (accion === 'iniciar') await iniciar.mutateAsync(item.tareaId)
-      else await completar.mutateAsync({ tareaId: item.tareaId })
-      toast.success(accion === 'iniciar' ? 'Tarea en proceso' : 'Tarea completada')
+      await completar.mutateAsync({ tareaId: item.tareaId })
+      toast.success('Tarea completada')
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'No se pudo guardar')
     }
@@ -86,6 +87,7 @@ function FilaCola({ item, posicion, ordenable, acciones }: { item: ColaItem; pos
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">{item.titulo ?? item.actividad.nombre}</span>
           {item.estado === 'en_proceso' && <Badge variant="secondary">En proceso</Badge>}
+          <TiempoTarea minutosReales={item.minutosReales} minutosEstimados={item.minutos} enCursoDesde={item.enCursoDesde} className="text-xs" />
         </div>
         <span className="text-xs text-muted-foreground">
           <Link to="/trabajos/$id" params={{ id: item.trabajo.id }} className="font-mono hover:text-foreground hover:underline">
@@ -105,24 +107,29 @@ function FilaCola({ item, posicion, ordenable, acciones }: { item: ColaItem; pos
           </span>
         </span>
       </div>
-      {acciones &&
-        (esRevision ? (
-          <Button size="sm" variant="outline" asChild>
-            <Link to="/trabajos/$id" params={{ id: item.trabajo.id }}>
-              Revisar
-            </Link>
+      {acciones && (
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+          <BotonCronometro tareaId={item.tareaId} enCurso={Boolean(item.enCursoDesde)} compacto />
+          <Button size="icon-sm" variant="ghost" onClick={() => setVerTiempos(true)} aria-label="Tiempo registrado">
+            <Clock />
           </Button>
-        ) : item.estado === 'pendiente' ? (
-          <Button size="sm" variant="outline" onClick={() => void hacer('iniciar')} disabled={iniciar.isPending}>
-            {iniciar.isPending ? <Loader2 className="animate-spin" /> : <Play />}
-            Empezar
-          </Button>
-        ) : (
-          <Button size="sm" onClick={() => void hacer('completar')} disabled={completar.isPending}>
-            {completar.isPending ? <Loader2 className="animate-spin" /> : <Check />}
-            Completar
-          </Button>
-        ))}
+          {esRevision ? (
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/trabajos/$id" params={{ id: item.trabajo.id }}>
+                Revisar
+              </Link>
+            </Button>
+          ) : (
+            item.estado === 'en_proceso' && (
+              <Button size="sm" onClick={() => void completarTarea()} disabled={completar.isPending}>
+                {completar.isPending ? <Loader2 className="animate-spin" /> : <Check />}
+                Completar
+              </Button>
+            )
+          )}
+        </div>
+      )}
+      {verTiempos && <DialogoTiempos tareaId={item.tareaId} titulo={item.titulo ?? item.actividad.nombre} esResponsable onCerrar={() => setVerTiempos(false)} />}
     </li>
   )
 }

@@ -128,6 +128,10 @@ export interface TareaItem {
   trabajo: { id: string; codigo: string; titulo: string | null } | null
   entregable: { id: string; nombre: string } | null
   titulo: string | null
+  /** Minutos reales de los tramos cerrados (cronómetro y manual); el tramo en curso se suma desde enCurso. */
+  minutosReales: number
+  /** Quiénes tienen el cronómetro corriendo en esta tarea y desde cuándo. */
+  enCurso: { usuarioId: string; inicio: string }[]
   responsables: { usuario: UsuarioResumen; participacion: string; rol: string; prioridad: string | null; forzado: boolean }[]
   personas: PersonaResumen[]
   creadaPor: UsuarioResumen

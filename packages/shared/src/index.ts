@@ -10,3 +10,4 @@ export * from './produccion.js';
 export * from './contingencias.js';
 export * from './notificaciones.js';
 export * from './administracion.js';
+export * from './tiempo.js';

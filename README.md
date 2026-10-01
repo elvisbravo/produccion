@@ -96,6 +96,10 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | GET/POST/PUT/DELETE | `/api/roles`, `/api/roles/:id`, `/api/roles/:id/permisos` | Roles y su matriz de permisos (el administrador tiene siempre todos) |
 | GET/PUT | `/api/parametros` | Parámetros configurables (definidos en `packages/shared/src/administracion.ts`) |
 | GET | `/api/auditoria` | Registro de cambios con filtros |
+| GET | `/api/tiempo/activo` | El cronómetro que la persona tiene corriendo (`{ activo }`) |
+| POST | `/api/tareas/:id/cronometro/iniciar`, `…/pausar` | Cronómetro por tarea (uno a la vez: iniciar otra pausa la anterior) |
+| GET/POST/DELETE | `/api/tareas/:id/tiempo`, `…/tiempo/:registroId` | Tramos registrados y registro manual (con motivo) |
+| GET | `/api/reportes/tiempos?desde&hasta` | Estimado frente a real por actividad, por persona y mayores diferencias |
 | WS | `/api/socket.io` | Avisos en vivo (Socket.IO). La web se conecta con su access token en `auth.token`; cada usuario tiene su sala |
 
 ### Avisos automáticos
@@ -103,6 +107,7 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 `RecordatoriosService` (con `@nestjs/schedule`, hora de Lima) avisa sin repetir (clave única por usuario):
 
 - **Cada minuto:** reuniones que empiezan en los próximos 15 minutos.
+- **Cada noche a las 22:00:** detiene los cronómetros que quedaron corriendo y avisa a la persona.
 - **Cada día a las 7:30:** tareas vencidas, tareas por asignar para hoy o mañana, entregables y cuotas que vencen en 3 días o ya vencieron, y tareas de la cola que ya no llegan a su fecha.
 
 En las pruebas (`NODE_ENV=test`) no corren solos: las pruebas los llaman a mano.
