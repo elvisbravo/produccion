@@ -8,10 +8,10 @@ import { BotonBuscarDni } from '@/features/consultas/components/boton-buscar-dni
 
 /**
  * Tipo y número de documento de un usuario (obligatorios). Con DNI se puede buscar y rellenar nombres,
- * apellidos y, si está vacía, la fecha de nacimiento. Va dentro de un FormProvider.
+ * apellidos y fecha de nacimiento. Va dentro de un FormProvider.
  */
 export function CamposDocumentoUsuario({ prefijo }: { prefijo: string }) {
-  const { control, register, setValue, getValues, formState } = useFormContext<EditarUsuarioFormulario>()
+  const { control, register, setValue, formState } = useFormContext<EditarUsuarioFormulario>()
   const e = formState.errors
   const [tipo, numero] = useWatch({ control, name: ['tipoDocumento', 'numeroDocumento'] })
 
@@ -60,7 +60,8 @@ export function CamposDocumentoUsuario({ prefijo }: { prefijo: string }) {
           const opciones = { shouldDirty: true, shouldValidate: true }
           setValue('nombres', datos.nombres, opciones)
           setValue('apellidos', datos.apellidos, opciones)
-          if (datos.fechaNacimiento && !getValues('fechaNacimiento')) setValue('fechaNacimiento', datos.fechaNacimiento, opciones)
+          // Los tres datos son de la misma persona: se reemplazan juntos para no dejar una fecha de otra búsqueda.
+          if (datos.fechaNacimiento) setValue('fechaNacimiento', datos.fechaNacimiento, opciones)
         }}
       />
     </div>
