@@ -30,6 +30,11 @@ export class NotificacionesGateway implements OnGatewayConnection {
     }
   }
 
+  /** Evento de sesión (permisos cambiados, usuario desactivado) para un usuario conectado. */
+  emitirEvento(usuarioId: string, evento: string): void {
+    this.servidor?.to(sala(usuarioId)).emit(evento);
+  }
+
   emitir(usuarioId: string, notificacion: NotificacionItem): void {
     try {
       this.servidor?.to(sala(usuarioId)).emit(EVENTO_NOTIFICACION, notificacion);

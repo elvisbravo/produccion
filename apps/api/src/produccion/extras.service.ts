@@ -15,6 +15,7 @@ import { AgendaService } from '../agenda/agenda.service.js';
 import { AuditoriaService } from '../common/auditoria.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
+import { ParametrosService } from '../parametros/parametros.service.js';
 import { PermisosService } from '../permisos/permisos.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { ActorProduccion } from './produccion.service.js';
@@ -54,38 +55,31 @@ export class ExtrasService {
     private readonly permisos: PermisosService,
     private readonly auditoria: AuditoriaService,
     private readonly notificaciones: NotificacionesService,
+    private readonly parametros: ParametrosService,
   ) {}
 
   // ─── Topes ───────────────────────────────────────────────
 
+  /** Topes globales (parámetros). */
   async topes(): Promise<TopesExtra> {
-    const filas = await this.prisma.parametro.findMany({ where: { clave: { in: Object.values(CLAVE_TOPE) } } });
-    const valor = (clave: string) => {
-      const v = filas.find((f) => f.clave === clave)?.valor;
-      return typeof v === 'number' ? v : null;
-    };
-    return { semanal: valor(CLAVE_TOPE.semanal), mensual: valor(CLAVE_TOPE.mensual) };
+    return { semanal: await this.parametros.valor(CLAVE_TOPE.semanal), mensual: await this.parametros.valor(CLAVE_TOPE.mensual) };
+  }
+
+  /** Topes de una persona: su excepción, si la tiene; si no, los globales. */
+  private async topesDe(usuarioId: string): Promise<TopesExtra> {
+    const excepcion = await this.prisma.topeHorasExtraUsuario.findUnique({ where: { usuarioId } });
+    if (!excepcion) return this.topes();
+    return { semanal: excepcion.semanal === null ? null : Number(excepcion.semanal), mensual: excepcion.mensual === null ? null : Number(excepcion.mensual) };
   }
 
   async guardarTopes(datos: TopesExtra, actor: ActorProduccion): Promise<TopesExtra> {
-    const antes = await this.topes();
-    await this.prisma.$transaction(async (tx) => {
-      for (const [k, clave] of Object.entries(CLAVE_TOPE) as [keyof TopesExtra, string][]) {
-        const valor = datos[k] ?? null;
-        await tx.parametro.upsert({
-          where: { clave },
-          create: { clave, valor: valor as number, descripcion: `Tope ${k} de horas extra por persona (horas; vacío = sin tope)` },
-          update: { valor: valor as number },
-        });
-      }
-      await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'editar', entidad: 'parametro', antes, despues: { claves: Object.values(CLAVE_TOPE), ...datos }, ip: actor.ip }, tx);
-    });
+    await this.parametros.guardar({ [CLAVE_TOPE.semanal]: datos.semanal, [CLAVE_TOPE.mensual]: datos.mensual }, actor);
     return this.topes();
   }
 
   /** Avisos de tope: horas extra de la persona en la semana (lunes a domingo) y el mes de ese día. */
   private async avisosDeTope(usuarioId: string, fecha: string, minutosNuevos: number, excluirId?: string): Promise<string[]> {
-    const topes = await this.topes();
+    const topes = await this.topesDe(usuarioId);
     if (topes.semanal === null && topes.mensual === null) return [];
     const lunes = sumarDias(fecha, 1 - diaSemanaDe(fecha));
     const inicioMes = `${fecha.slice(0, 7)}-01`;

@@ -4,10 +4,9 @@
  */
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { ROLES_BASE, TODOS_LOS_PERMISOS, type Alcance, type PermisoCodigo, type RolBase } from '@grupoes/shared';
+import { PARAMETROS, ROLES_BASE, TODOS_LOS_PERMISOS, type Alcance, type PermisoCodigo, type RolBase } from '@grupoes/shared';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { hashPassword } from '../src/auth/password.js';
-import { PARAMETROS_POR_DEFECTO } from '../src/parametros/parametros.service.js';
 import { sincronizarCatalogo } from '../src/permisos/catalogo.js';
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) });
@@ -130,8 +129,10 @@ async function main() {
   }
 
   // Parámetros
-  for (const [clave, { valor, descripcion }] of Object.entries(PARAMETROS_POR_DEFECTO)) {
-    await prisma.parametro.upsert({ where: { clave }, create: { clave, valor, descripcion }, update: { descripcion } });
+  // Parámetros: se crean con su valor por defecto; los cambios del administrador no se pisan.
+  for (const [clave, { porDefecto, descripcion }] of Object.entries(PARAMETROS)) {
+    if (porDefecto === null) continue;
+    await prisma.parametro.upsert({ where: { clave }, create: { clave, valor: porDefecto, descripcion }, update: { descripcion } });
   }
 
   await sembrarCatalogos();

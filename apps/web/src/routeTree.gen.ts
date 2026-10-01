@@ -13,19 +13,26 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppSplatRouteImport } from './routes/_app/$'
+import { Route as AppCuentaRouteImport } from './routes/_app/cuenta'
 import { Route as AppAgendaIndexRouteImport } from './routes/_app/agenda/index'
+import { Route as AppAuditoriaIndexRouteImport } from './routes/_app/auditoria/index'
 import { Route as AppAusenciasIndexRouteImport } from './routes/_app/ausencias/index'
 import { Route as AppCalendarioIndexRouteImport } from './routes/_app/calendario/index'
 import { Route as AppContratosIndexRouteImport } from './routes/_app/contratos/index'
 import { Route as AppEntregablesIndexRouteImport } from './routes/_app/entregables/index'
 import { Route as AppHorasExtraIndexRouteImport } from './routes/_app/horas-extra/index'
+import { Route as AppParametrosIndexRouteImport } from './routes/_app/parametros/index'
 import { Route as AppProgramacionIndexRouteImport } from './routes/_app/programacion/index'
 import { Route as AppProspectosIndexRouteImport } from './routes/_app/prospectos/index'
 import { Route as AppProspectosNuevoRouteImport } from './routes/_app/prospectos/nuevo'
+import { Route as AppRolesIndexRouteImport } from './routes/_app/roles/index'
+import { Route as AppRolesIdRouteImport } from './routes/_app/roles/$id'
 import { Route as AppSeguimientoIndexRouteImport } from './routes/_app/seguimiento/index'
 import { Route as AppTareasIndexRouteImport } from './routes/_app/tareas/index'
 import { Route as AppTrabajosIndexRouteImport } from './routes/_app/trabajos/index'
 import { Route as AppTrabajosIdRouteImport } from './routes/_app/trabajos/$id'
+import { Route as AppUsuariosIndexRouteImport } from './routes/_app/usuarios/index'
+import { Route as AppUsuariosIdRouteImport } from './routes/_app/usuarios/$id'
 import { Route as AppProspectosIdIndexRouteImport } from './routes/_app/prospectos/$id/index'
 import { Route as AppProspectosIdConvertirRouteImport } from './routes/_app/prospectos/$id/convertir'
 import { Route as AppProspectosIdEditarRouteImport } from './routes/_app/prospectos/$id/editar'
@@ -49,9 +56,19 @@ const AppSplatRoute = AppSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => AppRoute,
 } as any)
+const AppCuentaRoute = AppCuentaRouteImport.update({
+  id: '/cuenta',
+  path: '/cuenta',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAgendaIndexRoute = AppAgendaIndexRouteImport.update({
   id: '/agenda/',
   path: '/agenda/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAuditoriaIndexRoute = AppAuditoriaIndexRouteImport.update({
+  id: '/auditoria/',
+  path: '/auditoria/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAusenciasIndexRoute = AppAusenciasIndexRouteImport.update({
@@ -79,6 +96,11 @@ const AppHorasExtraIndexRoute = AppHorasExtraIndexRouteImport.update({
   path: '/horas-extra/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppParametrosIndexRoute = AppParametrosIndexRouteImport.update({
+  id: '/parametros/',
+  path: '/parametros/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppProgramacionIndexRoute = AppProgramacionIndexRouteImport.update({
   id: '/programacion/',
   path: '/programacion/',
@@ -92,6 +114,16 @@ const AppProspectosIndexRoute = AppProspectosIndexRouteImport.update({
 const AppProspectosNuevoRoute = AppProspectosNuevoRouteImport.update({
   id: '/prospectos/nuevo',
   path: '/prospectos/nuevo',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppRolesIndexRoute = AppRolesIndexRouteImport.update({
+  id: '/roles/',
+  path: '/roles/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppRolesIdRoute = AppRolesIdRouteImport.update({
+  id: '/roles/$id',
+  path: '/roles/$id',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSeguimientoIndexRoute = AppSeguimientoIndexRouteImport.update({
@@ -112,6 +144,16 @@ const AppTrabajosIndexRoute = AppTrabajosIndexRouteImport.update({
 const AppTrabajosIdRoute = AppTrabajosIdRouteImport.update({
   id: '/trabajos/$id',
   path: '/trabajos/$id',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppUsuariosIndexRoute = AppUsuariosIndexRouteImport.update({
+  id: '/usuarios/',
+  path: '/usuarios/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppUsuariosIdRoute = AppUsuariosIdRouteImport.update({
+  id: '/usuarios/$id',
+  path: '/usuarios/$id',
   getParentRoute: () => AppRoute,
 } as any)
 const AppProspectosIdIndexRoute = AppProspectosIdIndexRouteImport.update({
@@ -135,19 +177,26 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/$': typeof AppSplatRoute
+  '/cuenta': typeof AppCuentaRoute
   '/prospectos/nuevo': typeof AppProspectosNuevoRoute
+  '/roles/$id': typeof AppRolesIdRoute
   '/trabajos/$id': typeof AppTrabajosIdRoute
+  '/usuarios/$id': typeof AppUsuariosIdRoute
   '/agenda/': typeof AppAgendaIndexRoute
+  '/auditoria/': typeof AppAuditoriaIndexRoute
   '/ausencias/': typeof AppAusenciasIndexRoute
   '/calendario/': typeof AppCalendarioIndexRoute
   '/contratos/': typeof AppContratosIndexRoute
   '/entregables/': typeof AppEntregablesIndexRoute
   '/horas-extra/': typeof AppHorasExtraIndexRoute
+  '/parametros/': typeof AppParametrosIndexRoute
   '/programacion/': typeof AppProgramacionIndexRoute
   '/prospectos/': typeof AppProspectosIndexRoute
+  '/roles/': typeof AppRolesIndexRoute
   '/seguimiento/': typeof AppSeguimientoIndexRoute
   '/tareas/': typeof AppTareasIndexRoute
   '/trabajos/': typeof AppTrabajosIndexRoute
+  '/usuarios/': typeof AppUsuariosIndexRoute
   '/prospectos/$id/convertir': typeof AppProspectosIdConvertirRoute
   '/prospectos/$id/editar': typeof AppProspectosIdEditarRoute
   '/prospectos/$id/': typeof AppProspectosIdIndexRoute
@@ -155,20 +204,27 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/$': typeof AppSplatRoute
+  '/cuenta': typeof AppCuentaRoute
   '/': typeof AppIndexRoute
   '/prospectos/nuevo': typeof AppProspectosNuevoRoute
+  '/roles/$id': typeof AppRolesIdRoute
   '/trabajos/$id': typeof AppTrabajosIdRoute
+  '/usuarios/$id': typeof AppUsuariosIdRoute
   '/agenda': typeof AppAgendaIndexRoute
+  '/auditoria': typeof AppAuditoriaIndexRoute
   '/ausencias': typeof AppAusenciasIndexRoute
   '/calendario': typeof AppCalendarioIndexRoute
   '/contratos': typeof AppContratosIndexRoute
   '/entregables': typeof AppEntregablesIndexRoute
   '/horas-extra': typeof AppHorasExtraIndexRoute
+  '/parametros': typeof AppParametrosIndexRoute
   '/programacion': typeof AppProgramacionIndexRoute
   '/prospectos': typeof AppProspectosIndexRoute
+  '/roles': typeof AppRolesIndexRoute
   '/seguimiento': typeof AppSeguimientoIndexRoute
   '/tareas': typeof AppTareasIndexRoute
   '/trabajos': typeof AppTrabajosIndexRoute
+  '/usuarios': typeof AppUsuariosIndexRoute
   '/prospectos/$id/convertir': typeof AppProspectosIdConvertirRoute
   '/prospectos/$id/editar': typeof AppProspectosIdEditarRoute
   '/prospectos/$id': typeof AppProspectosIdIndexRoute
@@ -178,20 +234,27 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/_app/$': typeof AppSplatRoute
+  '/_app/cuenta': typeof AppCuentaRoute
   '/_app/': typeof AppIndexRoute
   '/_app/prospectos/nuevo': typeof AppProspectosNuevoRoute
+  '/_app/roles/$id': typeof AppRolesIdRoute
   '/_app/trabajos/$id': typeof AppTrabajosIdRoute
+  '/_app/usuarios/$id': typeof AppUsuariosIdRoute
   '/_app/agenda/': typeof AppAgendaIndexRoute
+  '/_app/auditoria/': typeof AppAuditoriaIndexRoute
   '/_app/ausencias/': typeof AppAusenciasIndexRoute
   '/_app/calendario/': typeof AppCalendarioIndexRoute
   '/_app/contratos/': typeof AppContratosIndexRoute
   '/_app/entregables/': typeof AppEntregablesIndexRoute
   '/_app/horas-extra/': typeof AppHorasExtraIndexRoute
+  '/_app/parametros/': typeof AppParametrosIndexRoute
   '/_app/programacion/': typeof AppProgramacionIndexRoute
   '/_app/prospectos/': typeof AppProspectosIndexRoute
+  '/_app/roles/': typeof AppRolesIndexRoute
   '/_app/seguimiento/': typeof AppSeguimientoIndexRoute
   '/_app/tareas/': typeof AppTareasIndexRoute
   '/_app/trabajos/': typeof AppTrabajosIndexRoute
+  '/_app/usuarios/': typeof AppUsuariosIndexRoute
   '/_app/prospectos/$id/convertir': typeof AppProspectosIdConvertirRoute
   '/_app/prospectos/$id/editar': typeof AppProspectosIdEditarRoute
   '/_app/prospectos/$id/': typeof AppProspectosIdIndexRoute
@@ -202,19 +265,26 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/$'
+    | '/cuenta'
     | '/prospectos/nuevo'
+    | '/roles/$id'
     | '/trabajos/$id'
+    | '/usuarios/$id'
     | '/agenda/'
+    | '/auditoria/'
     | '/ausencias/'
     | '/calendario/'
     | '/contratos/'
     | '/entregables/'
     | '/horas-extra/'
+    | '/parametros/'
     | '/programacion/'
     | '/prospectos/'
+    | '/roles/'
     | '/seguimiento/'
     | '/tareas/'
     | '/trabajos/'
+    | '/usuarios/'
     | '/prospectos/$id/convertir'
     | '/prospectos/$id/editar'
     | '/prospectos/$id/'
@@ -222,20 +292,27 @@ export interface FileRouteTypes {
   to:
     | '/login'
     | '/$'
+    | '/cuenta'
     | '/'
     | '/prospectos/nuevo'
+    | '/roles/$id'
     | '/trabajos/$id'
+    | '/usuarios/$id'
     | '/agenda'
+    | '/auditoria'
     | '/ausencias'
     | '/calendario'
     | '/contratos'
     | '/entregables'
     | '/horas-extra'
+    | '/parametros'
     | '/programacion'
     | '/prospectos'
+    | '/roles'
     | '/seguimiento'
     | '/tareas'
     | '/trabajos'
+    | '/usuarios'
     | '/prospectos/$id/convertir'
     | '/prospectos/$id/editar'
     | '/prospectos/$id'
@@ -244,20 +321,27 @@ export interface FileRouteTypes {
     | '/_app'
     | '/login'
     | '/_app/$'
+    | '/_app/cuenta'
     | '/_app/'
     | '/_app/prospectos/nuevo'
+    | '/_app/roles/$id'
     | '/_app/trabajos/$id'
+    | '/_app/usuarios/$id'
     | '/_app/agenda/'
+    | '/_app/auditoria/'
     | '/_app/ausencias/'
     | '/_app/calendario/'
     | '/_app/contratos/'
     | '/_app/entregables/'
     | '/_app/horas-extra/'
+    | '/_app/parametros/'
     | '/_app/programacion/'
     | '/_app/prospectos/'
+    | '/_app/roles/'
     | '/_app/seguimiento/'
     | '/_app/tareas/'
     | '/_app/trabajos/'
+    | '/_app/usuarios/'
     | '/_app/prospectos/$id/convertir'
     | '/_app/prospectos/$id/editar'
     | '/_app/prospectos/$id/'
@@ -298,11 +382,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSplatRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/cuenta': {
+      id: '/_app/cuenta'
+      path: '/cuenta'
+      fullPath: '/cuenta'
+      preLoaderRoute: typeof AppCuentaRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/agenda/': {
       id: '/_app/agenda/'
       path: '/agenda'
       fullPath: '/agenda/'
       preLoaderRoute: typeof AppAgendaIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/auditoria/': {
+      id: '/_app/auditoria/'
+      path: '/auditoria'
+      fullPath: '/auditoria/'
+      preLoaderRoute: typeof AppAuditoriaIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/ausencias/': {
@@ -340,6 +438,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppHorasExtraIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/parametros/': {
+      id: '/_app/parametros/'
+      path: '/parametros'
+      fullPath: '/parametros/'
+      preLoaderRoute: typeof AppParametrosIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/programacion/': {
       id: '/_app/programacion/'
       path: '/programacion'
@@ -359,6 +464,20 @@ declare module '@tanstack/react-router' {
       path: '/prospectos/nuevo'
       fullPath: '/prospectos/nuevo'
       preLoaderRoute: typeof AppProspectosNuevoRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/roles/': {
+      id: '/_app/roles/'
+      path: '/roles'
+      fullPath: '/roles/'
+      preLoaderRoute: typeof AppRolesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/roles/$id': {
+      id: '/_app/roles/$id'
+      path: '/roles/$id'
+      fullPath: '/roles/$id'
+      preLoaderRoute: typeof AppRolesIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/seguimiento/': {
@@ -389,6 +508,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTrabajosIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/usuarios/': {
+      id: '/_app/usuarios/'
+      path: '/usuarios'
+      fullPath: '/usuarios/'
+      preLoaderRoute: typeof AppUsuariosIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/usuarios/$id': {
+      id: '/_app/usuarios/$id'
+      path: '/usuarios/$id'
+      fullPath: '/usuarios/$id'
+      preLoaderRoute: typeof AppUsuariosIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/prospectos/$id/': {
       id: '/_app/prospectos/$id/'
       path: '/prospectos/$id'
@@ -415,20 +548,27 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppSplatRoute: typeof AppSplatRoute
+  AppCuentaRoute: typeof AppCuentaRoute
   AppIndexRoute: typeof AppIndexRoute
   AppProspectosNuevoRoute: typeof AppProspectosNuevoRoute
+  AppRolesIdRoute: typeof AppRolesIdRoute
   AppTrabajosIdRoute: typeof AppTrabajosIdRoute
+  AppUsuariosIdRoute: typeof AppUsuariosIdRoute
   AppAgendaIndexRoute: typeof AppAgendaIndexRoute
+  AppAuditoriaIndexRoute: typeof AppAuditoriaIndexRoute
   AppAusenciasIndexRoute: typeof AppAusenciasIndexRoute
   AppCalendarioIndexRoute: typeof AppCalendarioIndexRoute
   AppContratosIndexRoute: typeof AppContratosIndexRoute
   AppEntregablesIndexRoute: typeof AppEntregablesIndexRoute
   AppHorasExtraIndexRoute: typeof AppHorasExtraIndexRoute
+  AppParametrosIndexRoute: typeof AppParametrosIndexRoute
   AppProgramacionIndexRoute: typeof AppProgramacionIndexRoute
   AppProspectosIndexRoute: typeof AppProspectosIndexRoute
+  AppRolesIndexRoute: typeof AppRolesIndexRoute
   AppSeguimientoIndexRoute: typeof AppSeguimientoIndexRoute
   AppTareasIndexRoute: typeof AppTareasIndexRoute
   AppTrabajosIndexRoute: typeof AppTrabajosIndexRoute
+  AppUsuariosIndexRoute: typeof AppUsuariosIndexRoute
   AppProspectosIdConvertirRoute: typeof AppProspectosIdConvertirRoute
   AppProspectosIdEditarRoute: typeof AppProspectosIdEditarRoute
   AppProspectosIdIndexRoute: typeof AppProspectosIdIndexRoute
@@ -436,20 +576,27 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppSplatRoute: AppSplatRoute,
+  AppCuentaRoute: AppCuentaRoute,
   AppIndexRoute: AppIndexRoute,
   AppProspectosNuevoRoute: AppProspectosNuevoRoute,
+  AppRolesIdRoute: AppRolesIdRoute,
   AppTrabajosIdRoute: AppTrabajosIdRoute,
+  AppUsuariosIdRoute: AppUsuariosIdRoute,
   AppAgendaIndexRoute: AppAgendaIndexRoute,
+  AppAuditoriaIndexRoute: AppAuditoriaIndexRoute,
   AppAusenciasIndexRoute: AppAusenciasIndexRoute,
   AppCalendarioIndexRoute: AppCalendarioIndexRoute,
   AppContratosIndexRoute: AppContratosIndexRoute,
   AppEntregablesIndexRoute: AppEntregablesIndexRoute,
   AppHorasExtraIndexRoute: AppHorasExtraIndexRoute,
+  AppParametrosIndexRoute: AppParametrosIndexRoute,
   AppProgramacionIndexRoute: AppProgramacionIndexRoute,
   AppProspectosIndexRoute: AppProspectosIndexRoute,
+  AppRolesIndexRoute: AppRolesIndexRoute,
   AppSeguimientoIndexRoute: AppSeguimientoIndexRoute,
   AppTareasIndexRoute: AppTareasIndexRoute,
   AppTrabajosIndexRoute: AppTrabajosIndexRoute,
+  AppUsuariosIndexRoute: AppUsuariosIndexRoute,
   AppProspectosIdConvertirRoute: AppProspectosIdConvertirRoute,
   AppProspectosIdEditarRoute: AppProspectosIdEditarRoute,
   AppProspectosIdIndexRoute: AppProspectosIdIndexRoute,

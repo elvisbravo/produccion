@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type { LoginInput, LoginRespuesta, UsuarioSesion } from '@grupoes/shared';
@@ -8,7 +8,7 @@ import type { Env } from '../config/env.js';
 import { ParametrosService } from '../parametros/parametros.service.js';
 import { PermisosService } from '../permisos/permisos.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { obtenerHashRelleno, verificarPassword } from './password.js';
+import { hashPassword, obtenerHashRelleno, verificarPassword } from './password.js';
 import type { PayloadAccessToken } from './tipos.js';
 
 const CREDENCIALES_INVALIDAS = 'Correo o contraseña incorrectos';
@@ -109,6 +109,25 @@ export class AuthService {
     });
   }
 
+  /**
+   * Cambia la contraseña propia (verificando la actual). Cierra las demás sesiones del usuario
+   * y deja abierta la actual (la del refresh token que llega en la cookie).
+   */
+  async cambiarClave(usuarioId: string, actual: string, nueva: string, refreshActual: string | undefined): Promise<void> {
+    const usuario = await this.prisma.usuario.findUniqueOrThrow({ where: { id: usuarioId } });
+    if (!(await verificarPassword(usuario.passwordHash, actual))) {
+      throw new BadRequestException({ message: 'Datos inválidos', errores: [{ campo: 'actual', mensaje: 'La contraseña actual no es correcta' }] });
+    }
+    await this.prisma.$transaction([
+      this.prisma.usuario.update({ where: { id: usuarioId }, data: { passwordHash: await hashPassword(nueva), debeCambiarClave: false } }),
+      this.prisma.sesion.updateMany({
+        where: { usuarioId, revocadaEn: null, ...(refreshActual && { tokenHash: { not: hashToken(refreshActual) } }) },
+        data: { revocadaEn: new Date(), motivoRevocacion: 'logout' },
+      }),
+      this.prisma.auditoria.create({ data: { usuarioId, accion: 'cambiar_clave', entidad: 'usuario', entidadId: usuarioId } }),
+    ]);
+  }
+
   async usuarioSesion(usuarioId: string): Promise<UsuarioSesion> {
     const usuario = await this.prisma.usuario.findFirst({
       where: { id: usuarioId, activo: true, eliminadoEn: null },
@@ -123,6 +142,7 @@ export class AuthService {
       apellidos: usuario.apellidos,
       email: usuario.email,
       roles: usuario.roles.filter((r) => r.rol.activo).map((r) => ({ codigo: r.rol.codigo, nombre: r.rol.nombre })),
+      debeCambiarClave: usuario.debeCambiarClave,
       permisos,
       menu: await this.permisos.menu(permisos),
     };

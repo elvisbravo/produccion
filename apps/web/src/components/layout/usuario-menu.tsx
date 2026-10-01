@@ -1,4 +1,5 @@
-import { ChevronsUpDown, LogOut, Monitor, Moon, Sun } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { ChevronsUpDown, KeyRound, LogOut, Monitor, Moon, Sun } from 'lucide-react'
 import { useTema, type Tema } from '@/components/tema'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -89,6 +90,12 @@ export function UsuarioMenu() {
                 </DropdownMenuRadioGroup>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
+            <DropdownMenuItem asChild>
+              <Link to="/cuenta">
+                <KeyRound />
+                Mi cuenta y contraseña
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={salir}>
               <LogOut />

@@ -9,3 +9,4 @@ export * from './agenda.js';
 export * from './produccion.js';
 export * from './contingencias.js';
 export * from './notificaciones.js';
+export * from './administracion.js';

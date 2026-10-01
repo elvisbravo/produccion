@@ -10,6 +10,6 @@ import { NotificacionesService } from './notificaciones.service.js';
   imports: [AuthModule],
   controllers: [NotificacionesController],
   providers: [NotificacionesService, NotificacionesGateway],
-  exports: [NotificacionesService],
+  exports: [NotificacionesService, NotificacionesGateway],
 })
 export class NotificacionesModule {}

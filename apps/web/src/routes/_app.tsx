@@ -6,6 +6,7 @@ import { AppHeader } from '@/components/layout/app-header'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { BusquedaGlobal } from '@/components/layout/busqueda-global'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
+import { FormularioCambiarClave } from '@/features/administracion/components/cambiar-clave'
 import { useCanalNotificaciones } from '@/features/notificaciones/api'
 import { useInactividad } from '@/hooks/use-inactividad'
 import { cerrarSesion, restaurarSesion } from '@/lib/sesion'
@@ -49,6 +50,24 @@ function LayoutApp() {
   useCanalNotificaciones()
 
   if (!usuario) return null
+
+  // Primer ingreso o contraseña restablecida: no se entra al sistema sin cambiarla.
+  if (usuario.debeCambiarClave) {
+    return (
+      <main className="flex min-h-svh items-center justify-center bg-muted/30 p-4">
+        <div className="flex w-full max-w-md flex-col gap-6 rounded-xl border bg-card p-6 shadow-sm">
+          <div className="space-y-1">
+            <h1 className="text-xl font-semibold tracking-tight">Hola, {usuario.nombres}: crea tu contraseña</h1>
+            <p className="text-sm text-muted-foreground">Ingresaste con una contraseña temporal. Elige una propia para continuar.</p>
+          </div>
+          <FormularioCambiarClave />
+          <button type="button" className="w-fit text-sm text-muted-foreground underline" onClick={() => void cerrarSesion('logout')}>
+            Salir
+          </button>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <SidebarProvider>

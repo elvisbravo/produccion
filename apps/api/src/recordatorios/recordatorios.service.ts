@@ -2,13 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { diaEnLima, horaEnLima, sumarDias } from '@grupoes/shared';
 import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
+import { ParametrosService } from '../parametros/parametros.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProduccionService } from '../produccion/produccion.service.js';
-
-/** Con cuántos minutos de anticipación se recuerda una reunión. */
-export const MINUTOS_AVISO_REUNION = 15;
-/** Cuántos días antes se avisa que vence un entregable o una cuota. */
-export const DIAS_AVISO_VENCIMIENTO = 3;
 
 const aFecha = (dia: string) => new Date(`${dia}T00:00:00Z`);
 const soloFecha = (d: Date) => d.toISOString().slice(0, 10);
@@ -28,6 +24,7 @@ export class RecordatoriosService {
     private readonly prisma: PrismaService,
     private readonly notificaciones: NotificacionesService,
     private readonly produccion: ProduccionService,
+    private readonly parametros: ParametrosService,
   ) {}
 
   @Cron('* * * * *', { name: 'reuniones' })
@@ -50,8 +47,9 @@ export class RecordatoriosService {
 
   /** Reuniones que empiezan en los próximos minutos. */
   async reunionesProximas(ahora = new Date()): Promise<void> {
+    const minutos = await this.parametros.numero('notificaciones.minutos_aviso_reunion');
     const tareas = await this.prisma.tarea.findMany({
-      where: { estado: 'pendiente', inicio: { gte: ahora, lte: new Date(ahora.getTime() + MINUTOS_AVISO_REUNION * 60_000) } },
+      where: { estado: 'pendiente', inicio: { gte: ahora, lte: new Date(ahora.getTime() + minutos * 60_000) } },
       include: { actividad: true, prospecto: { select: { id: true, codigo: true } }, trabajo: { select: { id: true, codigo: true } }, responsables: { select: { usuarioId: true } } },
     });
     for (const t of tareas) {
@@ -67,7 +65,7 @@ export class RecordatoriosService {
 
   /** Revisión de cada mañana: vencidas, por asignar, entregables, cuotas y colas en rojo. */
   async vencimientos(hoy = diaEnLima(), ahora = new Date()): Promise<void> {
-    const limite = aFecha(sumarDias(hoy, DIAS_AVISO_VENCIMIENTO));
+    const limite = aFecha(sumarDias(hoy, await this.parametros.numero('notificaciones.dias_aviso_vencimiento')));
 
     // Tareas vencidas (las de la cola se miden por su holgura, no por su día).
     const vencidas = await this.prisma.tarea.findMany({

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { AdministracionModule } from './administracion/administracion.module.js';
 import { AgendaModule } from './agenda/agenda.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { NotificacionesModule } from './notificaciones/notificaciones.module.js';
@@ -32,6 +33,7 @@ import { SaludController } from './salud/salud.controller.js';
     TrabajosModule,
     AgendaModule,
     RecordatoriosModule,
+    AdministracionModule,
   ],
   controllers: [SaludController],
 })

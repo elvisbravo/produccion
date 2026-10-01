@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { BandejaNotificaciones, NotificacionItem, PermisoCodigo } from '@grupoes/shared';
+import { ROLES_BASE, type BandejaNotificaciones, type NotificacionItem, type PermisoCodigo } from '@grupoes/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { NotificacionesGateway } from './notificaciones.gateway.js';
 
@@ -69,6 +69,8 @@ export class NotificacionesService {
         activo: true,
         eliminadoEn: null,
         OR: [
+          // El administrador tiene siempre todos los permisos.
+          { roles: { some: { rol: { activo: true, codigo: ROLES_BASE.ADMIN } } } },
           { roles: { some: { rol: { activo: true, permisos: { some: { accion } } } } } },
           { permisos: { some: { tipo: 'conceder', accion } } },
         ],

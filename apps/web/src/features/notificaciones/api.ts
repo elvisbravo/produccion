@@ -1,10 +1,11 @@
-import { areaDe, EVENTO_NOTIFICACION, RUTA_SOCKET, type AreaNotificacion, type BandejaNotificaciones, type NotificacionItem } from '@grupoes/shared'
+import { areaDe, EVENTO_NOTIFICACION, EVENTO_SESION_ACTUALIZADA, EVENTO_SESION_CERRADA, RUTA_SOCKET, type UsuarioSesion, type AreaNotificacion, type BandejaNotificaciones, type NotificacionItem } from '@grupoes/shared'
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { io } from 'socket.io-client'
 import { toast } from 'sonner'
 import { api, refrescarSesion } from '@/lib/api'
+import { cerrarSesion } from '@/lib/sesion'
 import { useSesion } from '@/stores/sesion'
 
 export const clavesNotificaciones = { bandeja: ['notificaciones'] as const }
@@ -47,6 +48,18 @@ export function useCanalNotificaciones() {
     })
     socket.on('no_autorizado', () => {
       void refrescarSesion().then((ok) => ok && socket.connect())
+    })
+    // Un administrador cambió mis roles o permisos: se recarga la sesión (menú y permisos) sin salir.
+    socket.on(EVENTO_SESION_ACTUALIZADA, () => {
+      void api<UsuarioSesion>('/auth/me').then((usuario) => {
+        useSesion.setState({ usuario })
+        toast.info('Tus permisos se actualizaron')
+      })
+    })
+    // Me desactivaron o restablecieron mi contraseña: la sesión termina.
+    socket.on(EVENTO_SESION_CERRADA, () => {
+      toast.warning('Un administrador cerró tu sesión')
+      void cerrarSesion('expirada')
     })
     socket.on(EVENTO_NOTIFICACION, (n: NotificacionItem) => {
       queryClient.setQueryData<BandejaNotificaciones>(clavesNotificaciones.bandeja, (b) =>

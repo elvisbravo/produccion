@@ -31,6 +31,8 @@ model Usuario {
   intentosFallidos Int       @default(0) @map("intentos_fallidos")
   bloqueadoHasta   DateTime? @map("bloqueado_hasta") @db.Timestamptz(6)
   ultimoAcceso     DateTime? @map("ultimo_acceso") @db.Timestamptz(6)
+  /// Primer ingreso o contraseña restablecida: debe cambiarla antes de seguir.
+  debeCambiarClave Boolean   @default(false) @map("debe_cambiar_clave")
 
   creadoEn       DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
   creadoPor      String?   @map("creado_por") @db.Uuid
@@ -62,6 +64,7 @@ model Usuario {
   urgentesAsignadas  SolicitudUrgente[] @relation("UrgenteAsignadoA")
   extras             HoraExtraBono[]    @relation("ExtraDelUsuario")
   notificaciones     Notificacion[]     @relation("NotificacionDelUsuario")
+  topeHorasExtra     TopeHorasExtraUsuario?
   extrasPropuestas   HoraExtraBono[]    @relation("ExtraPropuestaPor")
   extrasAprobadas    HoraExtraBono[]    @relation("ExtraAprobadaPor")
   entregasEnviadas   EntregaCliente[]   @relation("EntregaEnviadaPor")
@@ -1398,4 +1401,16 @@ model Notificacion {
   @@unique([usuarioId, clave])
   @@index([usuarioId, creadaEn])
   @@map("notificacion")
+}
+
+/// Excepción al tope global de horas extra para una persona (horas; vacío = sin tope).
+model TopeHorasExtraUsuario {
+  usuarioId     String   @id @map("usuario_id") @db.Uuid
+  semanal       Decimal? @db.Decimal(5, 1)
+  mensual       Decimal? @db.Decimal(5, 1)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("tope_horas_extra_usuario")
 }

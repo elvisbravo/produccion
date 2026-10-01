@@ -24,6 +24,8 @@ export interface UsuarioSesion {
   apellidos: string;
   email: string;
   roles: { codigo: string; nombre: string }[];
+  /** Debe cambiar su contraseña antes de seguir (primer ingreso o tras un restablecimiento). */
+  debeCambiarClave: boolean;
   permisos: PermisosEfectivos;
   menu: ItemMenu[];
 }

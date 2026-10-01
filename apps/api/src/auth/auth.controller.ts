@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
-import { loginSchema, type LoginInput, type LoginRespuesta, type UsuarioSesion } from '@grupoes/shared';
+import { cambiarClaveSchema, loginSchema, type LoginInput, type LoginRespuesta, type UsuarioSesion } from '@grupoes/shared';
 import { infoCliente } from '../common/cliente.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import type { Env } from '../config/env.js';
@@ -48,6 +48,17 @@ export class AuthController {
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
     await this.auth.logout(req.cookies?.[COOKIE_REFRESH]);
     res.clearCookie(COOKIE_REFRESH, { path: RUTA_COOKIE });
+  }
+
+  /** Cualquier usuario cambia su propia contraseña (obligatorio si debe cambiarla). */
+  @Post('cambiar-clave')
+  @HttpCode(204)
+  cambiarClave(
+    @Body(new ZodValidationPipe(cambiarClaveSchema)) datos: { actual: string; nueva: string },
+    @UsuarioActual() usuario: UsuarioToken,
+    @Req() req: Request,
+  ): Promise<void> {
+    return this.auth.cambiarClave(usuario.id, datos.actual, datos.nueva, req.cookies?.[COOKIE_REFRESH]);
   }
 
   @Get('me')
