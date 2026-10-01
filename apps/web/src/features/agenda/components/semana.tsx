@@ -35,7 +35,7 @@ function carriles(tareas: TareaAgenda[]): Map<string, { carril: number; total: n
 
 /** Semana de una persona: su horario, los días u horas no laborables y sus tareas. */
 export function Semana({ dias, hoy }: { dias: DiaAgenda[]; hoy: string }) {
-  const marcas = dias.flatMap((d) => [...d.tramos.flatMap((t) => [t.inicio, t.fin]), ...d.tareas.flatMap((t) => (t.inicio === null ? [] : [t.inicio, t.fin!]))])
+  const marcas = dias.flatMap((d) => [...d.tramos.flatMap((t) => [t.inicio, t.fin]), ...d.extras.flatMap((t) => [t.inicio, t.fin]), ...d.tareas.flatMap((t) => (t.inicio === null ? [] : [t.inicio, t.fin!]))])
   const desde = Math.floor(Math.min(7 * 60, ...marcas) / 60) * 60
   const hasta = Math.ceil(Math.max(20 * 60, ...marcas) / 60) * 60
   const alto = ((hasta - desde) / 60) * PX_POR_HORA
@@ -83,6 +83,14 @@ export function Semana({ dias, hoy }: { dias: DiaAgenda[]; hoy: string }) {
               {/* Horario (tiempo de trabajo) */}
               {d.tramos.map((t) => (
                 <div key={t.inicio} className="absolute inset-x-0 bg-background" style={{ top: y(t.inicio), height: y(t.fin) - y(t.inicio) }} />
+              ))}
+              {/* Horas extra aprobadas */}
+              {d.extras.map((t) => (
+                <div
+                  key={`extra-${t.inicio}`}
+                  className="absolute inset-x-0 border-y border-dashed border-amber-400 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40"
+                  style={{ top: y(t.inicio), height: y(t.fin) - y(t.inicio) }}
+                />
               ))}
               {horasEje.map((m) => (
                 <div key={m} className="absolute inset-x-0 border-t border-dashed border-border/60" style={{ top: y(m) }} />

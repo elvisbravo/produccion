@@ -936,3 +936,6 @@ Diferencias entre el diseño de arriba y lo que ya está en `apps/api/prisma/sch
 | `revision` | Sin checklist todavía; similitud e IA opcionales | Llega con el checklist por tipo de trabajo |
 | `entrega_cliente` | Una fila por envío con su respuesta (pendiente / conforme / observado) | Historial de entregas |
 | `trabajo_evento` | + tipo `entregable` | Línea de tiempo del trabajo |
+| `solicitud_urgente` | Nueva: trabajo, motivo, estado (pendiente / ejecutada / rechazada), auxiliar en cuya cola se insertó; una sola pendiente por trabajo (índice parcial) | La asistente administrativa autoriza; producción ejecuta |
+| `hora_extra_bono` | `CHECK`: horas extra con día y tramo (minutos); bono con monto > 0. Estados: propuesta, aceptada, rechazada, aprobada, realizada, anulada. Sin "liquidada" (el pago queda fuera del sistema) | Las aprobadas abren capacidad en la agenda |
+| `parametro` | `horas_extra.tope_semanal` / `horas_extra.tope_mensual` (horas; sin valor = sin tope). `tope_horas_extra_usuario` aún no se crea | Excepciones por persona: con la administración de usuarios |

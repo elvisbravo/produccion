@@ -14,7 +14,7 @@ import {
 } from '@grupoes/shared';
 import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { ahoraEnLima, HORIZONTE_DIAS, huecosDelDia, planificar, type PlanCola } from './cola.js';
+import { ahoraEnLima, HORIZONTE_DIAS, huecosDelDia, planificar, type DiaLibre, type PlanCola, type TareaEnCola } from './cola.js';
 import { calcularDia, esCumpleanos, evaluar, tramosDelDia, type EntradaDia, type HorarioVigencia } from './disponibilidad.js';
 
 type Cliente = PrismaService | Prisma.TransactionClient;
@@ -55,6 +55,19 @@ export type TareaDeAgenda = Prisma.TareaGetPayload<{ include: typeof INCLUIR_TAR
 /** Tareas que están en la cola de trabajo: activas, sin hora fija y con posición en la cola. */
 const EN_COLA = { ordenCola: { not: null }, tarea: { estado: { in: ['pendiente', 'en_proceso'] }, inicio: null } } as const satisfies Prisma.TareaResponsableWhereInput;
 
+export interface BaseDeCola {
+  dias: DiaLibre[];
+  items: { ordenCola: number; tarea: TareaDeAgenda }[];
+  ahora: { fecha: string; minuto: number };
+}
+
+/** Una tarea de la agenda como entrada del planificador. */
+export const aTareaEnCola = (t: { id: string; minutosEstimados: number; fecha: Date }): TareaEnCola => ({
+  id: t.id,
+  minutos: t.minutosEstimados,
+  noAntesDe: soloFecha(t.fecha),
+});
+
 export interface ColaDeUsuario {
   /** Tareas en la cola, en orden. */
   items: { ordenCola: number; tarea: TareaDeAgenda }[];
@@ -73,7 +86,7 @@ export class AgendaService {
 
   /** Datos de cada día (sin calcular) de varias personas, sin las tareas de la cola. */
   private async entradas(usuarioIds: string[], desde: string, hasta: string, db: Cliente): Promise<Map<string, EntradaDia[]>> {
-    const [usuarios, horarios, porDefecto, feriados, ausencias, asignaciones] = await Promise.all([
+    const [usuarios, horarios, porDefecto, feriados, ausencias, asignaciones, extras] = await Promise.all([
       db.usuario.findMany({ where: { id: { in: usuarioIds } }, select: { id: true, fechaNacimiento: true } }),
       db.horarioUsuario.findMany({ where: { usuarioId: { in: usuarioIds }, vigenteDesde: { lte: aFecha(hasta) } }, include: { tramos: true } }),
       this.tramosPorDefecto(db),
@@ -88,6 +101,10 @@ export class AgendaService {
           NOT: EN_COLA,
         },
         include: { tarea: { include: INCLUIR_TAREA_AGENDA } },
+      }),
+      db.horaExtraBono.findMany({
+        where: { usuarioId: { in: usuarioIds }, modalidad: 'horas_extra', estado: { in: ['aprobada', 'realizada'] }, fecha: { gte: aFecha(desde), lte: aFecha(hasta) } },
+        select: { usuarioId: true, fecha: true, minutoInicio: true, minutoFin: true },
       }),
     ]);
 
@@ -114,6 +131,9 @@ export class AgendaService {
                 intervalo: a.minutoDesde !== null && a.minutoHasta !== null ? { inicio: a.minutoDesde, fin: a.minutoHasta } : null,
               })),
             tareas: tareas.filter((t) => soloFecha(t.fecha) === fecha).map((t) => aTareaAgenda(t)),
+            extras: extras
+              .filter((x) => x.usuarioId === u.id && soloFecha(x.fecha!) === fecha)
+              .map((x) => ({ inicio: x.minutoInicio!, fin: x.minutoFin! })),
           };
         }),
       );
@@ -122,36 +142,41 @@ export class AgendaService {
   }
 
   /**
-   * Cola de trabajo de cada persona, planificada desde ahora en sus huecos libres
-   * (horario − días no laborables − tareas con hora).
+   * Lo necesario para planificar la cola de cada persona (incluidas las que no tienen cola):
+   * sus huecos libres desde ahora (horario − días no laborables − tareas con hora) y sus tareas en cola, en orden.
+   * Sirve para planificar y para simular cambios en memoria (reasignar, insertar urgentes).
    */
-  async colas(usuarioIds: string[], db: Cliente = this.prisma): Promise<Map<string, ColaDeUsuario>> {
-    const filas = await db.tareaResponsable.findMany({
-      where: { usuarioId: { in: usuarioIds }, ...EN_COLA },
-      orderBy: [{ ordenCola: 'asc' }, { asignadoEn: 'asc' }],
-      include: { tarea: { include: INCLUIR_TAREA_AGENDA } },
-    });
-    const conCola = [...new Set(filas.map((f) => f.usuarioId))];
-    const resultado = new Map<string, ColaDeUsuario>();
-    if (conCola.length === 0) return resultado;
-
+  async basesDeCola(usuarioIds: string[], db: Cliente = this.prisma): Promise<Map<string, BaseDeCola>> {
+    const resultado = new Map<string, BaseDeCola>();
+    if (usuarioIds.length === 0) return resultado;
     const ahora = ahoraEnLima();
-    const entradas = await this.entradas(conCola, ahora.fecha, sumarDias(ahora.fecha, HORIZONTE_DIAS), db);
-    for (const usuarioId of conCola) {
+    const [filas, entradas] = await Promise.all([
+      db.tareaResponsable.findMany({
+        where: { usuarioId: { in: usuarioIds }, ...EN_COLA },
+        orderBy: [{ ordenCola: 'asc' }, { asignadoEn: 'asc' }],
+        include: { tarea: { include: INCLUIR_TAREA_AGENDA } },
+      }),
+      this.entradas(usuarioIds, ahora.fecha, sumarDias(ahora.fecha, HORIZONTE_DIAS), db),
+    ]);
+    for (const usuarioId of usuarioIds) {
       const dias = (entradas.get(usuarioId) ?? []).map((e) => {
         const dia = calcularDia(e);
         const conHora = dia.tareas.filter((t) => t.inicio !== null && t.estado !== 'cancelada').map((t) => ({ inicio: t.inicio!, fin: t.fin! }));
         return { fecha: dia.fecha, huecos: huecosDelDia(dia.libres, conHora) };
       });
       const items = filas.filter((f) => f.usuarioId === usuarioId).map((f) => ({ ordenCola: f.ordenCola!, tarea: f.tarea }));
-      const planes = planificar(
-        dias,
-        items.map(({ tarea: t }) => ({ id: t.id, minutos: t.minutosEstimados, noAntesDe: soloFecha(t.fecha) })),
-        ahora,
-      );
-      resultado.set(usuarioId, { items, planes });
+      resultado.set(usuarioId, { dias, items, ahora });
     }
     return resultado;
+  }
+
+  /** Cola de trabajo de cada persona que tiene tareas en ella, planificada desde ahora. */
+  async colas(usuarioIds: string[], db: Cliente = this.prisma): Promise<Map<string, ColaDeUsuario>> {
+    const conCola = (
+      await db.tareaResponsable.findMany({ where: { usuarioId: { in: usuarioIds }, ...EN_COLA }, select: { usuarioId: true }, distinct: ['usuarioId'] })
+    ).map((f) => f.usuarioId);
+    const bases = await this.basesDeCola(conCola, db);
+    return new Map([...bases].map(([id, b]) => [id, { items: b.items, planes: planificar(b.dias, b.items.map(({ tarea }) => aTareaEnCola(tarea)), b.ahora) }]));
   }
 
   /** Agenda día por día de varias personas, con los tramos planificados de su cola. */

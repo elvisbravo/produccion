@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils'
 const ITEMS = [
   { etiqueta: 'Horario de trabajo', clase: 'border bg-background' },
   { etiqueta: 'Fuera de horario', clase: 'bg-muted' },
+  { etiqueta: 'Horas extra', clase: 'border border-dashed border-amber-400 bg-amber-50' },
   { etiqueta: 'No laborable', clase: 'bg-[repeating-linear-gradient(135deg,transparent_0_3px,var(--color-violet-400)_3px_4px)] border border-violet-300' },
 ]
 

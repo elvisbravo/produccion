@@ -14,6 +14,9 @@ import { NavegacionSemana } from '@/features/agenda/components/navegacion-semana
 import { Semana } from '@/features/agenda/components/semana'
 import { TablaEquipo } from '@/features/agenda/components/tabla-equipo'
 import { VistaColas } from '@/features/produccion/components/vista-colas'
+import { urgentesQuery } from '@/features/produccion/api-contingencias'
+import { VistaUrgentes } from '@/features/produccion/components/urgencias'
+import { Badge } from '@/components/ui/badge'
 import { describirSemana, lunesDe } from '@/features/agenda/semanas'
 import { nombreCompleto } from '@/lib/formato'
 import { exigirPermiso } from '@/lib/guardas'
@@ -26,7 +29,7 @@ export const Route = createFileRoute('/_app/programacion/')({
   validateSearch: z.object({
     semana: z.iso.date().optional().catch(undefined),
     rol: z.enum(['todos', 'auxiliares', 'jefes']).optional().catch(undefined),
-    vista: z.enum(['agenda', 'colas']).optional().catch(undefined),
+    vista: z.enum(['agenda', 'colas', 'urgentes']).optional().catch(undefined),
   }),
   beforeLoad: () => exigirPermiso('programacion.ver'),
   component: Programacion,
@@ -35,22 +38,31 @@ export const Route = createFileRoute('/_app/programacion/')({
 function Programacion() {
   const { vista } = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
+  const { data: urgentes } = useQuery(urgentesQuery)
+  const porInsertar = urgentes?.filter((s) => s.estado === 'pendiente').length ?? 0
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-8">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Programación</h1>
         <p className="text-sm text-muted-foreground">Disponibilidad del equipo y la cola de trabajo de cada persona.</p>
       </div>
-      <Tabs value={vista ?? 'agenda'} onValueChange={(v) => void navigate({ search: (x) => ({ ...x, vista: v === 'agenda' ? undefined : 'colas' }), replace: true })}>
+      <Tabs value={vista ?? 'agenda'} onValueChange={(v) => void navigate({ search: (x) => ({ ...x, vista: v === 'agenda' ? undefined : (v as 'colas' | 'urgentes') }), replace: true })}>
         <TabsList>
           <TabsTrigger value="agenda">Agenda del equipo</TabsTrigger>
           <TabsTrigger value="colas">Colas de trabajo</TabsTrigger>
+          <TabsTrigger value="urgentes">
+            Urgentes
+            {porInsertar > 0 && <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1.5">{porInsertar}</Badge>}
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="agenda" className="mt-4">
           <AgendaEquipo />
         </TabsContent>
         <TabsContent value="colas" className="mt-4">
           <VistaColas />
+        </TabsContent>
+        <TabsContent value="urgentes" className="mt-4">
+          <VistaUrgentes />
         </TabsContent>
       </Tabs>
     </div>

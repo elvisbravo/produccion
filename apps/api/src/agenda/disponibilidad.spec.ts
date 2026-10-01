@@ -108,6 +108,23 @@ describe('calcularDia', () => {
   });
 });
 
+describe('horas extra', () => {
+  it('suman capacidad después de hora y en domingo', () => {
+    expect(dia({ extras: [{ inicio: h(19), fin: h(21) }] }).capacidad).toBe(h(11));
+    const domingo = calcularDia({ fecha: '2026-10-04', tramos: [], feriado: null, cumpleanos: false, ausencias: [], tareas: [], extras: [{ inicio: h(9), fin: h(12) }] });
+    expect(domingo).toMatchObject({ capacidad: h(3), estado: 'libre' });
+  });
+
+  it('valen en feriado o cumpleaños, nunca en una ausencia', () => {
+    const feriado = dia({ feriado: { nombre: 'Navidad', medioDia: false }, extras: [{ inicio: h(9), fin: h(12) }] });
+    expect(feriado.capacidad).toBe(h(3));
+    expect(evaluar(feriado, { inicio: h(10), minutos: 60 }).estado).toBe('libre');
+    expect(evaluar(feriado, { inicio: h(15), minutos: 60 }).estado).toBe('no_laborable');
+    const vacaciones = dia({ ausencias: [{ tipo: 'vacaciones', nombre: 'Vacaciones', intervalo: null }], extras: [{ inicio: h(9), fin: h(12) }] });
+    expect(vacaciones.capacidad).toBe(0);
+  });
+});
+
 describe('evaluar', () => {
   it('libre dentro del horario', () => {
     expect(evaluar(dia(), { inicio: h(10), minutos: 80 })).toMatchObject({ estado: 'libre', bloqueo: null, avisos: [] });

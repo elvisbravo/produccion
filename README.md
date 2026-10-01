@@ -85,6 +85,10 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | GET | `/api/entregables?vista=` | Bandeja: en revisión, por entregar, con el cliente o todos los abiertos |
 | GET/PUT/POST | `/api/produccion/colas`, `…/mia`, `…/:usuarioId/orden`, `…/:usuarioId/orden-sugerido` | Colas de trabajo planificadas (inicio, fin, holgura) y su orden |
 | POST | `/api/tareas/:id/iniciar` | Quien la realiza marca que empezó |
+| GET/POST | `/api/ausencias/:id/reasignacion` | Propuesta de reasignación por ausencia (simula la cola de cada candidato) y su aplicación |
+| POST/GET | `/api/trabajos/:id/urgente`, `/api/trabajos/:id/urgentes`, `/api/urgentes` | Autorizar una urgencia (asistente administrativa) y bandeja de producción |
+| GET/POST | `/api/urgentes/:id/impacto?usuarioId=`, `…/ejecutar`, `…/rechazar` | Simulación en cascada e inserción en la cola de un auxiliar |
+| GET/POST/PUT | `/api/horas-extra`, `…/:id/responder`, `…/aprobar`, `…/realizar`, `…/anular`, `…/topes` | Horas extra y bonos: propuesta → aceptación → aprobación → realizado; topes y resumen por persona |
 | GET | `/api/seguimiento/tablero` | Prospectos abiertos con su próximo paso (kanban) |
 | GET | `/api/catalogos/…`, `/api/personas/…` | Catálogos del formulario y búsqueda de personas |
 

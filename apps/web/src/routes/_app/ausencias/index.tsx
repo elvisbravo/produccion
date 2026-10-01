@@ -1,7 +1,7 @@
 import { ESTADOS_AUSENCIA, type AusenciaItem, type EstadoAusencia } from '@grupoes/shared'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { CalendarOff, Check, MoreHorizontal, Plus, Stethoscope, TriangleAlert, X } from 'lucide-react'
+import { CalendarOff, Check, MoreHorizontal, Plus, Shuffle, Stethoscope, TriangleAlert, X } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,7 @@ import { ausenciasQuery } from '@/features/agenda/api'
 import { describirAusencia } from '@/features/agenda/components/ausencias-formato'
 import { DialogoAusencia, DialogoResolverAusencia } from '@/features/agenda/components/dialogos-ausencia'
 import { InsigniaEstadoAusencia, InsigniaTipoAusencia } from '@/features/agenda/components/insignias'
+import { DialogoReasignacion } from '@/features/produccion/components/dialogo-reasignacion'
 import { formatearFecha, haceCuanto, nombreCompleto } from '@/lib/formato'
 import { exigirPermiso } from '@/lib/guardas'
 import { useAlcance, usePermiso } from '@/lib/permisos'
@@ -39,6 +40,8 @@ function PaginaAusencias() {
   const puedeRegistrar = usePermiso('ausencias.crear')
   const puedeSolicitar = usePermiso('ausencias.solicitar')
   const veTodas = useAlcance('ausencias.ver') === 'todos'
+  const puedeReasignar = usePermiso('programacion.reasignar')
+  const [reasignando, setReasignando] = useState<string | null>(null)
 
   const vista = estado ?? (puedeAprobar ? 'solicitada' : 'todas')
   const { data, isPending } = useQuery(ausenciasQuery({ estado: vista === 'todas' ? undefined : (vista as EstadoAusencia) }))
@@ -161,7 +164,7 @@ function PaginaAusencias() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {acciones.length > 0 && (
+                      {(acciones.length > 0 || (puedeReasignar && a.estado === 'aprobada')) && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon-sm" aria-label="Acciones">
@@ -169,6 +172,11 @@ function PaginaAusencias() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            {puedeReasignar && a.estado === 'aprobada' && (
+                              <DropdownMenuItem onSelect={() => setReasignando(a.id)}>
+                                <Shuffle /> Reasignar sus tareas
+                              </DropdownMenuItem>
+                            )}
                             {acciones.includes('aprobar') && (
                               <DropdownMenuItem onSelect={() => setResolviendo({ ausencia: a, accion: 'aprobar' })}>
                                 <Check /> Aprobar
@@ -211,6 +219,7 @@ function PaginaAusencias() {
           onAbiertoChange={setRegistrando}
         />
       )}
+      {reasignando && <DialogoReasignacion ausenciaId={reasignando} onCerrar={() => setReasignando(null)} />}
       {resolviendo && (
         <DialogoResolverAusencia
           key={`${resolviendo.ausencia.id}-${resolviendo.accion}`}

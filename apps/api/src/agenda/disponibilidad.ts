@@ -79,6 +79,20 @@ export interface EntradaDia {
   cumpleanos: boolean;
   ausencias: { tipo: BloqueoDia['tipo']; nombre: string; intervalo: Intervalo | null }[];
   tareas: TareaAgenda[];
+  /** Horas extra aprobadas: abren capacidad fuera del horario. */
+  extras?: Intervalo[];
+}
+
+/** Une intervalos que se tocan o se cruzan. */
+export function unir(intervalos: Intervalo[]): Intervalo[] {
+  const ordenados = [...intervalos].sort((a, b) => a.inicio - b.inicio);
+  const resultado: Intervalo[] = [];
+  for (const i of ordenados) {
+    const ultimo = resultado.at(-1);
+    if (ultimo && i.inicio <= ultimo.fin) ultimo.fin = Math.max(ultimo.fin, i.fin);
+    else resultado.push({ ...i });
+  }
+  return resultado;
 }
 
 export function calcularDia(e: EntradaDia): DiaAgenda {
@@ -94,13 +108,17 @@ export function calcularDia(e: EntradaDia): DiaAgenda {
   bloqueos.push(...e.ausencias);
 
   const diaCompleto = bloqueos.some((b) => !b.intervalo);
-  const libres = diaCompleto ? [] : restar(e.tramos, bloqueos.flatMap((b) => (b.intervalo ? [b.intervalo] : [])));
+  const deHorario = diaCompleto ? [] : restar(e.tramos, bloqueos.flatMap((b) => (b.intervalo ? [b.intervalo] : [])));
+  // Las horas extra valen sobre feriados y cumpleaños (la persona aceptó), nunca sobre una ausencia.
+  const ausenciaTotal = e.ausencias.some((a) => !a.intervalo);
+  const extras = ausenciaTotal ? [] : restar(e.extras ?? [], e.ausencias.flatMap((a) => (a.intervalo ? [a.intervalo] : [])));
+  const libres = unir([...deHorario, ...extras]);
   const capacidad = libres.reduce((s, i) => s + i.fin - i.inicio, 0);
   const ocupado = e.tareas.filter((t) => ESTADOS_QUE_OCUPAN.includes(t.estado)).reduce((s, t) => s + t.minutos, 0);
 
   let estado: EstadoDia;
-  if (diaCompleto || (capacidad === 0 && bloqueos.length > 0)) estado = 'no_laborable';
-  else if (e.tramos.length === 0) estado = 'descanso';
+  if (capacidad === 0 && (diaCompleto || bloqueos.length > 0)) estado = 'no_laborable';
+  else if (e.tramos.length === 0 && extras.length === 0) estado = 'descanso';
   else if (ocupado > capacidad) estado = 'sobrecargado';
   else if (ocupado > capacidad * UMBRAL_OCUPADO) estado = 'ocupado';
   else estado = 'libre';
@@ -109,6 +127,7 @@ export function calcularDia(e: EntradaDia): DiaAgenda {
     fecha: e.fecha,
     diaSemana: diaSemanaDe(e.fecha),
     tramos: e.tramos,
+    extras,
     bloqueos,
     libres,
     capacidad,
@@ -129,11 +148,13 @@ export function evaluar(dia: DiaAgenda, tarea: { id?: string; inicio: number | n
   const ocupado = otras.filter((t) => ESTADOS_QUE_OCUPAN.includes(t.estado)).reduce((s, t) => s + t.minutos, 0);
   const base = { capacidad: dia.capacidad, ocupado };
 
-  const total = dia.bloqueos.find((b) => !b.intervalo);
-  if (total) return { ...base, estado: 'no_laborable', bloqueo: total.nombre, avisos: [] };
-
   const intervalo = tarea.inicio === null ? null : { inicio: tarea.inicio, fin: tarea.inicio + tarea.minutos };
-  if (intervalo) {
+  // Dentro de lo libre (horario o horas extra) no hay bloqueo que valga.
+  const dentroDeLibres = intervalo ? dia.libres.some((l) => l.inicio <= intervalo.inicio && intervalo.fin <= l.fin) : dia.capacidad > 0;
+  const total = dia.bloqueos.find((b) => !b.intervalo);
+  if (total && !dentroDeLibres) return { ...base, estado: 'no_laborable', bloqueo: total.nombre, avisos: [] };
+
+  if (intervalo && !dentroDeLibres) {
     const parcial = dia.bloqueos.find((b) => b.intervalo && cruza(b.intervalo, intervalo));
     if (parcial) return { ...base, estado: 'no_laborable', bloqueo: `${parcial.nombre} (${rango(parcial.intervalo!)})`, avisos: [] };
   } else if (dia.capacidad === 0 && dia.bloqueos.length > 0) {
@@ -148,11 +169,12 @@ export function evaluar(dia: DiaAgenda, tarea: { id?: string; inicio: number | n
     : [];
   for (const c of choques) avisos.push(`Choca con "${c.actividad}" (${rango({ inicio: c.inicio!, fin: c.fin! })})`);
 
-  const fuera = intervalo ? !dia.libres.some((l) => l.inicio <= intervalo.inicio && intervalo.fin <= l.fin) : dia.tramos.length === 0;
-  if (fuera) avisos.push(dia.tramos.length === 0 ? 'Ese día no está en su horario' : 'Fuera de su horario');
+  const sinHorario = dia.tramos.length === 0 && dia.extras.length === 0;
+  const fuera = intervalo ? !dentroDeLibres : sinHorario;
+  if (fuera) avisos.push(sinHorario ? 'Ese día no está en su horario' : 'Fuera de su horario');
 
   const excede = ocupado + tarea.minutos > dia.capacidad;
-  if (excede && dia.tramos.length > 0) avisos.push(`Supera su capacidad del día (${horas(ocupado + tarea.minutos)} de ${horas(dia.capacidad)})`);
+  if (excede && !sinHorario) avisos.push(`Supera su capacidad del día (${horas(ocupado + tarea.minutos)} de ${horas(dia.capacidad)})`);
 
   if (choques.length > 0) estado = 'ocupado';
   else if (fuera) estado = 'fuera_horario';

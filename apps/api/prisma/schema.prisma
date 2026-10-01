@@ -57,6 +57,12 @@ model Usuario {
   pagosAnulados      Pago[]             @relation("PagoAnuladoPor")
   horarios           HorarioUsuario[]   @relation("HorarioDelUsuario")
   revisiones         Revision[]         @relation("RevisionRevisor")
+  urgentesPedidas    SolicitudUrgente[] @relation("UrgenteSolicitadaPor")
+  urgentesResueltas  SolicitudUrgente[] @relation("UrgenteResueltaPor")
+  urgentesAsignadas  SolicitudUrgente[] @relation("UrgenteAsignadoA")
+  extras             HoraExtraBono[]    @relation("ExtraDelUsuario")
+  extrasPropuestas   HoraExtraBono[]    @relation("ExtraPropuestaPor")
+  extrasAprobadas    HoraExtraBono[]    @relation("ExtraAprobadaPor")
   entregasEnviadas   EntregaCliente[]   @relation("EntregaEnviadaPor")
   ausencias          Ausencia[]         @relation("AusenciaDelUsuario")
   ausenciasPedidas   Ausencia[]         @relation("AusenciaSolicitadaPor")
@@ -726,6 +732,7 @@ model Tarea {
   trabajo           Trabajo?           @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
   entregable        Entregable?        @relation(fields: [entregableId], references: [id], onDelete: Cascade)
   revisiones        Revision[]
+  extras            HoraExtraBono[]
   resultadoContacto ResultadoContacto? @relation(fields: [resultadoContactoId], references: [id])
   creadaPor         Usuario            @relation("TareaCreadaPor", fields: [creadaPorId], references: [id])
   responsables      TareaResponsable[]
@@ -830,6 +837,8 @@ model Trabajo {
   contrato    Contrato?
   entregables Entregable[]
   tareas      Tarea[]
+  urgencias   SolicitudUrgente[]
+  extras      HoraExtraBono[]
 
   @@index([estado])
   @@index([fechaLimite])
@@ -1215,6 +1224,7 @@ model Entregable {
   tareas     Tarea[]
   revisiones Revision[]
   entregas   EntregaCliente[]
+  extras     HoraExtraBono[]
 
   @@index([trabajoId, orden])
   @@index([estado])
@@ -1273,4 +1283,94 @@ model EntregaCliente {
 
   @@index([entregableId, fecha])
   @@map("entrega_cliente")
+}
+
+// ─── Producción: urgencias, horas extra y bonos ─────────────
+
+enum EstadoSolicitudUrgente {
+  pendiente
+  ejecutada
+  rechazada
+
+  @@map("estado_solicitud_urgente")
+}
+
+/// La asistente administrativa autoriza la urgencia; el asistente de producción la ejecuta en la cola de un auxiliar.
+model SolicitudUrgente {
+  id                String                 @id @default(uuid(7)) @db.Uuid
+  trabajoId         String                 @map("trabajo_id") @db.Uuid
+  motivo            String
+  estado            EstadoSolicitudUrgente @default(pendiente)
+  solicitadaPorId   String                 @map("solicitada_por_id") @db.Uuid
+  solicitadaEn      DateTime               @default(now()) @map("solicitada_en") @db.Timestamptz(6)
+  resueltaPorId     String?                @map("resuelta_por_id") @db.Uuid
+  resueltaEn        DateTime?              @map("resuelta_en") @db.Timestamptz(6)
+  /// Auxiliar en cuya cola se insertó.
+  usuarioAsignadoId String?                @map("usuario_asignado_id") @db.Uuid
+  observacion       String?
+
+  trabajo         Trabajo  @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
+  solicitadaPor   Usuario  @relation("UrgenteSolicitadaPor", fields: [solicitadaPorId], references: [id])
+  resueltaPor     Usuario? @relation("UrgenteResueltaPor", fields: [resueltaPorId], references: [id])
+  usuarioAsignado Usuario? @relation("UrgenteAsignadoA", fields: [usuarioAsignadoId], references: [id])
+
+  @@index([estado])
+  @@index([trabajoId])
+  @@map("solicitud_urgente")
+}
+
+enum ModalidadExtra {
+  horas_extra
+  bono
+
+  @@map("modalidad_extra")
+}
+
+enum EstadoExtra {
+  propuesta
+  aceptada
+  rechazada
+  aprobada
+  realizada
+  anulada
+
+  @@map("estado_extra")
+}
+
+/// Horas fuera del horario (abren capacidad en la agenda ese día) o un bono de monto libre.
+model HoraExtraBono {
+  id             String         @id @default(uuid(7)) @db.Uuid
+  usuarioId      String         @map("usuario_id") @db.Uuid
+  modalidad      ModalidadExtra
+  trabajoId      String         @map("trabajo_id") @db.Uuid
+  entregableId   String?        @map("entregable_id") @db.Uuid
+  tareaId        String?        @map("tarea_id") @db.Uuid
+  /// Horas extra: el día y el tramo (minutos desde las 00:00).
+  fecha          DateTime?      @db.Date
+  minutoInicio   Int?           @map("minuto_inicio") @db.SmallInt
+  minutoFin      Int?           @map("minuto_fin") @db.SmallInt
+  /// Bono: monto libre en soles.
+  monto          Decimal?       @db.Decimal(10, 2)
+  descripcion    String
+  estado         EstadoExtra    @default(propuesta)
+  propuestaPorId String         @map("propuesta_por_id") @db.Uuid
+  propuestaEn    DateTime       @default(now()) @map("propuesta_en") @db.Timestamptz(6)
+  respondidaEn   DateTime?      @map("respondida_en") @db.Timestamptz(6)
+  motivoRechazo  String?        @map("motivo_rechazo")
+  aprobadaPorId  String?        @map("aprobada_por_id") @db.Uuid
+  aprobadaEn     DateTime?      @map("aprobada_en") @db.Timestamptz(6)
+  /// Al realizarse: minutos reales (horas extra).
+  minutosReales  Int?           @map("minutos_reales")
+  realizadaEn    DateTime?      @map("realizada_en") @db.Timestamptz(6)
+
+  usuario      Usuario     @relation("ExtraDelUsuario", fields: [usuarioId], references: [id])
+  propuestaPor Usuario     @relation("ExtraPropuestaPor", fields: [propuestaPorId], references: [id])
+  aprobadaPor  Usuario?    @relation("ExtraAprobadaPor", fields: [aprobadaPorId], references: [id])
+  trabajo      Trabajo     @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
+  entregable   Entregable? @relation(fields: [entregableId], references: [id], onDelete: SetNull)
+  tarea        Tarea?      @relation(fields: [tareaId], references: [id], onDelete: SetNull)
+
+  @@index([usuarioId, fecha])
+  @@index([estado])
+  @@map("hora_extra_bono")
 }

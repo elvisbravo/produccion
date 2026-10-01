@@ -228,6 +228,8 @@ export interface DiaAgenda {
   diaSemana: number
   /** Horario de ese día. */
   tramos: Intervalo[]
+  /** Horas extra aprobadas (fuera del horario). */
+  extras: Intervalo[]
   bloqueos: BloqueoDia[]
   /** Horario menos los bloqueos parciales: el tiempo en que se puede programar. */
   libres: Intervalo[]

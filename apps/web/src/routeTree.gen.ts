@@ -18,6 +18,7 @@ import { Route as AppAusenciasIndexRouteImport } from './routes/_app/ausencias/i
 import { Route as AppCalendarioIndexRouteImport } from './routes/_app/calendario/index'
 import { Route as AppContratosIndexRouteImport } from './routes/_app/contratos/index'
 import { Route as AppEntregablesIndexRouteImport } from './routes/_app/entregables/index'
+import { Route as AppHorasExtraIndexRouteImport } from './routes/_app/horas-extra/index'
 import { Route as AppProgramacionIndexRouteImport } from './routes/_app/programacion/index'
 import { Route as AppProspectosIndexRouteImport } from './routes/_app/prospectos/index'
 import { Route as AppProspectosNuevoRouteImport } from './routes/_app/prospectos/nuevo'
@@ -71,6 +72,11 @@ const AppContratosIndexRoute = AppContratosIndexRouteImport.update({
 const AppEntregablesIndexRoute = AppEntregablesIndexRouteImport.update({
   id: '/entregables/',
   path: '/entregables/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppHorasExtraIndexRoute = AppHorasExtraIndexRouteImport.update({
+  id: '/horas-extra/',
+  path: '/horas-extra/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppProgramacionIndexRoute = AppProgramacionIndexRouteImport.update({
@@ -136,6 +142,7 @@ export interface FileRoutesByFullPath {
   '/calendario/': typeof AppCalendarioIndexRoute
   '/contratos/': typeof AppContratosIndexRoute
   '/entregables/': typeof AppEntregablesIndexRoute
+  '/horas-extra/': typeof AppHorasExtraIndexRoute
   '/programacion/': typeof AppProgramacionIndexRoute
   '/prospectos/': typeof AppProspectosIndexRoute
   '/seguimiento/': typeof AppSeguimientoIndexRoute
@@ -156,6 +163,7 @@ export interface FileRoutesByTo {
   '/calendario': typeof AppCalendarioIndexRoute
   '/contratos': typeof AppContratosIndexRoute
   '/entregables': typeof AppEntregablesIndexRoute
+  '/horas-extra': typeof AppHorasExtraIndexRoute
   '/programacion': typeof AppProgramacionIndexRoute
   '/prospectos': typeof AppProspectosIndexRoute
   '/seguimiento': typeof AppSeguimientoIndexRoute
@@ -178,6 +186,7 @@ export interface FileRoutesById {
   '/_app/calendario/': typeof AppCalendarioIndexRoute
   '/_app/contratos/': typeof AppContratosIndexRoute
   '/_app/entregables/': typeof AppEntregablesIndexRoute
+  '/_app/horas-extra/': typeof AppHorasExtraIndexRoute
   '/_app/programacion/': typeof AppProgramacionIndexRoute
   '/_app/prospectos/': typeof AppProspectosIndexRoute
   '/_app/seguimiento/': typeof AppSeguimientoIndexRoute
@@ -200,6 +209,7 @@ export interface FileRouteTypes {
     | '/calendario/'
     | '/contratos/'
     | '/entregables/'
+    | '/horas-extra/'
     | '/programacion/'
     | '/prospectos/'
     | '/seguimiento/'
@@ -220,6 +230,7 @@ export interface FileRouteTypes {
     | '/calendario'
     | '/contratos'
     | '/entregables'
+    | '/horas-extra'
     | '/programacion'
     | '/prospectos'
     | '/seguimiento'
@@ -241,6 +252,7 @@ export interface FileRouteTypes {
     | '/_app/calendario/'
     | '/_app/contratos/'
     | '/_app/entregables/'
+    | '/_app/horas-extra/'
     | '/_app/programacion/'
     | '/_app/prospectos/'
     | '/_app/seguimiento/'
@@ -319,6 +331,13 @@ declare module '@tanstack/react-router' {
       path: '/entregables'
       fullPath: '/entregables/'
       preLoaderRoute: typeof AppEntregablesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/horas-extra/': {
+      id: '/_app/horas-extra/'
+      path: '/horas-extra'
+      fullPath: '/horas-extra/'
+      preLoaderRoute: typeof AppHorasExtraIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/programacion/': {
@@ -404,6 +423,7 @@ interface AppRouteChildren {
   AppCalendarioIndexRoute: typeof AppCalendarioIndexRoute
   AppContratosIndexRoute: typeof AppContratosIndexRoute
   AppEntregablesIndexRoute: typeof AppEntregablesIndexRoute
+  AppHorasExtraIndexRoute: typeof AppHorasExtraIndexRoute
   AppProgramacionIndexRoute: typeof AppProgramacionIndexRoute
   AppProspectosIndexRoute: typeof AppProspectosIndexRoute
   AppSeguimientoIndexRoute: typeof AppSeguimientoIndexRoute
@@ -424,6 +444,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppCalendarioIndexRoute: AppCalendarioIndexRoute,
   AppContratosIndexRoute: AppContratosIndexRoute,
   AppEntregablesIndexRoute: AppEntregablesIndexRoute,
+  AppHorasExtraIndexRoute: AppHorasExtraIndexRoute,
   AppProgramacionIndexRoute: AppProgramacionIndexRoute,
   AppProspectosIndexRoute: AppProspectosIndexRoute,
   AppSeguimientoIndexRoute: AppSeguimientoIndexRoute,
