@@ -40,39 +40,41 @@ model Usuario {
   actualizadoPor String?   @map("actualizado_por") @db.Uuid
   eliminadoEn    DateTime? @map("eliminado_en") @db.Timestamptz(6)
 
-  roles              UsuarioRol[]
-  permisos           UsuarioPermiso[]   @relation("PermisoDelUsuario")
-  permisosOtorgados  UsuarioPermiso[]   @relation("PermisoOtorgadoPor")
-  sesiones           Sesion[]
-  accesos            AccesoLog[]
-  auditorias         Auditoria[]
-  prospectosCaptados Prospecto[]        @relation("ProspectoCaptadoPor")
-  prospectosACargo   Prospecto[]        @relation("ProspectoResponsable")
-  eventosProspecto   ProspectoEvento[]
-  tareasCreadas      Tarea[]            @relation("TareaCreadaPor")
-  tareasAsignadas    TareaResponsable[] @relation("TareaResponsableUsuario")
-  asignacionesHechas TareaResponsable[] @relation("TareaAsignadaPor")
-  trabajosEquipo     TrabajoEquipo[]    @relation("EquipoUsuario")
-  equiposAsignados   TrabajoEquipo[]    @relation("EquipoAsignadoPor")
-  eventosTrabajo     TrabajoEvento[]
-  pagosRegistrados   Pago[]             @relation("PagoRegistradoPor")
-  pagosAnulados      Pago[]             @relation("PagoAnuladoPor")
-  horarios           HorarioUsuario[]   @relation("HorarioDelUsuario")
-  revisiones         Revision[]         @relation("RevisionRevisor")
-  urgentesPedidas    SolicitudUrgente[] @relation("UrgenteSolicitadaPor")
-  urgentesResueltas  SolicitudUrgente[] @relation("UrgenteResueltaPor")
-  urgentesAsignadas  SolicitudUrgente[] @relation("UrgenteAsignadoA")
-  extras             HoraExtraBono[]    @relation("ExtraDelUsuario")
-  notificaciones     Notificacion[]     @relation("NotificacionDelUsuario")
-  topeHorasExtra     TopeHorasExtraUsuario?
-  tiempos            RegistroTiempo[]   @relation("TiempoDelUsuario")
-  costosHora         CostoHoraUsuario[] @relation("CostoDelUsuario")
-  extrasPropuestas   HoraExtraBono[]    @relation("ExtraPropuestaPor")
-  extrasAprobadas    HoraExtraBono[]    @relation("ExtraAprobadaPor")
-  entregasEnviadas   EntregaCliente[]   @relation("EntregaEnviadaPor")
-  ausencias          Ausencia[]         @relation("AusenciaDelUsuario")
-  ausenciasPedidas   Ausencia[]         @relation("AusenciaSolicitadaPor")
-  ausenciasResueltas Ausencia[]         @relation("AusenciaResueltaPor")
+  roles                UsuarioRol[]
+  permisos             UsuarioPermiso[]       @relation("PermisoDelUsuario")
+  permisosOtorgados    UsuarioPermiso[]       @relation("PermisoOtorgadoPor")
+  sesiones             Sesion[]
+  accesos              AccesoLog[]
+  auditorias           Auditoria[]
+  prospectosCaptados   Prospecto[]            @relation("ProspectoCaptadoPor")
+  prospectosACargo     Prospecto[]            @relation("ProspectoResponsable")
+  eventosProspecto     ProspectoEvento[]
+  tareasCreadas        Tarea[]                @relation("TareaCreadaPor")
+  tareasAsignadas      TareaResponsable[]     @relation("TareaResponsableUsuario")
+  asignacionesHechas   TareaResponsable[]     @relation("TareaAsignadaPor")
+  trabajosEquipo       TrabajoEquipo[]        @relation("EquipoUsuario")
+  equiposAsignados     TrabajoEquipo[]        @relation("EquipoAsignadoPor")
+  eventosTrabajo       TrabajoEvento[]
+  pagosRegistrados     Pago[]                 @relation("PagoRegistradoPor")
+  pagosAnulados        Pago[]                 @relation("PagoAnuladoPor")
+  cotizacionesCreadas  Cotizacion[]           @relation("CotizacionCreadaPor")
+  cotizacionesAnuladas Cotizacion[]           @relation("CotizacionAnuladaPor")
+  horarios             HorarioUsuario[]       @relation("HorarioDelUsuario")
+  revisiones           Revision[]             @relation("RevisionRevisor")
+  urgentesPedidas      SolicitudUrgente[]     @relation("UrgenteSolicitadaPor")
+  urgentesResueltas    SolicitudUrgente[]     @relation("UrgenteResueltaPor")
+  urgentesAsignadas    SolicitudUrgente[]     @relation("UrgenteAsignadoA")
+  extras               HoraExtraBono[]        @relation("ExtraDelUsuario")
+  notificaciones       Notificacion[]         @relation("NotificacionDelUsuario")
+  topeHorasExtra       TopeHorasExtraUsuario?
+  tiempos              RegistroTiempo[]       @relation("TiempoDelUsuario")
+  costosHora           CostoHoraUsuario[]     @relation("CostoDelUsuario")
+  extrasPropuestas     HoraExtraBono[]        @relation("ExtraPropuestaPor")
+  extrasAprobadas      HoraExtraBono[]        @relation("ExtraAprobadaPor")
+  entregasEnviadas     EntregaCliente[]       @relation("EntregaEnviadaPor")
+  ausencias            Ausencia[]             @relation("AusenciaDelUsuario")
+  ausenciasPedidas     Ausencia[]             @relation("AusenciaSolicitadaPor")
+  ausenciasResueltas   Ausencia[]             @relation("AusenciaResueltaPor")
 
   @@map("usuario")
 }
@@ -390,6 +392,8 @@ model EtapaProspecto {
   clase             ClaseEtapa     @default(abierta)
   /// Etapa en la que empieza todo prospecto nuevo.
   inicial           Boolean        @default(false)
+  /// El prospecto pasa a esta etapa al emitirle una cotización (si aún está en una etapa anterior).
+  alCotizar         Boolean        @default(false) @map("al_cotizar")
   activa            Boolean        @default(true)
   /// Movimiento automático: el prospecto pasa a esta etapa cuando ocurre este evento con esta actividad.
   actividadEventoId String?        @map("actividad_evento_id") @db.Uuid
@@ -499,10 +503,11 @@ model Prospecto {
   captadoPor     Usuario          @relation("ProspectoCaptadoPor", fields: [captadoPorId], references: [id])
   responsable    Usuario          @relation("ProspectoResponsable", fields: [responsableId], references: [id])
 
-  contactos ProspectoContacto[]
-  eventos   ProspectoEvento[]
-  tareas    Tarea[]
-  trabajo   Trabajo?
+  contactos    ProspectoContacto[]
+  eventos      ProspectoEvento[]
+  cotizaciones Cotizacion[]
+  tareas       Tarea[]
+  trabajo      Trabajo?
 
   @@index([responsableId, etapaId])
   @@index([etapaId])
@@ -532,6 +537,7 @@ enum TipoEventoProspecto {
   contacto
   reasignado
   tarea
+  cotizacion
 
   @@map("tipo_evento_prospecto")
 }
@@ -1459,4 +1465,73 @@ model CostoHoraUsuario {
 
   @@unique([usuarioId, vigenteDesde])
   @@map("costo_hora_usuario")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Cotizaciones y documentos imprimibles
+// ─────────────────────────────────────────────────────────────
+
+enum EstadoCotizacion {
+  emitida
+  anulada
+
+  @@map("estado_cotizacion")
+}
+
+model Cotizacion {
+  id              String           @id @default(uuid(7)) @db.Uuid
+  numero          String           @unique @db.VarChar(20)
+  prospectoId     String           @map("prospecto_id") @db.Uuid
+  fecha           DateTime         @db.Date
+  validezDias     Int              @map("validez_dias")
+  total           Decimal          @db.Decimal(12, 2)
+  formaPago       String?          @map("forma_pago") @db.VarChar(300)
+  observaciones   String?
+  estado          EstadoCotizacion @default(emitida)
+  creadoPorId     String           @map("creado_por_id") @db.Uuid
+  creadoEn        DateTime         @default(now()) @map("creado_en") @db.Timestamptz(6)
+  anuladoEn       DateTime?        @map("anulado_en") @db.Timestamptz(6)
+  anuladoPorId    String?          @map("anulado_por_id") @db.Uuid
+  motivoAnulacion String?          @map("motivo_anulacion")
+
+  prospecto  Prospecto        @relation(fields: [prospectoId], references: [id], onDelete: Cascade)
+  creadoPor  Usuario          @relation("CotizacionCreadaPor", fields: [creadoPorId], references: [id])
+  anuladoPor Usuario?         @relation("CotizacionAnuladaPor", fields: [anuladoPorId], references: [id])
+  items      CotizacionItem[]
+
+  @@index([prospectoId])
+  @@map("cotizacion")
+}
+
+model CotizacionItem {
+  id           String  @id @default(uuid(7)) @db.Uuid
+  cotizacionId String  @map("cotizacion_id") @db.Uuid
+  orden        Int
+  descripcion  String  @db.VarChar(300)
+  cantidad     Decimal @db.Decimal(10, 2)
+  precio       Decimal @db.Decimal(12, 2)
+  subtotal     Decimal @db.Decimal(12, 2)
+
+  cotizacion Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+
+  @@unique([cotizacionId, orden])
+  @@map("cotizacion_item")
+}
+
+enum TipoPlantillaDocumento {
+  cotizacion
+  contrato
+  recibo
+
+  @@map("tipo_plantilla_documento")
+}
+
+/// Texto de cada documento imprimible, con variables entre llaves: {cliente}, {monto}...
+model PlantillaDocumento {
+  tipo           TipoPlantillaDocumento @id
+  contenido      String
+  actualizadoEn  DateTime               @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+  actualizadoPor String?                @map("actualizado_por") @db.Uuid
+
+  @@map("plantilla_documento")
 }

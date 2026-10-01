@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
+import { Route as ImprimirRouteImport } from './routes/imprimir'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppSplatRouteImport } from './routes/_app/$'
@@ -19,6 +20,8 @@ import { Route as AppAuditoriaIndexRouteImport } from './routes/_app/auditoria/i
 import { Route as AppAusenciasIndexRouteImport } from './routes/_app/ausencias/index'
 import { Route as AppCalendarioIndexRouteImport } from './routes/_app/calendario/index'
 import { Route as AppContratosIndexRouteImport } from './routes/_app/contratos/index'
+import { Route as AppCotizacionesIndexRouteImport } from './routes/_app/cotizaciones/index'
+import { Route as AppDocumentosIndexRouteImport } from './routes/_app/documentos/index'
 import { Route as AppEntregablesIndexRouteImport } from './routes/_app/entregables/index'
 import { Route as AppHorasExtraIndexRouteImport } from './routes/_app/horas-extra/index'
 import { Route as AppParametrosIndexRouteImport } from './routes/_app/parametros/index'
@@ -34,12 +37,20 @@ import { Route as AppTrabajosIndexRouteImport } from './routes/_app/trabajos/ind
 import { Route as AppTrabajosIdRouteImport } from './routes/_app/trabajos/$id'
 import { Route as AppUsuariosIndexRouteImport } from './routes/_app/usuarios/index'
 import { Route as AppUsuariosIdRouteImport } from './routes/_app/usuarios/$id'
+import { Route as ImprimirContratoIdRouteImport } from './routes/imprimir/contrato/$id'
+import { Route as ImprimirCotizacionIdRouteImport } from './routes/imprimir/cotizacion/$id'
+import { Route as ImprimirReciboIdRouteImport } from './routes/imprimir/recibo/$id'
 import { Route as AppProspectosIdIndexRouteImport } from './routes/_app/prospectos/$id/index'
 import { Route as AppProspectosIdConvertirRouteImport } from './routes/_app/prospectos/$id/convertir'
 import { Route as AppProspectosIdEditarRouteImport } from './routes/_app/prospectos/$id/editar'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImprimirRoute = ImprimirRouteImport.update({
+  id: '/imprimir',
+  path: '/imprimir',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -85,6 +96,16 @@ const AppCalendarioIndexRoute = AppCalendarioIndexRouteImport.update({
 const AppContratosIndexRoute = AppContratosIndexRouteImport.update({
   id: '/contratos/',
   path: '/contratos/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCotizacionesIndexRoute = AppCotizacionesIndexRouteImport.update({
+  id: '/cotizaciones/',
+  path: '/cotizaciones/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDocumentosIndexRoute = AppDocumentosIndexRouteImport.update({
+  id: '/documentos/',
+  path: '/documentos/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppEntregablesIndexRoute = AppEntregablesIndexRouteImport.update({
@@ -162,6 +183,21 @@ const AppUsuariosIdRoute = AppUsuariosIdRouteImport.update({
   path: '/usuarios/$id',
   getParentRoute: () => AppRoute,
 } as any)
+const ImprimirContratoIdRoute = ImprimirContratoIdRouteImport.update({
+  id: '/contrato/$id',
+  path: '/contrato/$id',
+  getParentRoute: () => ImprimirRoute,
+} as any)
+const ImprimirCotizacionIdRoute = ImprimirCotizacionIdRouteImport.update({
+  id: '/cotizacion/$id',
+  path: '/cotizacion/$id',
+  getParentRoute: () => ImprimirRoute,
+} as any)
+const ImprimirReciboIdRoute = ImprimirReciboIdRouteImport.update({
+  id: '/recibo/$id',
+  path: '/recibo/$id',
+  getParentRoute: () => ImprimirRoute,
+} as any)
 const AppProspectosIdIndexRoute = AppProspectosIdIndexRouteImport.update({
   id: '/prospectos/$id/',
   path: '/prospectos/$id/',
@@ -181,6 +217,7 @@ const AppProspectosIdEditarRoute = AppProspectosIdEditarRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/imprimir': typeof ImprimirRouteWithChildren
   '/login': typeof LoginRoute
   '/$': typeof AppSplatRoute
   '/cuenta': typeof AppCuentaRoute
@@ -188,11 +225,16 @@ export interface FileRoutesByFullPath {
   '/roles/$id': typeof AppRolesIdRoute
   '/trabajos/$id': typeof AppTrabajosIdRoute
   '/usuarios/$id': typeof AppUsuariosIdRoute
+  '/imprimir/contrato/$id': typeof ImprimirContratoIdRoute
+  '/imprimir/cotizacion/$id': typeof ImprimirCotizacionIdRoute
+  '/imprimir/recibo/$id': typeof ImprimirReciboIdRoute
   '/agenda/': typeof AppAgendaIndexRoute
   '/auditoria/': typeof AppAuditoriaIndexRoute
   '/ausencias/': typeof AppAusenciasIndexRoute
   '/calendario/': typeof AppCalendarioIndexRoute
   '/contratos/': typeof AppContratosIndexRoute
+  '/cotizaciones/': typeof AppCotizacionesIndexRoute
+  '/documentos/': typeof AppDocumentosIndexRoute
   '/entregables/': typeof AppEntregablesIndexRoute
   '/horas-extra/': typeof AppHorasExtraIndexRoute
   '/parametros/': typeof AppParametrosIndexRoute
@@ -209,6 +251,7 @@ export interface FileRoutesByFullPath {
   '/prospectos/$id/': typeof AppProspectosIdIndexRoute
 }
 export interface FileRoutesByTo {
+  '/imprimir': typeof ImprimirRouteWithChildren
   '/login': typeof LoginRoute
   '/$': typeof AppSplatRoute
   '/cuenta': typeof AppCuentaRoute
@@ -217,11 +260,16 @@ export interface FileRoutesByTo {
   '/roles/$id': typeof AppRolesIdRoute
   '/trabajos/$id': typeof AppTrabajosIdRoute
   '/usuarios/$id': typeof AppUsuariosIdRoute
+  '/imprimir/contrato/$id': typeof ImprimirContratoIdRoute
+  '/imprimir/cotizacion/$id': typeof ImprimirCotizacionIdRoute
+  '/imprimir/recibo/$id': typeof ImprimirReciboIdRoute
   '/agenda': typeof AppAgendaIndexRoute
   '/auditoria': typeof AppAuditoriaIndexRoute
   '/ausencias': typeof AppAusenciasIndexRoute
   '/calendario': typeof AppCalendarioIndexRoute
   '/contratos': typeof AppContratosIndexRoute
+  '/cotizaciones': typeof AppCotizacionesIndexRoute
+  '/documentos': typeof AppDocumentosIndexRoute
   '/entregables': typeof AppEntregablesIndexRoute
   '/horas-extra': typeof AppHorasExtraIndexRoute
   '/parametros': typeof AppParametrosIndexRoute
@@ -240,6 +288,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/imprimir': typeof ImprimirRouteWithChildren
   '/login': typeof LoginRoute
   '/_app/$': typeof AppSplatRoute
   '/_app/cuenta': typeof AppCuentaRoute
@@ -248,11 +297,16 @@ export interface FileRoutesById {
   '/_app/roles/$id': typeof AppRolesIdRoute
   '/_app/trabajos/$id': typeof AppTrabajosIdRoute
   '/_app/usuarios/$id': typeof AppUsuariosIdRoute
+  '/imprimir/contrato/$id': typeof ImprimirContratoIdRoute
+  '/imprimir/cotizacion/$id': typeof ImprimirCotizacionIdRoute
+  '/imprimir/recibo/$id': typeof ImprimirReciboIdRoute
   '/_app/agenda/': typeof AppAgendaIndexRoute
   '/_app/auditoria/': typeof AppAuditoriaIndexRoute
   '/_app/ausencias/': typeof AppAusenciasIndexRoute
   '/_app/calendario/': typeof AppCalendarioIndexRoute
   '/_app/contratos/': typeof AppContratosIndexRoute
+  '/_app/cotizaciones/': typeof AppCotizacionesIndexRoute
+  '/_app/documentos/': typeof AppDocumentosIndexRoute
   '/_app/entregables/': typeof AppEntregablesIndexRoute
   '/_app/horas-extra/': typeof AppHorasExtraIndexRoute
   '/_app/parametros/': typeof AppParametrosIndexRoute
@@ -272,6 +326,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/imprimir'
     | '/login'
     | '/$'
     | '/cuenta'
@@ -279,11 +334,16 @@ export interface FileRouteTypes {
     | '/roles/$id'
     | '/trabajos/$id'
     | '/usuarios/$id'
+    | '/imprimir/contrato/$id'
+    | '/imprimir/cotizacion/$id'
+    | '/imprimir/recibo/$id'
     | '/agenda/'
     | '/auditoria/'
     | '/ausencias/'
     | '/calendario/'
     | '/contratos/'
+    | '/cotizaciones/'
+    | '/documentos/'
     | '/entregables/'
     | '/horas-extra/'
     | '/parametros/'
@@ -300,6 +360,7 @@ export interface FileRouteTypes {
     | '/prospectos/$id/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/imprimir'
     | '/login'
     | '/$'
     | '/cuenta'
@@ -308,11 +369,16 @@ export interface FileRouteTypes {
     | '/roles/$id'
     | '/trabajos/$id'
     | '/usuarios/$id'
+    | '/imprimir/contrato/$id'
+    | '/imprimir/cotizacion/$id'
+    | '/imprimir/recibo/$id'
     | '/agenda'
     | '/auditoria'
     | '/ausencias'
     | '/calendario'
     | '/contratos'
+    | '/cotizaciones'
+    | '/documentos'
     | '/entregables'
     | '/horas-extra'
     | '/parametros'
@@ -330,6 +396,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_app'
+    | '/imprimir'
     | '/login'
     | '/_app/$'
     | '/_app/cuenta'
@@ -338,11 +405,16 @@ export interface FileRouteTypes {
     | '/_app/roles/$id'
     | '/_app/trabajos/$id'
     | '/_app/usuarios/$id'
+    | '/imprimir/contrato/$id'
+    | '/imprimir/cotizacion/$id'
+    | '/imprimir/recibo/$id'
     | '/_app/agenda/'
     | '/_app/auditoria/'
     | '/_app/ausencias/'
     | '/_app/calendario/'
     | '/_app/contratos/'
+    | '/_app/cotizaciones/'
+    | '/_app/documentos/'
     | '/_app/entregables/'
     | '/_app/horas-extra/'
     | '/_app/parametros/'
@@ -361,6 +433,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
+  ImprimirRoute: typeof ImprimirRouteWithChildren
   LoginRoute: typeof LoginRoute
 }
 
@@ -371,6 +444,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/imprimir': {
+      id: '/imprimir'
+      path: '/imprimir'
+      fullPath: '/imprimir'
+      preLoaderRoute: typeof ImprimirRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -434,6 +514,20 @@ declare module '@tanstack/react-router' {
       path: '/contratos'
       fullPath: '/contratos/'
       preLoaderRoute: typeof AppContratosIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/cotizaciones/': {
+      id: '/_app/cotizaciones/'
+      path: '/cotizaciones'
+      fullPath: '/cotizaciones/'
+      preLoaderRoute: typeof AppCotizacionesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/documentos/': {
+      id: '/_app/documentos/'
+      path: '/documentos'
+      fullPath: '/documentos/'
+      preLoaderRoute: typeof AppDocumentosIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/entregables/': {
@@ -541,6 +635,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppUsuariosIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/imprimir/contrato/$id': {
+      id: '/imprimir/contrato/$id'
+      path: '/contrato/$id'
+      fullPath: '/imprimir/contrato/$id'
+      preLoaderRoute: typeof ImprimirContratoIdRouteImport
+      parentRoute: typeof ImprimirRoute
+    }
+    '/imprimir/cotizacion/$id': {
+      id: '/imprimir/cotizacion/$id'
+      path: '/cotizacion/$id'
+      fullPath: '/imprimir/cotizacion/$id'
+      preLoaderRoute: typeof ImprimirCotizacionIdRouteImport
+      parentRoute: typeof ImprimirRoute
+    }
+    '/imprimir/recibo/$id': {
+      id: '/imprimir/recibo/$id'
+      path: '/recibo/$id'
+      fullPath: '/imprimir/recibo/$id'
+      preLoaderRoute: typeof ImprimirReciboIdRouteImport
+      parentRoute: typeof ImprimirRoute
+    }
     '/_app/prospectos/$id/': {
       id: '/_app/prospectos/$id/'
       path: '/prospectos/$id'
@@ -578,6 +693,8 @@ interface AppRouteChildren {
   AppAusenciasIndexRoute: typeof AppAusenciasIndexRoute
   AppCalendarioIndexRoute: typeof AppCalendarioIndexRoute
   AppContratosIndexRoute: typeof AppContratosIndexRoute
+  AppCotizacionesIndexRoute: typeof AppCotizacionesIndexRoute
+  AppDocumentosIndexRoute: typeof AppDocumentosIndexRoute
   AppEntregablesIndexRoute: typeof AppEntregablesIndexRoute
   AppHorasExtraIndexRoute: typeof AppHorasExtraIndexRoute
   AppParametrosIndexRoute: typeof AppParametrosIndexRoute
@@ -607,6 +724,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppAusenciasIndexRoute: AppAusenciasIndexRoute,
   AppCalendarioIndexRoute: AppCalendarioIndexRoute,
   AppContratosIndexRoute: AppContratosIndexRoute,
+  AppCotizacionesIndexRoute: AppCotizacionesIndexRoute,
+  AppDocumentosIndexRoute: AppDocumentosIndexRoute,
   AppEntregablesIndexRoute: AppEntregablesIndexRoute,
   AppHorasExtraIndexRoute: AppHorasExtraIndexRoute,
   AppParametrosIndexRoute: AppParametrosIndexRoute,
@@ -625,8 +744,25 @@ const AppRouteChildren: AppRouteChildren = {
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface ImprimirRouteChildren {
+  ImprimirContratoIdRoute: typeof ImprimirContratoIdRoute
+  ImprimirCotizacionIdRoute: typeof ImprimirCotizacionIdRoute
+  ImprimirReciboIdRoute: typeof ImprimirReciboIdRoute
+}
+
+const ImprimirRouteChildren: ImprimirRouteChildren = {
+  ImprimirContratoIdRoute: ImprimirContratoIdRoute,
+  ImprimirCotizacionIdRoute: ImprimirCotizacionIdRoute,
+  ImprimirReciboIdRoute: ImprimirReciboIdRoute,
+}
+
+const ImprimirRouteWithChildren = ImprimirRoute._addFileChildren(
+  ImprimirRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
+  ImprimirRoute: ImprimirRouteWithChildren,
   LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport

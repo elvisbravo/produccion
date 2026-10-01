@@ -75,6 +75,8 @@ export function aDetalle(p: ProspectoConDetalle, tareas: TareaItem[]): Prospecto
     detalles: p.detalles,
     etapa: p.etapa,
     temperatura: p.temperatura,
+    montoCotizado: p.montoCotizado === null ? null : Number(p.montoCotizado),
+    fechaCotizacion: soloFecha(p.fechaCotizacion),
     contactos: p.contactos.map((c) => ({ ...c.persona, esPrincipal: c.esPrincipal })),
     captadoPor: p.captadoPor,
     responsable: p.responsable,

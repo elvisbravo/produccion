@@ -1,13 +1,14 @@
-import { diaEnLima, enlaceWhatsapp, formatearCelular, NOMBRE_TIPO_DOCUMENTO, type CatalogosProspecto, type ProspectoEventoItem, type ResultadoCompletar, type TareaItem } from '@grupoes/shared'
+import { diaEnLima, enlaceWhatsapp, formatearCelular, formatearSoles, NOMBRE_TIPO_DOCUMENTO, type CatalogosProspecto, type ProspectoEventoItem, type ResultadoCompletar, type TareaItem } from '@grupoes/shared'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
-import { ArrowLeft, BadgeCheck, BriefcaseBusiness, CalendarPlus, ClipboardList, ExternalLink, FilePenLine, History, MessageCircle, Pencil, Plus, Star } from 'lucide-react'
+import { ArrowLeft, BadgeCheck, BriefcaseBusiness, CalendarPlus, ClipboardList, ExternalLink, FilePenLine, FileText, History, MessageCircle, Pencil, Plus, Star } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Can } from '@/components/can'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { CotizacionesProspecto } from '@/features/documentos/components/cotizaciones-prospecto'
 import { catalogosProspectoQuery, prospectoQuery } from '@/features/prospectos/api'
 import { InsigniaEtapa, InsigniaPrioridad, InsigniaTemperatura } from '@/features/prospectos/components/insignias'
 import { MenuCambioEtapa, DialogoPerdido } from '@/features/seguimiento/components/cambio-etapa'
@@ -125,6 +126,11 @@ function DetalleProspecto() {
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="flex flex-col gap-6">
           <Actividades prospectoId={p.id} tareas={p.tareas} cerrado={p.etapa.clase !== 'abierta'} catalogos={catalogos} onCompletada={alCompletar} />
+          <CotizacionesProspecto
+            prospectoId={p.id}
+            abierto={p.etapa.clase === 'abierta' && !p.trabajo}
+            descripcionSugerida={[p.tipoTrabajo.nombre, p.titulo].filter(Boolean).join(': ')}
+          />
 
           <Card>
             <CardHeader>
@@ -225,6 +231,12 @@ function DetalleProspecto() {
                   {p.captadoPor.nombres} {p.captadoPor.apellidos}
                 </Dato>
                 <Dato etiqueta="Registrado">{formatearFechaHora(p.creadoEn)}</Dato>
+                {p.montoCotizado !== null && (
+                  <Dato etiqueta="Monto cotizado">
+                    {formatearSoles(p.montoCotizado)}
+                    {p.fechaCotizacion && <span className="text-muted-foreground"> · {formatearFecha(p.fechaCotizacion)}</span>}
+                  </Dato>
+                )}
               </dl>
             </CardContent>
           </Card>
@@ -268,6 +280,7 @@ const ICONO_EVENTO: Record<ProspectoEventoItem['tipo'], typeof Plus> = {
   contacto: MessageCircle,
   reasignado: History,
   tarea: ClipboardList,
+  cotizacion: FileText,
 }
 
 function Evento({ evento }: { evento: ProspectoEventoItem }) {

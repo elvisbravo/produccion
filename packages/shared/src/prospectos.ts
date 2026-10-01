@@ -227,7 +227,7 @@ export interface Paginado<T> {
 
 export interface ProspectoEventoItem {
   id: string
-  tipo: 'creado' | 'editado' | 'cambio_etapa' | 'nota' | 'contacto' | 'reasignado' | 'tarea'
+  tipo: 'creado' | 'editado' | 'cambio_etapa' | 'nota' | 'contacto' | 'reasignado' | 'tarea' | 'cotizacion'
   detalle: string
   usuario: UsuarioResumen | null
   fecha: string
@@ -250,6 +250,9 @@ export interface ProspectoDetalle {
   detalles: string | null
   etapa: { id: string; nombre: string; color: string; clase: 'abierta' | 'ganada' | 'perdida' }
   temperatura: Temperatura | null
+  /** De la última cotización vigente. */
+  montoCotizado: number | null
+  fechaCotizacion: string | null
   contactos: (PersonaResumen & { esPrincipal: boolean })[]
   captadoPor: UsuarioResumen
   responsable: UsuarioResumen

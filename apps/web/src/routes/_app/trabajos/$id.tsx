@@ -12,7 +12,7 @@ import {
 } from '@grupoes/shared'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
-import { ArrowLeft, Ban, ExternalLink, History, MessageCircle, Plus, Star, Users } from 'lucide-react'
+import { ArrowLeft, Ban, ExternalLink, History, MessageCircle, Plus, Printer, Star, Users } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Can } from '@/components/can'
 import { Badge } from '@/components/ui/badge'
@@ -88,7 +88,7 @@ function DetalleTrabajo() {
         <div className="flex flex-col gap-6">
           <UrgenciaDelTrabajo trabajoId={t.id} cerrado={['finalizado', 'cancelado'].includes(t.estado)} />
           <SeccionEntregables t={t} />
-          {t.contrato && <Contrato contrato={t.contrato} />}
+          {t.contrato && <Contrato contrato={t.contrato} trabajoId={t.id} />}
           <Card>
             <CardHeader>
               <CardTitle>Integrantes</CardTitle>
@@ -221,7 +221,7 @@ function Equipo({ t }: { t: TrabajoDetalle }) {
   )
 }
 
-function Contrato({ contrato: c }: { contrato: ContratoDetalle }) {
+function Contrato({ contrato: c, trabajoId }: { contrato: ContratoDetalle; trabajoId: string }) {
   const [pagando, setPagando] = useState(false)
   const [anulando, setAnulando] = useState<PagoDetalle | null>(null)
 
@@ -234,14 +234,26 @@ function Contrato({ contrato: c }: { contrato: ContratoDetalle }) {
             Firmado el {formatearFecha(c.fechaFirma)} · {c.formaPago === 'contado' ? 'al contado' : `${c.cuotas?.length ?? ''} cuotas`} · garantía de {c.diasGarantia} días
           </CardDescription>
         </div>
-        {c.cuenta && c.cuenta.saldo > 0 && c.estado === 'vigente' && (
-          <Can permiso="contratos.registrar_pago">
-            <Button size="sm" onClick={() => setPagando(true)}>
-              <Plus />
-              Registrar pago
-            </Button>
-          </Can>
-        )}
+        <div className="flex flex-wrap justify-end gap-2">
+          {c.cuenta && (
+            <Can permiso="contratos.imprimir">
+              <Button size="sm" variant="outline" asChild>
+                <Link to="/imprimir/contrato/$id" params={{ id: trabajoId }} target="_blank">
+                  <Printer />
+                  Contrato
+                </Link>
+              </Button>
+            </Can>
+          )}
+          {c.cuenta && c.cuenta.saldo > 0 && c.estado === 'vigente' && (
+            <Can permiso="contratos.registrar_pago">
+              <Button size="sm" onClick={() => setPagando(true)}>
+                <Plus />
+                Registrar pago
+              </Button>
+            </Can>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         {!c.cuenta ? (
@@ -297,13 +309,21 @@ function Contrato({ contrato: c }: { contrato: ContratoDetalle }) {
                       <span className="text-muted-foreground">
                         {formatearFecha(p.fecha)} · cuota {p.cuotas.map((x) => x.numero).join(', ')}
                       </span>
+                      <Can permiso="contratos.imprimir">
+                        <Button variant="ghost" size="sm" className="ml-auto" asChild>
+                          <Link to="/imprimir/recibo/$id" params={{ id: p.id }} target="_blank">
+                            <Printer />
+                            Recibo
+                          </Link>
+                        </Button>
+                      </Can>
                       {p.anulado ? (
-                        <Badge variant="outline" className="ml-auto">
+                        <Badge variant="outline">
                           Anulado{p.anulado.motivo ? `: ${p.anulado.motivo}` : ''}
                         </Badge>
                       ) : (
                         <Can permiso="contratos.anular">
-                          <Button variant="ghost" size="sm" className="ml-auto text-muted-foreground" onClick={() => setAnulando(p)}>
+                          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setAnulando(p)}>
                             <Ban />
                             Anular
                           </Button>

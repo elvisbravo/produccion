@@ -104,7 +104,15 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | GET | `/api/reportes/rentabilidad` | Margen por trabajo y agrupado (confidencial: exige `usuarios.ver_costo_hora`) |
 | GET/POST/DELETE | `/api/usuarios/:id/costos-hora` | Costo por hora con vigencia (confidencial; para guardarlo, además `usuarios.editar`) |
 | GET | `/api/reportes/tiempos?desde&hasta` | Estimado frente a real por actividad, por persona y mayores diferencias |
+| GET/POST | `/api/prospectos/:id/cotizaciones` | Cotizaciones del prospecto; emitir una (ítems, validez, forma de pago) guarda el monto cotizado y lo pasa a la etapa marcada "al cotizar" |
+| GET/POST | `/api/cotizaciones`, `/api/cotizaciones/:id/anular` | Listado (búsqueda y estado: vigente, vencida, anulada) y anulación con motivo |
+| GET | `/api/documentos/cotizacion/:id`, `…/contrato/:trabajoId`, `…/recibo/:pagoId` | Datos para imprimir, con el texto de la plantilla ya rellenado y el monto en letras |
+| GET/PUT | `/api/documentos/configuracion` | Membrete de la empresa y plantillas de texto (con variables `{cliente}`, `{monto}`…) |
 | WS | `/api/socket.io` | Avisos en vivo (Socket.IO). La web se conecta con su access token en `auth.token`; cada usuario tiene su sala |
+
+### Documentos imprimibles
+
+La web arma la cotización, el contrato y el recibo como hojas A4 en `/imprimir/…` (sin el menú) y se imprimen o guardan en PDF desde el navegador. Los textos son plantillas editables en **Configuración → Documentos**; mientras no se carguen los formatos de la empresa se usan textos provisionales (`PLANTILLAS_POR_DEFECTO` en `packages/shared/src/documentos.ts`). Un dato que falta se imprime como una línea para completarlo a mano.
 
 ### Avisos automáticos
 

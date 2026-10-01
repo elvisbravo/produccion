@@ -942,5 +942,11 @@ Diferencias entre el diseño de arriba y lo que ya está en `apps/api/prisma/sch
 | `tope_horas_extra_usuario` | Nueva: tope semanal y mensual propio de una persona (vacío = sin tope) | Excepción al tope global de los parámetros |
 | `registro_tiempo` | Tramos con `inicio`, `fin` y `minutos` (al cerrar), `manual` con `motivo` obligatorio, `auto_cerrado`; un solo tramo abierto por persona (índice parcial) | Cronómetro por tarea; la cola planifica solo lo que falta |
 | `costo_hora_usuario` | Nueva: costo por hora con `vigente_desde` (único por persona y fecha). Confidencial: la auditoría registra el cambio sin el monto | Rentabilidad sin alterar el pasado |
+| `cotizacion` | Estados: emitida / anulada (con motivo); "vencida" se calcula con fecha + validez. Sin `pdf_archivo_id`: el PDF lo genera el navegador al imprimir. `CHECK`: validez 1–365 días, total > 0 | El monto cotizado del prospecto es el de su última cotización vigente |
+| `cotizacion_item` | + `orden` (único por cotización) | Orden de impresión |
+| `plantilla_documento` | Una por tipo (`tipo` es la llave), solo texto con variables; sin nombre ni "activa". Sin fila = texto provisional | Editable en Configuración → Documentos |
+| `etapa_prospecto` | + `al_cotizar` (una sola etapa, índice parcial) | El prospecto pasa a esa etapa al emitirle una cotización |
+| `prospecto_evento` | + tipo `cotizacion` | Línea de tiempo |
+| `parametro` | `empresa.datos` (JSON): razón social, nombre comercial, RUC, dirección, teléfono, correo, web y cuentas | Membrete de los documentos |
 | `notificacion` | `tipo` como "área.evento" (texto, no enum: los tipos crecen sin migraciones), `titulo`, `mensaje`, `enlace` (ruta de la web) en lugar de entidad + id; `clave` única por usuario para no repetir avisos automáticos; `leida_en` en lugar de un booleano | La web navega directo al enlace |
 | `parametro` | `horas_extra.tope_semanal` / `horas_extra.tope_mensual` (horas; sin valor = sin tope). `tope_horas_extra_usuario` aún no se crea | Excepciones por persona: con la administración de usuarios |

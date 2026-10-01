@@ -10,5 +10,6 @@ import { TrabajosService } from './trabajos.service.js';
   imports: [PersonasModule, ProduccionModule],
   controllers: [TrabajosController, EntregablesController, ContingenciasController],
   providers: [TrabajosService],
+  exports: [TrabajosService],
 })
 export class TrabajosModule {}

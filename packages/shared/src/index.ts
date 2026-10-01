@@ -12,3 +12,4 @@ export * from './notificaciones.js';
 export * from './administracion.js';
 export * from './tiempo.js';
 export * from './reportes.js';
+export * from './documentos.js';

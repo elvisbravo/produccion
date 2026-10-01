@@ -157,6 +157,10 @@ export const MODULOS = [
     acciones: [ver(), editar()],
   },
   {
+    codigo: 'documentos', nombre: 'Documentos', padre: 'configuracion', ruta: '/documentos', icono: 'FileCog', orden: 47,
+    acciones: [ver(), editar()],
+  },
+  {
     codigo: 'calendario', nombre: 'Horarios y feriados', padre: 'configuracion', ruta: '/calendario', icono: 'CalendarCog', orden: 46,
     acciones: [ver(), editar()],
   },

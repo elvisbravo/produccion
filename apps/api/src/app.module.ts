@@ -6,6 +6,7 @@ import { AgendaModule } from './agenda/agenda.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { NotificacionesModule } from './notificaciones/notificaciones.module.js';
 import { RecordatoriosModule } from './recordatorios/recordatorios.module.js';
+import { DocumentosModule } from './documentos/documentos.module.js';
 import { ReportesModule } from './reportes/reportes.module.js';
 import { CatalogosModule } from './catalogos/catalogos.module.js';
 import { CommonModule } from './common/common.module.js';
@@ -36,6 +37,7 @@ import { SaludController } from './salud/salud.controller.js';
     RecordatoriosModule,
     AdministracionModule,
     ReportesModule,
+    DocumentosModule,
   ],
   controllers: [SaludController],
 })

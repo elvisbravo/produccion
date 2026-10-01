@@ -191,7 +191,7 @@ async function sembrarCatalogos() {
       { nombre: 'Contactado', orden: 2, color: '#60a5fa' },
       { nombre: 'Enfoque agendado', orden: 3, color: '#818cf8' },
       { nombre: 'Enfoque realizado', orden: 4, color: '#a78bfa' },
-      { nombre: 'Cotizado', orden: 5, color: '#f59e0b' },
+      { nombre: 'Cotizado', orden: 5, color: '#f59e0b', alCotizar: true },
       { nombre: 'Negociación', orden: 6, color: '#fb923c' },
       { nombre: 'Convertido', orden: 7, color: '#16a34a', clase: 'ganada' as const },
       { nombre: 'Perdido', orden: 8, color: '#71717a', clase: 'perdida' as const },
