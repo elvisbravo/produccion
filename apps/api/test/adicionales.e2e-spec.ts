@@ -1,7 +1,7 @@
 /**
  * Pruebas e2e de los adicionales del contrato (base produccion_test).
  */
-import { diaEnLima, sumarDias, type CatalogosProspecto, type DocumentoRecibo, type ProspectoDetalle, type TrabajoDetalle } from '@grupoes/shared';
+import { diaEnLima, sumarDias, type CatalogosProspecto, type DocumentoContrato, type DocumentoRecibo, type ProspectoDetalle, type TrabajoDetalle } from '@grupoes/shared';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -117,6 +117,11 @@ describe('Adicionales del contrato (e2e)', () => {
     expect(trabajo.contrato!.cuotas!.filter((q) => q.adicional === 1).map((q) => q.numero)).toEqual([2, 3]);
     expect(trabajo.eventos[0].tipo).toBe('adicional');
     await accion('ana', id, 'aceptar').expect(409);
+
+    // El contrato impreso sigue siendo lo firmado: ni sus cuotas ni su total incluyen el adicional.
+    const impreso = (await http().get(`/api/documentos/contrato/${trabajo.id}`).set(como('ana')).expect(200)).body as DocumentoContrato;
+    expect(impreso.cuotas.map((q) => q.numero)).toEqual([1]);
+    expect(impreso.montoTotal).toBe(1000);
 
     for (const q of ['jefe', 'prod'] as const) {
       const avisos = await prisma.notificacion.findMany({ where: { usuarioId: ids[q], tipo: 'trabajo.adicional' } });

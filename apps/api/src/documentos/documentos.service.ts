@@ -173,7 +173,8 @@ export class DocumentosService {
         universidad: true,
         carrera: true,
         integrantes: { orderBy: [{ esTitular: 'desc' }, { orden: 'asc' }], include: { persona: true } },
-        contrato: { include: { cuotas: { orderBy: { numero: 'asc' } } } },
+        // El contrato impreso es lo firmado: las cuotas de los adicionales van en su propia adenda.
+        contrato: { include: { cuotas: { where: { adicionalId: null }, orderBy: { numero: 'asc' } } } },
       },
     });
     if (!t.contrato) throw new NotFoundException('El trabajo no tiene contrato');
