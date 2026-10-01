@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useActivarUsuario, useDesbloquear, useEditarUsuario, useRestablecerClave, useTopesUsuario, usuarioQuery } from '@/features/administracion/api'
 import { DialogoClaveTemporal } from '@/features/administracion/components/dialogos-usuario'
+import { CostoHoraUsuario } from '@/features/reportes/components/costo-hora'
 import { ExcepcionesDelUsuario, PermisosEfectivos, RolesDelUsuario } from '@/features/administracion/components/permisos-usuario'
 import { ApiError } from '@/lib/api'
 import { formatearFechaHora, haceCuanto } from '@/lib/formato'
@@ -82,6 +83,7 @@ function DetalleUsuario() {
         <TabsContent value="datos" className="mt-4 flex flex-col gap-6">
           <DatosUsuario key={u.id} u={u} />
           <TopesHorasExtra key={`topes-${u.id}`} u={u} />
+          <CostoHoraUsuario usuarioId={u.id} />
         </TabsContent>
         <TabsContent value="seguridad" className="mt-4 flex flex-col gap-6">
           <Seguridad u={u} />

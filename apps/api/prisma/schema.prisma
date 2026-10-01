@@ -66,6 +66,7 @@ model Usuario {
   notificaciones     Notificacion[]     @relation("NotificacionDelUsuario")
   topeHorasExtra     TopeHorasExtraUsuario?
   tiempos            RegistroTiempo[]   @relation("TiempoDelUsuario")
+  costosHora         CostoHoraUsuario[] @relation("CostoDelUsuario")
   extrasPropuestas   HoraExtraBono[]    @relation("ExtraPropuestaPor")
   extrasAprobadas    HoraExtraBono[]    @relation("ExtraAprobadaPor")
   entregasEnviadas   EntregaCliente[]   @relation("EntregaEnviadaPor")
@@ -1441,4 +1442,21 @@ model RegistroTiempo {
   @@index([tareaId])
   @@index([usuarioId, inicio])
   @@map("registro_tiempo")
+}
+
+// ─── Costos (confidencial) ──────────────────────────────────
+
+/// Costo por hora de una persona desde una fecha (rige hasta el siguiente cambio). Confidencial.
+model CostoHoraUsuario {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  usuarioId    String   @map("usuario_id") @db.Uuid
+  costo        Decimal  @db.Decimal(10, 2)
+  vigenteDesde DateTime @map("vigente_desde") @db.Date
+  creadoPorId  String?  @map("creado_por_id") @db.Uuid
+  creadoEn     DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+
+  usuario Usuario @relation("CostoDelUsuario", fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, vigenteDesde])
+  @@map("costo_hora_usuario")
 }

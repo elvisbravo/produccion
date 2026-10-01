@@ -99,6 +99,9 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | GET | `/api/tiempo/activo` | El cronómetro que la persona tiene corriendo (`{ activo }`) |
 | POST | `/api/tareas/:id/cronometro/iniciar`, `…/pausar` | Cronómetro por tarea (uno a la vez: iniciar otra pausa la anterior) |
 | GET/POST/DELETE | `/api/tareas/:id/tiempo`, `…/tiempo/:registroId` | Tramos registrados y registro manual (con motivo) |
+| GET | `/api/reportes/tablero`, `…/puntualidad`, `…/retrabajo`, `…/ocupacion`, `…/cobranza` | Indicadores del periodo (`?desde&hasta`; por defecto, el mes en curso) |
+| GET | `/api/reportes/rentabilidad` | Margen por trabajo y agrupado (confidencial: exige `usuarios.ver_costo_hora`) |
+| GET/POST/DELETE | `/api/usuarios/:id/costos-hora` | Costo por hora con vigencia (confidencial; para guardarlo, además `usuarios.editar`) |
 | GET | `/api/reportes/tiempos?desde&hasta` | Estimado frente a real por actividad, por persona y mayores diferencias |
 | WS | `/api/socket.io` | Avisos en vivo (Socket.IO). La web se conecta con su access token en `auth.token`; cada usuario tiene su sala |
 
