@@ -47,6 +47,7 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | `pnpm db:seed` | Carga los datos iniciales (se puede repetir sin duplicar) |
 | `pnpm db:demo` | Crea un usuario de demostración por rol (solo desarrollo; contraseña en `SEED_DEMO_PASSWORD`) |
 | `pnpm db:studio` | Abre Prisma Studio para ver los datos |
+| `pnpm --filter @grupoes/api admin:restablecer <correo>` | Recuperación de acceso desde la consola: muestra una contraseña temporal, desbloquea la cuenta, cierra sus sesiones y obliga a cambiarla al entrar. El `SEED_ADMIN_PASSWORD` del `.env` solo se usa al crear el administrador por primera vez |
 | `pnpm typecheck` / `pnpm lint` | Revisión de tipos y linter de API y frontend |
 | `pnpm test` | Pruebas unitarias |
 | `pnpm test:e2e` | Pruebas e2e contra la base `produccion_test` (se crea, migra y carga sola; nunca toca la de desarrollo) |

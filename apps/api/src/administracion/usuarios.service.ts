@@ -1,4 +1,3 @@
-import { randomInt } from 'node:crypto';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   EVENTO_SESION_ACTUALIZADA,
@@ -13,6 +12,7 @@ import {
   type UsuarioDetalle,
   type UsuarioListadoItem,
 } from '@grupoes/shared';
+import { generarClaveTemporal } from '../auth/clave-temporal.js';
 import { hashPassword } from '../auth/password.js';
 import { AuditoriaService } from '../common/auditoria.service.js';
 import { Prisma } from '../generated/prisma/client.js';
@@ -31,20 +31,6 @@ type UsuarioConRoles = Prisma.UsuarioGetPayload<{ include: typeof INCLUIR }>;
 const soloFecha = (d: Date) => d.toISOString().slice(0, 10);
 const errorCampo = (campo: string, mensaje: string) => new BadRequestException({ message: 'Datos inválidos', errores: [{ campo, mensaje }] });
 const esDuplicado = (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002';
-
-/** Contraseña temporal legible (sin 0/O ni 1/l/I), con letras y números. */
-export function generarClaveTemporal(largo = 12): string {
-  const letras = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ';
-  const digitos = '23456789';
-  const todos = letras + digitos;
-  const caracteres = [letras[randomInt(letras.length)], digitos[randomInt(digitos.length)]];
-  while (caracteres.length < largo) caracteres.push(todos[randomInt(todos.length)]);
-  for (let i = caracteres.length - 1; i > 0; i--) {
-    const j = randomInt(i + 1);
-    [caracteres[i], caracteres[j]] = [caracteres[j], caracteres[i]];
-  }
-  return caracteres.join('');
-}
 
 @Injectable()
 export class UsuariosService {

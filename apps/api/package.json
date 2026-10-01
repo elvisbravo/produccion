@@ -26,7 +26,8 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "db:demo": "tsx prisma/demo.ts"
+    "db:demo": "tsx prisma/demo.ts",
+    "admin:restablecer": "tsx prisma/restablecer-clave.ts"
   },
   "dependencies": {
     "@grupoes/shared": "workspace:*",
