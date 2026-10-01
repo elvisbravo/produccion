@@ -948,6 +948,7 @@ Diferencias entre el diseño de arriba y lo que ya está en `apps/api/prisma/sch
 | `etapa_prospecto` | + `al_cotizar` (una sola etapa, índice parcial) | El prospecto pasa a esa etapa al emitirle una cotización |
 | `prospecto_evento` | + tipo `cotizacion` | Línea de tiempo |
 | `parametro` | `empresa.datos` (JSON): razón social, nombre comercial, RUC, dirección, teléfono, correo, web y cuentas | Membrete de los documentos |
+| `parametro` | + `horas_extra.recargo` (%, por defecto 25): se suma al costo por hora de las horas extra en la rentabilidad. No afecta bonos, pagos ni trabajos con tope | Se recalcula con el valor vigente (no se guarda por hora extra) |
 | `comentario` | `entidad` es enum (prospecto, trabajo, entregable, tarea); las menciones van en el texto como `@[Nombre](id)`; `editado_en` en lugar de un booleano; eliminación lógica. `CHECK`: texto de 1 a 5000 caracteres | Lo ve y escribe quien ve el registro; solo el autor edita o elimina |
 | `comentario_mencion` | Solo personas activas con acceso al registro | Aviso `comentario.mencion` en la campanita |
 | `adicional` | Cuelga del contrato (no del trabajo); + `numero` correlativo por contrato, `cuotas_propuestas` (JSON) mientras está propuesto, estado + anulado, `respondido_por/en` y `motivo` (rechazo o anulación). `CHECK`: monto > 0; respondido si no está propuesto; motivo si se rechaza o anula | Al aceptarlo, las cuotas se crean en el contrato numeradas después de las existentes |

@@ -22,6 +22,7 @@ import {
 } from '@grupoes/shared';
 import { AgendaService } from '../agenda/agenda.service.js';
 import { AuditoriaService } from '../common/auditoria.service.js';
+import { ParametrosService } from '../parametros/parametros.service.js';
 import { PermisosService } from '../permisos/permisos.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -69,6 +70,7 @@ export class ReportesService {
     private readonly agenda: AgendaService,
     private readonly permisos: PermisosService,
     private readonly auditoria: AuditoriaService,
+    private readonly parametros: ParametrosService,
   ) {}
 
   /** Auxiliar principal de cada trabajo (el vigente o, si terminó, el último que tuvo). */
@@ -285,9 +287,11 @@ export class ReportesService {
 
   /**
    * Trabajos con contrato firmado en el periodo: ingresos (monto del contrato) menos horas reales por el costo
-   * por hora vigente de cada persona, menos horas extra (a su costo por hora) y bonos.
+   * por hora vigente de cada persona, menos horas extra (a su costo por hora más el recargo) y bonos.
    */
   async rentabilidad(p: Periodo): Promise<ReporteRentabilidad> {
+    // Una hora extra cuesta el costo por hora de la persona más este recargo (los bonos van por su monto).
+    const factorExtra = 1 + (await this.parametros.numero('horas_extra.recargo')) / 100;
     const trabajos = await this.prisma.trabajo.findMany({
       where: { eliminadoEn: null, estado: { not: 'cancelado' }, contrato: { estado: 'vigente', fechaFirma: { gte: aFecha(p.desde), lte: aFecha(p.hasta) } } },
       include: {
@@ -323,7 +327,7 @@ export class ReportesService {
         if (x.modalidad === 'bono') bonos += Number(x.monto);
         else {
           const costo = costoEn(costos, x.usuarioId, soloFecha(x.fecha!)) ?? 0;
-          costoExtras += ((x.minutosReales ?? x.minutoFin! - x.minutoInicio!) / 60) * costo;
+          costoExtras += ((x.minutosReales ?? x.minutoFin! - x.minutoInicio!) / 60) * costo * factorExtra;
         }
       }
       const margen = ingresos - costoPersonal - costoExtras - bonos;

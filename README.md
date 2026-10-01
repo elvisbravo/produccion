@@ -102,7 +102,7 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | GET/POST/DELETE | `/api/tareas/:id/tiempo`, `…/tiempo/:registroId` | Tramos registrados y registro manual (con motivo) |
 | GET | `/api/reportes/tablero`, `…/puntualidad`, `…/retrabajo`, `…/ocupacion`, `…/cobranza` | Indicadores del periodo (`?desde&hasta`; por defecto, el mes en curso) |
 | GET | `/api/reportes/conversion` | Conversión del embudo: prospectos registrados en el periodo y en qué terminaron (convertidos, perdidos, abiertos), embudo por etapa, por origen, por asistente, por tipo, por mes y motivos de pérdida |
-| GET | `/api/reportes/rentabilidad` | Margen por trabajo y agrupado (confidencial: exige `usuarios.ver_costo_hora`) |
+| GET | `/api/reportes/rentabilidad` | Margen por trabajo y agrupado (confidencial: exige `usuarios.ver_costo_hora`). Las horas extra cuestan su costo por hora más el parámetro `horas_extra.recargo` (25 % por defecto) |
 | GET/POST/DELETE | `/api/usuarios/:id/costos-hora` | Costo por hora con vigencia (confidencial; para guardarlo, además `usuarios.editar`) |
 | GET | `/api/reportes/tiempos?desde&hasta` | Estimado frente a real por actividad, por persona y mayores diferencias |
 | GET | `/api/consultas/dni/:dni` | Busca un DNI (8 dígitos) en el servicio externo (`DNI_API_URL`, sin token) para rellenar nombres, apellidos y fecha de nacimiento. Siempre responde 200 con `encontrado`, `no_encontrado` o `no_disponible`; espera 8 s como máximo, limita a 30 consultas cada 10 min por persona y audita sin guardar el número |

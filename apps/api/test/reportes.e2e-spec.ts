@@ -125,6 +125,7 @@ describe('Tableros e indicadores (e2e)', () => {
   afterAll(async () => {
     const usuarios = Object.values(ids);
     await prisma.horaExtraBono.deleteMany({ where: { usuarioId: { in: usuarios } } });
+    await prisma.parametro.deleteMany({ where: { clave: 'horas_extra.recargo' } });
     await prisma.trabajo.deleteMany({ where: { prospecto: { responsableId: { in: usuarios } } } });
     await prisma.prospecto.deleteMany({ where: { responsableId: { in: usuarios } } });
     await prisma.persona.deleteMany({ where: { celular: { startsWith: `+519${sufijo}` } } });
@@ -180,6 +181,38 @@ describe('Tableros e indicadores (e2e)', () => {
     expect(t).toMatchObject({ ingresos: 1500, costoPersonal: 40, bonos: 100, margen: 1360, horas: 2, horasSinCosto: 0 });
     expect(t.margenPorcentaje).toBeCloseTo(0.907, 3);
     expect(r.porTipo.find((x) => x.nombre === 'Monografía')!.trabajos).toBeGreaterThanOrEqual(1);
+  });
+
+  it('las horas extra cuestan el costo por hora más el recargo de Parámetros', async () => {
+    // Una hora extra aprobada del auxiliar (S/ 20 la hora) en este trabajo.
+    await prisma.horaExtraBono.create({
+      data: {
+        usuarioId: ids.aux,
+        modalidad: 'horas_extra',
+        trabajoId: trabajo.id,
+        fecha: fecha(sumarDias(hoy, -1)),
+        minutoInicio: 1080,
+        minutoFin: 1140,
+        descripcion: 'Entrega urgente',
+        estado: 'aprobada',
+        propuestaPorId: ids.prod,
+        aprobadaPorId: ids.jefe,
+        aprobadaEn: new Date(),
+      },
+    });
+    const parametro = (valor: number) => http().put('/api/parametros').set(como('admin')).send({ valores: { 'horas_extra.recargo': valor } });
+    const delTrabajo = async () => (await reporte<ReporteRentabilidad>('admin', 'rentabilidad')).trabajos.find((x) => x.id === trabajo.id)!;
+
+    // Por defecto el recargo es 25 %: 1 h × S/ 20 × 1,25.
+    expect(await delTrabajo()).toMatchObject({ costoExtras: 25, margen: 1335 });
+    await parametro(0).expect(200);
+    expect(await delTrabajo()).toMatchObject({ costoExtras: 20, margen: 1340 });
+    await parametro(35).expect(200);
+    expect(await delTrabajo()).toMatchObject({ costoExtras: 27, margen: 1333 });
+    // Los bonos no llevan recargo y el valor debe estar dentro del rango.
+    expect((await delTrabajo()).bonos).toBe(100);
+    await parametro(-5).expect(400);
+    await parametro(500).expect(400);
   });
 
   it('el tablero resume todo; el margen solo con permiso de costos', async () => {

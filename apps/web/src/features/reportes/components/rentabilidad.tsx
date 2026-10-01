@@ -47,7 +47,7 @@ export function ReporteRentabilidadVista({ desde, hasta }: { desde: string; hast
       <Alert>
         <Lock />
         <AlertDescription>
-          Información confidencial. Margen = monto del contrato − horas registradas × costo por hora de cada persona − horas extra (a su costo por hora) − bonos. Los trabajos en
+          Información confidencial. Margen = monto del contrato − horas registradas × costo por hora de cada persona − horas extra (a su costo por hora más el recargo de Parámetros) − bonos. Los trabajos en
           curso aún acumulan horas.
         </AlertDescription>
       </Alert>

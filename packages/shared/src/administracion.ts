@@ -72,6 +72,15 @@ export const PARAMETROS = {
     min: 1,
     max: 30,
   },
+  'horas_extra.recargo': {
+    grupo: 'Horas extra',
+    nombre: 'Recargo en el costo',
+    descripcion: 'Porcentaje que se suma al costo por hora de las horas extra al calcular la rentabilidad (en Perú suele ser 25 %). 0 = cuestan igual que una hora normal. No calcula pagos',
+    unidad: '%',
+    porDefecto: 25,
+    min: 0,
+    max: 200,
+  },
   'horas_extra.tope_semanal': {
     grupo: 'Horas extra',
     nombre: 'Tope semanal',
