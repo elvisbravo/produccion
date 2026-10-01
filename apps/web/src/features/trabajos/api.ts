@@ -1,4 +1,5 @@
 import type {
+  AdicionalDatos,
   ArmarEquipoDatos,
   ConvertirProspectoDatos,
   ListarTrabajosFiltros,
@@ -96,6 +97,26 @@ export function useAnularPago() {
   return useMutation({
     mutationFn: ({ pagoId, motivo }: { pagoId: string; motivo: string }) =>
       api<TrabajoDetalle>(`/pagos/${pagoId}/anular`, { method: 'POST', body: { motivo } }),
+    onSuccess: guardar,
+  })
+}
+
+// ─── Adicionales ────────────────────────────────────────────
+
+export function useProponerAdicional(contratoId: string) {
+  const guardar = useGuardarDetalle()
+  return useMutation({
+    mutationFn: (datos: AdicionalDatos) => api<TrabajoDetalle>(`/contratos/${contratoId}/adicionales`, { method: 'POST', body: datos }),
+    onSuccess: guardar,
+  })
+}
+
+/** Aceptar, rechazar (con motivo) o anular (con motivo) un adicional. */
+export function useResponderAdicional() {
+  const guardar = useGuardarDetalle()
+  return useMutation({
+    mutationFn: ({ id, accion, motivo }: { id: string; accion: 'aceptar' | 'rechazar' | 'anular'; motivo?: string }) =>
+      api<TrabajoDetalle>(`/adicionales/${id}/${accion}`, { method: 'POST', body: motivo ? { motivo } : {} }),
     onSuccess: guardar,
   })
 }

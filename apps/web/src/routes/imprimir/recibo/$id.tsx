@@ -44,7 +44,7 @@ function Recibo() {
             ['Trabajo', `${d.trabajo.codigo} · ${d.trabajo.tipo}${d.trabajo.titulo ? ` · ${d.trabajo.titulo}` : ''}`],
             ['Medio de pago', `${d.metodo}${d.numeroOperacion ? ` · operación ${d.numeroOperacion}` : ''}`],
             ['Aplicado a', d.cuotas.map((q) => `cuota ${q.numero} (${formatearSoles(q.montoAplicado)})`).join(', ')],
-            ['Total del contrato', formatearSoles(d.totalContrato)],
+            ['Total de la cuenta', formatearSoles(d.totalContrato)],
             ['Saldo pendiente', formatearSoles(d.saldo)],
             ['Registrado por', registrador],
           ]}

@@ -153,6 +153,59 @@ export type ArmarEquipoDatos = z.output<typeof armarEquipoSchema>
 
 export const anularPagoSchema = z.object({ motivo: z.string().trim().min(3, 'Indica el motivo').max(300) })
 
+// ─── Adicionales del contrato ───────────────────────────────
+
+export const ESTADOS_ADICIONAL = ['propuesto', 'aceptado', 'rechazado', 'anulado'] as const
+export type EstadoAdicional = (typeof ESTADOS_ADICIONAL)[number]
+export const NOMBRE_ESTADO_ADICIONAL: Record<EstadoAdicional, string> = {
+  propuesto: 'Propuesto',
+  aceptado: 'Aceptado',
+  rechazado: 'Rechazado',
+  anulado: 'Anulado',
+}
+
+/** Trabajo fuera de lo acordado, con sus propias cuotas (que suman el monto). */
+export const adicionalSchema = z
+  .object({
+    descripcion: z.string().trim().min(3, 'Describe el adicional').max(500, 'Máximo 500 caracteres'),
+    monto: monto('Ingresa el monto del adicional'),
+    cuotas: z
+      .array(z.object({ monto: monto(), vencimiento: z.string().min(1, 'Elige la fecha').pipe(dia) }))
+      .min(1, 'Agrega al menos una cuota')
+      .max(12, 'Máximo 12 cuotas'),
+  })
+  .superRefine((d, ctx) => {
+    const suma = d.cuotas.reduce((s, c) => s + aCentimos(c.monto), 0)
+    if (suma !== aCentimos(d.monto)) {
+      ctx.addIssue({ code: 'custom', path: ['cuotas'], message: `Las cuotas suman ${formatearSoles(deCentimos(suma))} y el adicional es ${formatearSoles(d.monto)}` })
+    }
+    d.cuotas.forEach((c, i) => {
+      if (i > 0 && c.vencimiento < d.cuotas[i - 1].vencimiento) {
+        ctx.addIssue({ code: 'custom', path: ['cuotas', i, 'vencimiento'], message: 'Debe ser igual o posterior a la cuota anterior' })
+      }
+    })
+  })
+export type AdicionalFormulario = z.input<typeof adicionalSchema>
+export type AdicionalDatos = z.output<typeof adicionalSchema>
+
+export const motivoAdicionalSchema = z.object({ motivo: z.string().trim().min(3, 'Indica el motivo').max(300) })
+
+export interface AdicionalItem {
+  id: string
+  numero: number
+  descripcion: string
+  monto: number
+  estado: EstadoAdicional
+  /** Las propuestas; una vez aceptado, son las cuotas del contrato con número. */
+  cuotas: { numero: number | null; monto: number; vencimiento: string }[]
+  propuestoPor: UsuarioResumen
+  propuestoEn: string
+  respondido: { por: UsuarioResumen | null; en: string } | null
+  motivo: string | null
+  /** Aceptado y con pagos aplicados: ya no se puede anular. */
+  conPagos: boolean
+}
+
 export const listarTrabajosSchema = z.object({
   q: z.string().trim().max(100).optional(),
   estado: z.enum(ESTADOS_TRABAJO).optional(),
@@ -177,6 +230,8 @@ export interface MiembroEquipo {
 export interface CuotaDetalle {
   id: string
   numero: number
+  /** Número del adicional del que nace la cuota. */
+  adicional: number | null
   monto: number
   vencimiento: string
   pagado: number
@@ -216,8 +271,11 @@ export interface ContratoDetalle {
   finGarantia: string | null
   estado: 'vigente' | 'anulado'
   observaciones: string | null
+  /** Monto firmado (sin adicionales); null si el usuario no puede ver montos. */
+  montoContrato: number | null
   /** null si el usuario no puede ver montos. */
   cuenta: ResumenCuenta | null
+  adicionales: AdicionalItem[] | null
   cuotas: CuotaDetalle[] | null
   pagos: PagoDetalle[] | null
 }
@@ -244,7 +302,7 @@ export interface TrabajoListadoItem {
 
 export interface TrabajoEventoItem {
   id: string
-  tipo: 'creado' | 'editado' | 'equipo' | 'contrato' | 'pago' | 'estado' | 'entregable'
+  tipo: 'creado' | 'editado' | 'equipo' | 'contrato' | 'pago' | 'estado' | 'entregable' | 'adicional'
   detalle: string
   usuario: UsuarioResumen | null
   fecha: string

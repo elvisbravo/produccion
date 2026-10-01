@@ -25,6 +25,7 @@ import { UrgenciaDelTrabajo } from '@/features/produccion/components/urgencias'
 import { InsigniaPrioridad } from '@/features/prospectos/components/insignias'
 import { trabajoQuery } from '@/features/trabajos/api'
 import { DialogoAnularPago, DialogoEquipo, DialogoPago } from '@/features/trabajos/components/dialogos-trabajo'
+import { SeccionAdicionales } from '@/features/trabajos/components/adicionales'
 import { InsigniaEstadoCuota, InsigniaEstadoTrabajo } from '@/features/trabajos/components/insignias'
 import { ApiError } from '@/lib/api'
 import { diasHasta, formatearFecha, formatearFechaHora, haceCuanto, nombreCompleto } from '@/lib/formato'
@@ -240,7 +241,9 @@ function Contrato({ contrato: c, trabajoId }: { contrato: ContratoDetalle; traba
         <div className="space-y-1.5">
           <CardTitle>Contrato y pagos</CardTitle>
           <CardDescription>
-            Firmado el {formatearFecha(c.fechaFirma)} · {c.formaPago === 'contado' ? 'al contado' : `${c.cuotas?.length ?? ''} cuotas`} · garantía de {c.diasGarantia} días
+            Firmado el {formatearFecha(c.fechaFirma)}
+            {c.montoContrato !== null && ` por ${formatearSoles(c.montoContrato)}`} ·{' '}
+            {c.formaPago === 'contado' ? 'al contado' : `${c.cuotas?.filter((q) => !q.adicional).length ?? ''} cuotas`} · garantía de {c.diasGarantia} días
           </CardDescription>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
@@ -270,7 +273,10 @@ function Contrato({ contrato: c, trabajoId }: { contrato: ContratoDetalle; traba
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Monto etiqueta="Total" valor={formatearSoles(c.cuenta.total)} />
+              <Monto
+                etiqueta={c.montoContrato !== null && c.montoContrato !== c.cuenta.total ? 'Total con adicionales' : 'Total'}
+                valor={formatearSoles(c.cuenta.total)}
+              />
               <Monto etiqueta="Pagado" valor={formatearSoles(c.cuenta.pagado)} />
               <Monto etiqueta="Saldo" valor={formatearSoles(c.cuenta.saldo)} destacado={c.cuenta.saldo > 0} />
               <Monto etiqueta="Vencido" valor={formatearSoles(c.cuenta.vencido)} alerta={c.cuenta.vencido > 0} />
@@ -280,7 +286,7 @@ function Contrato({ contrato: c, trabajoId }: { contrato: ContratoDetalle; traba
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12">N.º</TableHead>
+                    <TableHead className="w-32">N.º</TableHead>
                     <TableHead>Vence</TableHead>
                     <TableHead className="text-right">Monto</TableHead>
                     <TableHead className="text-right">Pagado</TableHead>
@@ -290,7 +296,10 @@ function Contrato({ contrato: c, trabajoId }: { contrato: ContratoDetalle; traba
                 <TableBody>
                   {c.cuotas?.map((q) => (
                     <TableRow key={q.id}>
-                      <TableCell>{q.numero}</TableCell>
+                      <TableCell>
+                        {q.numero}
+                        {q.adicional && <span className="ml-1.5 text-xs text-muted-foreground">adicional {q.adicional}</span>}
+                      </TableCell>
                       <TableCell>{formatearFecha(q.vencimiento)}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatearSoles(q.monto)}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatearSoles(q.pagado)}</TableCell>
@@ -302,6 +311,8 @@ function Contrato({ contrato: c, trabajoId }: { contrato: ContratoDetalle; traba
                 </TableBody>
               </Table>
             </div>
+
+            <SeccionAdicionales contrato={c} />
 
             {c.pagos && c.pagos.length > 0 && (
               <div className="flex flex-col gap-2">

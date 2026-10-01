@@ -1,4 +1,4 @@
-import type { ContratoDetalle, MiembroEquipo, PagoDetalle, TrabajoDetalle, TrabajoListadoItem } from '@grupoes/shared';
+import type { AdicionalItem, ContratoDetalle, MiembroEquipo, PagoDetalle, TrabajoDetalle, TrabajoListadoItem } from '@grupoes/shared';
 import type { Prisma } from '../generated/prisma/client.js';
 import { CAMPOS_PERSONA } from '../personas/personas.service.js';
 import { centimosDe, detalleCuota, resumenCuenta, type CuotaCalculo } from './cuenta.js';
@@ -8,7 +8,7 @@ const soloFecha = (fecha: Date) => fecha.toISOString().slice(0, 10);
 
 const INCLUIR_CUOTAS = {
   orderBy: { numero: 'asc' },
-  include: { aplicaciones: { where: { pago: { anuladoEn: null } }, select: { montoAplicado: true } } },
+  include: { aplicaciones: { where: { pago: { anuladoEn: null } }, select: { montoAplicado: true } }, adicional: { select: { numero: true } } },
 } as const satisfies Prisma.Contrato$cuotasArgs;
 
 export const INCLUIR_LISTADO = {
@@ -36,6 +36,14 @@ export const INCLUIR_DETALLE = {
   contrato: {
     include: {
       cuotas: INCLUIR_CUOTAS,
+      adicionales: {
+        orderBy: { numero: 'asc' },
+        include: {
+          propuestoPor: { select: CAMPOS_USUARIO },
+          respondidoPor: { select: CAMPOS_USUARIO },
+          cuotas: { orderBy: { numero: 'asc' }, include: { aplicaciones: { where: { pago: { anuladoEn: null } }, select: { montoAplicado: true } } } },
+        },
+      },
       pagos: {
         orderBy: { registradoEn: 'desc' },
         include: {
@@ -50,7 +58,8 @@ export const INCLUIR_DETALLE = {
 
 type TrabajoListado = Prisma.TrabajoGetPayload<{ include: typeof INCLUIR_LISTADO }>;
 type TrabajoConDetalle = Prisma.TrabajoGetPayload<{ include: typeof INCLUIR_DETALLE }>;
-type CuotaConAplicaciones = Prisma.CuotaGetPayload<{ include: (typeof INCLUIR_CUOTAS)['include'] }>;
+/** Basta con las aplicaciones; el adicional se incluye donde se muestra. */
+type CuotaConAplicaciones = Prisma.CuotaGetPayload<{ include: { aplicaciones: { select: { montoAplicado: true } } } }> & { adicional?: { numero: number } | null };
 
 export function aCalculo(c: CuotaConAplicaciones): CuotaCalculo {
   return {
@@ -59,6 +68,7 @@ export function aCalculo(c: CuotaConAplicaciones): CuotaCalculo {
     monto: centimosDe(c.monto),
     vencimiento: soloFecha(c.vencimiento),
     pagado: c.aplicaciones.reduce((s, a) => s + centimosDe(a.montoAplicado), 0),
+    adicional: c.adicional?.numero ?? null,
   };
 }
 
@@ -97,6 +107,25 @@ function aMiembro(e: TrabajoConDetalle['equipo'][number]): MiembroEquipo {
   };
 }
 
+function aAdicional(a: NonNullable<TrabajoConDetalle['contrato']>['adicionales'][number]): AdicionalItem {
+  const aceptado = a.estado === 'aceptado';
+  return {
+    id: a.id,
+    numero: a.numero,
+    descripcion: a.descripcion,
+    monto: Number(a.monto),
+    estado: a.estado,
+    cuotas: aceptado
+      ? a.cuotas.map((q) => ({ numero: q.numero, monto: Number(q.monto), vencimiento: soloFecha(q.vencimiento) }))
+      : (a.cuotasPropuestas as { monto: number; vencimiento: string }[]).map((q) => ({ numero: null, ...q })),
+    propuestoPor: a.propuestoPor,
+    propuestoEn: a.propuestoEn.toISOString(),
+    respondido: a.respondidoEn ? { por: a.respondidoPor, en: a.respondidoEn.toISOString() } : null,
+    motivo: a.motivo,
+    conPagos: a.cuotas.some((q) => q.aplicaciones.length > 0),
+  };
+}
+
 function aContrato(c: NonNullable<TrabajoConDetalle['contrato']>, verMontos: boolean, hoy: string): ContratoDetalle {
   const cuotas = c.cuotas.map(aCalculo);
   const pagos: PagoDetalle[] = c.pagos.map((p) => ({
@@ -121,7 +150,9 @@ function aContrato(c: NonNullable<TrabajoConDetalle['contrato']>, verMontos: boo
     finGarantia: c.finGarantia ? soloFecha(c.finGarantia) : null,
     estado: c.estado,
     observaciones: c.observaciones,
+    montoContrato: verMontos ? Number(c.montoTotal) : null,
     cuenta: verMontos ? resumenCuenta(cuotas, hoy) : null,
+    adicionales: verMontos ? c.adicionales.map(aAdicional) : null,
     cuotas: verMontos ? cuotas.map((x) => detalleCuota(x, hoy)) : null,
     pagos: verMontos ? pagos : null,
   };

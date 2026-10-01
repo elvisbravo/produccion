@@ -40,43 +40,45 @@ model Usuario {
   actualizadoPor String?   @map("actualizado_por") @db.Uuid
   eliminadoEn    DateTime? @map("eliminado_en") @db.Timestamptz(6)
 
-  roles                UsuarioRol[]
-  permisos             UsuarioPermiso[]       @relation("PermisoDelUsuario")
-  permisosOtorgados    UsuarioPermiso[]       @relation("PermisoOtorgadoPor")
-  sesiones             Sesion[]
-  accesos              AccesoLog[]
-  auditorias           Auditoria[]
-  prospectosCaptados   Prospecto[]            @relation("ProspectoCaptadoPor")
-  prospectosACargo     Prospecto[]            @relation("ProspectoResponsable")
-  eventosProspecto     ProspectoEvento[]
-  tareasCreadas        Tarea[]                @relation("TareaCreadaPor")
-  tareasAsignadas      TareaResponsable[]     @relation("TareaResponsableUsuario")
-  asignacionesHechas   TareaResponsable[]     @relation("TareaAsignadaPor")
-  trabajosEquipo       TrabajoEquipo[]        @relation("EquipoUsuario")
-  equiposAsignados     TrabajoEquipo[]        @relation("EquipoAsignadoPor")
-  eventosTrabajo       TrabajoEvento[]
-  pagosRegistrados     Pago[]                 @relation("PagoRegistradoPor")
-  pagosAnulados        Pago[]                 @relation("PagoAnuladoPor")
-  cotizacionesCreadas  Cotizacion[]           @relation("CotizacionCreadaPor")
-  cotizacionesAnuladas Cotizacion[]           @relation("CotizacionAnuladaPor")
-  comentarios          Comentario[]           @relation("ComentarioAutor")
-  menciones            ComentarioMencion[]    @relation("ComentarioMencionado")
-  horarios             HorarioUsuario[]       @relation("HorarioDelUsuario")
-  revisiones           Revision[]             @relation("RevisionRevisor")
-  urgentesPedidas      SolicitudUrgente[]     @relation("UrgenteSolicitadaPor")
-  urgentesResueltas    SolicitudUrgente[]     @relation("UrgenteResueltaPor")
-  urgentesAsignadas    SolicitudUrgente[]     @relation("UrgenteAsignadoA")
-  extras               HoraExtraBono[]        @relation("ExtraDelUsuario")
-  notificaciones       Notificacion[]         @relation("NotificacionDelUsuario")
-  topeHorasExtra       TopeHorasExtraUsuario?
-  tiempos              RegistroTiempo[]       @relation("TiempoDelUsuario")
-  costosHora           CostoHoraUsuario[]     @relation("CostoDelUsuario")
-  extrasPropuestas     HoraExtraBono[]        @relation("ExtraPropuestaPor")
-  extrasAprobadas      HoraExtraBono[]        @relation("ExtraAprobadaPor")
-  entregasEnviadas     EntregaCliente[]       @relation("EntregaEnviadaPor")
-  ausencias            Ausencia[]             @relation("AusenciaDelUsuario")
-  ausenciasPedidas     Ausencia[]             @relation("AusenciaSolicitadaPor")
-  ausenciasResueltas   Ausencia[]             @relation("AusenciaResueltaPor")
+  roles                  UsuarioRol[]
+  permisos               UsuarioPermiso[]       @relation("PermisoDelUsuario")
+  permisosOtorgados      UsuarioPermiso[]       @relation("PermisoOtorgadoPor")
+  sesiones               Sesion[]
+  accesos                AccesoLog[]
+  auditorias             Auditoria[]
+  prospectosCaptados     Prospecto[]            @relation("ProspectoCaptadoPor")
+  prospectosACargo       Prospecto[]            @relation("ProspectoResponsable")
+  eventosProspecto       ProspectoEvento[]
+  tareasCreadas          Tarea[]                @relation("TareaCreadaPor")
+  tareasAsignadas        TareaResponsable[]     @relation("TareaResponsableUsuario")
+  asignacionesHechas     TareaResponsable[]     @relation("TareaAsignadaPor")
+  trabajosEquipo         TrabajoEquipo[]        @relation("EquipoUsuario")
+  equiposAsignados       TrabajoEquipo[]        @relation("EquipoAsignadoPor")
+  eventosTrabajo         TrabajoEvento[]
+  pagosRegistrados       Pago[]                 @relation("PagoRegistradoPor")
+  pagosAnulados          Pago[]                 @relation("PagoAnuladoPor")
+  cotizacionesCreadas    Cotizacion[]           @relation("CotizacionCreadaPor")
+  cotizacionesAnuladas   Cotizacion[]           @relation("CotizacionAnuladaPor")
+  comentarios            Comentario[]           @relation("ComentarioAutor")
+  menciones              ComentarioMencion[]    @relation("ComentarioMencionado")
+  adicionalesPropuestos  Adicional[]            @relation("AdicionalPropuestoPor")
+  adicionalesRespondidos Adicional[]            @relation("AdicionalRespondidoPor")
+  horarios               HorarioUsuario[]       @relation("HorarioDelUsuario")
+  revisiones             Revision[]             @relation("RevisionRevisor")
+  urgentesPedidas        SolicitudUrgente[]     @relation("UrgenteSolicitadaPor")
+  urgentesResueltas      SolicitudUrgente[]     @relation("UrgenteResueltaPor")
+  urgentesAsignadas      SolicitudUrgente[]     @relation("UrgenteAsignadoA")
+  extras                 HoraExtraBono[]        @relation("ExtraDelUsuario")
+  notificaciones         Notificacion[]         @relation("NotificacionDelUsuario")
+  topeHorasExtra         TopeHorasExtraUsuario?
+  tiempos                RegistroTiempo[]       @relation("TiempoDelUsuario")
+  costosHora             CostoHoraUsuario[]     @relation("CostoDelUsuario")
+  extrasPropuestas       HoraExtraBono[]        @relation("ExtraPropuestaPor")
+  extrasAprobadas        HoraExtraBono[]        @relation("ExtraAprobadaPor")
+  entregasEnviadas       EntregaCliente[]       @relation("EntregaEnviadaPor")
+  ausencias              Ausencia[]             @relation("AusenciaDelUsuario")
+  ausenciasPedidas       Ausencia[]             @relation("AusenciaSolicitadaPor")
+  ausenciasResueltas     Ausencia[]             @relation("AusenciaResueltaPor")
 
   @@map("usuario")
 }
@@ -911,6 +913,7 @@ enum TipoEventoTrabajo {
   pago
   estado
   entregable
+  adicional
 
   @@map("tipo_evento_trabajo")
 }
@@ -962,9 +965,10 @@ model Contrato {
   creadoEn  DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
   creadoPor String?  @map("creado_por") @db.Uuid
 
-  trabajo Trabajo @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
-  cuotas  Cuota[]
-  pagos   Pago[]
+  trabajo     Trabajo     @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
+  cuotas      Cuota[]
+  pagos       Pago[]
+  adicionales Adicional[]
 
   @@map("contrato")
 }
@@ -975,8 +979,11 @@ model Cuota {
   numero      Int
   monto       Decimal  @db.Decimal(12, 2)
   vencimiento DateTime @db.Date
+  /// Si la cuota nace de un adicional aceptado.
+  adicionalId String?  @map("adicional_id") @db.Uuid
 
   contrato     Contrato    @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  adicional    Adicional?  @relation(fields: [adicionalId], references: [id])
   aplicaciones PagoCuota[]
 
   @@unique([contratoId, numero])
@@ -1579,4 +1586,44 @@ model ComentarioMencion {
   @@id([comentarioId, usuarioId])
   @@index([usuarioId])
   @@map("comentario_mencion")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Adicionales del contrato
+// ─────────────────────────────────────────────────────────────
+
+enum EstadoAdicional {
+  propuesto
+  aceptado
+  rechazado
+  anulado
+
+  @@map("estado_adicional")
+}
+
+/// Trabajo fuera de lo acordado. Al aceptarlo, sus cuotas propuestas se vuelven cuotas del contrato.
+model Adicional {
+  id               String          @id @default(uuid(7)) @db.Uuid
+  contratoId       String          @map("contrato_id") @db.Uuid
+  /// Correlativo dentro del contrato: Adicional 1, 2...
+  numero           Int
+  descripcion      String          @db.VarChar(500)
+  monto            Decimal         @db.Decimal(12, 2)
+  /// [{ monto, vencimiento }] mientras está propuesto; al aceptarlo se crean las cuotas.
+  cuotasPropuestas Json            @map("cuotas_propuestas")
+  estado           EstadoAdicional @default(propuesto)
+  propuestoPorId   String          @map("propuesto_por_id") @db.Uuid
+  propuestoEn      DateTime        @default(now()) @map("propuesto_en") @db.Timestamptz(6)
+  respondidoPorId  String?         @map("respondido_por_id") @db.Uuid
+  respondidoEn     DateTime?       @map("respondido_en") @db.Timestamptz(6)
+  /// Motivo del rechazo o de la anulación.
+  motivo           String?
+
+  contrato      Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  propuestoPor  Usuario  @relation("AdicionalPropuestoPor", fields: [propuestoPorId], references: [id])
+  respondidoPor Usuario? @relation("AdicionalRespondidoPor", fields: [respondidoPorId], references: [id])
+  cuotas        Cuota[]
+
+  @@unique([contratoId, numero])
+  @@map("adicional")
 }

@@ -8,6 +8,8 @@ export interface CuotaCalculo {
   vencimiento: string;
   /** Suma de lo aplicado por pagos no anulados. */
   pagado: number;
+  /** Número del adicional del que nace, si aplica. */
+  adicional?: number | null;
 }
 
 export function estadoCuota(c: CuotaCalculo, hoy: string): EstadoCuota {
@@ -20,6 +22,7 @@ export function detalleCuota(c: CuotaCalculo, hoy: string): CuotaDetalle {
   return {
     id: c.id,
     numero: c.numero,
+    adicional: c.adicional ?? null,
     monto: deCentimos(c.monto),
     vencimiento: c.vencimiento,
     pagado: deCentimos(c.pagado),

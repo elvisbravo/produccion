@@ -344,6 +344,7 @@ export interface DocumentoRecibo extends DocumentoBase {
   cliente: { nombre: string; documento: string | null }
   trabajo: { id: string; codigo: string; tipo: string; titulo: string | null }
   cuotas: { numero: number; montoAplicado: number }[]
+  /** Contrato más adicionales aceptados. */
   totalContrato: number
   /** Saldo del contrato después de este pago (sin contar pagos posteriores). */
   saldo: number

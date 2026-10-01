@@ -240,7 +240,7 @@ export class DocumentosService {
         aplicaciones: { include: { cuota: { select: { numero: true } } } },
         contrato: {
           include: {
-            cuotas: { select: { id: true } },
+            cuotas: { select: { id: true, monto: true } },
             pagos: { where: { anuladoEn: null }, select: { id: true, monto: true, registradoEn: true } },
             trabajo: { include: { tipoTrabajo: true, integrantes: { orderBy: [{ esTitular: 'desc' }, { orden: 'asc' }], take: 1, include: { persona: true } } } },
           },
@@ -254,10 +254,12 @@ export class DocumentosService {
     const empresa = await this.empresa();
     const titular = t.integrantes[0]?.persona;
     const monto = Number(pago.monto);
-    const total = Number(pago.contrato.montoTotal);
+    // Total de la cuenta: el contrato más los adicionales aceptados (sus cuotas).
+    const totalCentimos = pago.contrato.cuotas.reduce((s, q) => s + centimos(q.monto), 0);
+    const total = totalCentimos / 100;
     // Saldo justo después de este pago: lo pagado hasta él (inclusive), sin los anulados.
     const pagadoHasta = pago.contrato.pagos.filter((x) => x.registradoEn <= pago.registradoEn).reduce((s, x) => s + centimos(x.monto), 0);
-    const saldo = Math.max(0, centimos(pago.contrato.montoTotal) - pagadoHasta) / 100;
+    const saldo = Math.max(0, totalCentimos - pagadoHasta) / 100;
     const cuotas = pago.aplicaciones.map((a) => ({ numero: a.cuota.numero, montoAplicado: Number(a.montoAplicado) })).sort((a, b) => a.numero - b.numero);
     const totalCuotas = pago.contrato.cuotas.length;
     const concepto =
