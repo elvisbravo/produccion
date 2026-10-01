@@ -22,6 +22,7 @@ import {
   type RolDetalle,
   type RolItem,
   type TopesUsuario,
+  type PendientesUsuario,
   type UsuarioDetalle,
   type UsuarioListadoItem,
 } from '@grupoes/shared';
@@ -63,6 +64,13 @@ export class UsuariosController {
   @Put(':id')
   editar(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(editarUsuarioSchema)) datos: EditarUsuarioDatos, @Req() req: SolicitudAutenticada) {
     return this.usuarios.editar(id, datos, actor(req));
+  }
+
+  /** Lo que la persona deja a su nombre, para avisar antes de desactivarla. */
+  @RequierePermiso('usuarios.desactivar')
+  @Get(':id/pendientes')
+  pendientes(@Param('id', ParseUUIDPipe) id: string): Promise<PendientesUsuario> {
+    return this.usuarios.pendientes(id);
   }
 
   @RequierePermiso('usuarios.desactivar')

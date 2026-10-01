@@ -95,6 +95,7 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | GET/POST | `/api/notificaciones`, `…/:id/leer`, `…/leer-todas` | Campanita: últimos 50 avisos y no leídas (cada usuario, los suyos) |
 | POST | `/api/auth/cambiar-clave` | Cambiar la contraseña propia (obligatorio en el primer ingreso o tras un restablecimiento) |
 | GET/POST/PUT | `/api/usuarios`, `/api/usuarios/:id` | Usuarios: listado, alta (contraseña temporal) y edición |
+| GET | `/api/usuarios/:id/pendientes` | Lo que la persona deja a su nombre (tareas activas, trabajos activos en su equipo y prospectos abiertos): el aviso antes de desactivarla (exige `usuarios.desactivar`) |
 | POST/PUT/DELETE | `/api/usuarios/:id/activar`, `…/desactivar`, `…/roles`, `…/excepciones`, `…/restablecer-clave`, `…/desbloquear`, `…/topes-horas-extra` | Acceso, roles, permisos por persona y tope de horas extra propio |
 | GET/POST/PUT/DELETE | `/api/roles`, `/api/roles/:id`, `/api/roles/:id/permisos` | Roles y su matriz de permisos (el administrador tiene siempre todos) |
 | GET/PUT | `/api/parametros` | Parámetros configurables (definidos en `packages/shared/src/administracion.ts`) |

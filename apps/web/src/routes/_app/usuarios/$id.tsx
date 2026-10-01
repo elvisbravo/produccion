@@ -1,12 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { editarUsuarioSchema, type EditarUsuarioDatos, type EditarUsuarioFormulario, type UsuarioDetalle } from '@grupoes/shared'
+import { editarUsuarioSchema, NOMBRE_FUNCION_EQUIPO, type EditarUsuarioDatos, type EditarUsuarioFormulario, type UsuarioDetalle } from '@grupoes/shared'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { AlertCircle, ArrowLeft, KeyRound, Loader2, Lock, LockOpen, Power, Timer } from 'lucide-react'
+import { AlertCircle, ArrowLeft, CircleCheck, KeyRound, Loader2, Lock, LockOpen, Power, Timer, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { FormProvider, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CamposDocumentoUsuario } from '@/features/administracion/components/campos-documento-usuario'
-import { useActivarUsuario, useDesbloquear, useEditarUsuario, useRestablecerClave, useTopesUsuario, usuarioQuery } from '@/features/administracion/api'
+import { pendientesQuery, useActivarUsuario, useDesbloquear, useEditarUsuario, useRestablecerClave, useTopesUsuario, usuarioQuery } from '@/features/administracion/api'
 import { DialogoClaveTemporal } from '@/features/administracion/components/dialogos-usuario'
 import { CostoHoraUsuario } from '@/features/reportes/components/costo-hora'
 import { ExcepcionesDelUsuario, PermisosEfectivos, RolesDelUsuario } from '@/features/administracion/components/permisos-usuario'
@@ -243,6 +243,9 @@ function Seguridad({ u }: { u: UsuarioDetalle }) {
   const desbloquear = useDesbloquear(u.id)
   const [confirmar, setConfirmar] = useState<'clave' | 'desactivar' | null>(null)
   const [temporal, setTemporal] = useState<string | null>(null)
+  // Al desactivar se avisa de lo que la persona deja a su nombre.
+  const pendientes = useQuery({ ...pendientesQuery(u.id), enabled: confirmar === 'desactivar' })
+  const pend = pendientes.data
 
   const hacer = async (accion: () => Promise<unknown>, exito: string) => {
     try {
@@ -313,7 +316,7 @@ function Seguridad({ u }: { u: UsuarioDetalle }) {
 
       {confirmar && (
         <Dialog open onOpenChange={(v) => !v && setConfirmar(null)}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>{confirmar === 'clave' ? 'Restablecer contraseña' : `Desactivar a ${u.nombres}`}</DialogTitle>
               <DialogDescription>
@@ -322,13 +325,59 @@ function Seguridad({ u }: { u: UsuarioDetalle }) {
                   : 'No podrá ingresar y se cierran sus sesiones al instante. Sus datos y su historial se conservan; puedes activarlo después.'}
               </DialogDescription>
             </DialogHeader>
+            {confirmar === 'desactivar' &&
+              (pendientes.isPending ? (
+                <Skeleton className="h-24" />
+              ) : pend && pend.total > 0 ? (
+                <Alert className="border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40">
+                  <TriangleAlert />
+                  <AlertTitle>Tiene trabajo a su nombre</AlertTitle>
+                  <AlertDescription className="flex flex-col gap-2">
+                    <p>Si lo desactivas ahora, esto seguirá a su nombre y nadie lo verá avanzar. Reasígnalo antes.</p>
+                    <ul className="list-disc space-y-1.5 pl-5">
+                      {pend.tareas.total > 0 && (
+                        <li>
+                          {pend.tareas.total} {pend.tareas.total === 1 ? 'tarea pendiente' : 'tareas pendientes'}
+                          {pend.tareas.conHora > 0 && ` (${pend.tareas.enCola} en su cola, ${pend.tareas.conHora} con día y hora)`}.{' '}
+                          <Link to="/programacion" search={{ vista: 'colas' }} className="underline">
+                            Reasignar en Programación → Colas
+                          </Link>
+                        </li>
+                      )}
+                      {pend.trabajos.length > 0 && (
+                        <li>
+                          {pend.trabajos.length} {pend.trabajos.length === 1 ? 'trabajo activo' : 'trabajos activos'} en su equipo. Cambia el equipo de cada uno:
+                          <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                            {pend.trabajos.slice(0, 6).map((t) => (
+                              <Link key={t.id} to="/trabajos/$id" params={{ id: t.id }} className="font-mono text-xs underline">
+                                {t.codigo} · {NOMBRE_FUNCION_EQUIPO[t.funcion]}
+                              </Link>
+                            ))}
+                            {pend.trabajos.length > 6 && <span className="text-xs">y {pend.trabajos.length - 6} más</span>}
+                          </span>
+                        </li>
+                      )}
+                      {pend.prospectos > 0 && (
+                        <li>
+                          {pend.prospectos} {pend.prospectos === 1 ? 'prospecto abierto' : 'prospectos abiertos'} a su cargo. Por ahora el sistema no permite cambiar el responsable de un prospecto: seguirán a su nombre.
+                        </li>
+                      )}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              ) : pend ? (
+                <p className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
+                  <CircleCheck className="size-4" />
+                  No tiene tareas, trabajos ni prospectos pendientes.
+                </p>
+              ) : null)}
             <DialogFooter>
               <Button variant="outline" onClick={() => setConfirmar(null)}>
                 Cancelar
               </Button>
               <Button
                 variant={confirmar === 'clave' ? 'default' : 'destructive'}
-                disabled={restablecer.isPending || activar.isPending}
+                disabled={restablecer.isPending || activar.isPending || (confirmar === 'desactivar' && pendientes.isPending)}
                 onClick={() =>
                   void (confirmar === 'clave'
                     ? hacer(async () => setTemporal((await restablecer.mutateAsync()).claveTemporal), 'Contraseña restablecida')
@@ -336,7 +385,7 @@ function Seguridad({ u }: { u: UsuarioDetalle }) {
                 }
               >
                 {(restablecer.isPending || activar.isPending) && <Loader2 className="animate-spin" />}
-                {confirmar === 'clave' ? 'Restablecer' : 'Desactivar'}
+                {confirmar === 'clave' ? 'Restablecer' : pend && pend.total > 0 ? 'Desactivar de todos modos' : 'Desactivar'}
               </Button>
             </DialogFooter>
           </DialogContent>

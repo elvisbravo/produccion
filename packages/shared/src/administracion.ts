@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { Alcance } from './permisos.js'
+import type { FuncionEquipo } from './trabajos.js'
 import { TIPOS_DOCUMENTO, validarDocumento, type TipoDocumento, type UsuarioResumen } from './prospectos.js'
 
 // ─── Parámetros configurables ───────────────────────────────
@@ -238,6 +239,22 @@ export interface UsuarioDetalle extends UsuarioListadoItem {
   excepciones: ExcepcionItem[]
   topes: TopesUsuario
   accesos: AccesoItem[]
+}
+
+/** Lo que una persona deja a su nombre: se muestra antes de desactivarla, para reasignarlo. */
+export interface PendientesUsuario {
+  tareas: {
+    total: number
+    /** En su cola de trabajo (sin hora fija). */
+    enCola: number
+    /** Con día y hora (reuniones, enfoques). */
+    conHora: number
+  }
+  /** Trabajos activos en los que está en el equipo. */
+  trabajos: { id: string; codigo: string; titulo: string | null; funcion: FuncionEquipo }[]
+  /** Prospectos abiertos a su cargo. */
+  prospectos: number
+  total: number
 }
 
 /** Respuesta al crear un usuario o restablecer su contraseña: la temporal se muestra una sola vez. */

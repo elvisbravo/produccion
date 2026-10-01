@@ -188,6 +188,11 @@ describe('Administración (e2e)', () => {
     await cerrada;
     const fallo = await http().post('/api/auth/login').send({ email: emailNuevo, password: r.claveTemporal }).expect(401);
     expect(fallo.body.message).toBe('Usuario desactivado');
+    // Con una contraseña incorrecta no se revela que la cuenta existió: es la misma respuesta que para un correo desconocido.
+    const mal = await http().post('/api/auth/login').send({ email: emailNuevo, password: 'otra-clave-123' }).expect(401);
+    const desconocido = await http().post('/api/auth/login').send({ email: `nadie.${sufijo}@grupoes.local`, password: 'otra-clave-123' }).expect(401);
+    expect(mal.body.message).toBe(desconocido.body.message);
+    expect(mal.body.message).not.toContain('desactivado');
     // El rol ya puede eliminarse si se le quita a su único usuario.
     await http().post(`/api/usuarios/${nuevo.id}/activar`).set(como(tokens.admin)).expect(201);
     const auxiliar = (await http().get('/api/roles').set(como(tokens.admin)).expect(200)).body.find((x: { codigo: string }) => x.codigo === 'AUXILIAR');

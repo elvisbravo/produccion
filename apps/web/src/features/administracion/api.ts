@@ -1,4 +1,5 @@
 import type {
+  PendientesUsuario,
   AuditoriaItem,
   ClaveTemporal,
   CrearUsuarioDatos,
@@ -30,6 +31,7 @@ export const clavesAdmin = {
   usuarios: ['usuarios'] as const,
   listaUsuarios: (f: ListarUsuariosFiltros) => ['usuarios', 'lista', f] as const,
   usuario: (id: string) => ['usuarios', 'detalle', id] as const,
+  pendientes: (id: string) => ['usuarios', 'pendientes', id] as const,
   roles: ['roles'] as const,
   rol: (id: string) => ['roles', id] as const,
   parametros: ['parametros'] as const,
@@ -38,6 +40,9 @@ export const clavesAdmin = {
 
 export const usuariosQuery = (f: ListarUsuariosFiltros) =>
   queryOptions({ queryKey: clavesAdmin.listaUsuarios(f), queryFn: () => api<UsuarioListadoItem[]>(`/usuarios${aQuery(f)}`), placeholderData: keepPreviousData })
+/** Lo que la persona deja a su nombre (tareas, trabajos y prospectos): el aviso antes de desactivarla. */
+export const pendientesQuery = (id: string) =>
+  queryOptions({ queryKey: clavesAdmin.pendientes(id), queryFn: () => api<PendientesUsuario>(`/usuarios/${id}/pendientes`), staleTime: 0 })
 export const usuarioQuery = (id: string) => queryOptions({ queryKey: clavesAdmin.usuario(id), queryFn: () => api<UsuarioDetalle>(`/usuarios/${id}`) })
 export const rolesQuery = queryOptions({ queryKey: clavesAdmin.roles, queryFn: () => api<RolItem[]>('/roles'), staleTime: 30_000 })
 export const rolQuery = (id: string) => queryOptions({ queryKey: clavesAdmin.rol(id), queryFn: () => api<RolDetalle>(`/roles/${id}`) })

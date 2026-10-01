@@ -50,10 +50,16 @@ export class AuthService {
     }
 
     const valida = await verificarPassword(usuario.passwordHash, password);
-    if (!valida || !usuario.activo) {
+    if (!valida) {
       await this.registrarFallo(usuario.id, usuario.intentosFallidos);
       await registrar('fallo');
-      throw new UnauthorizedException(usuario.activo ? CREDENCIALES_INVALIDAS : 'Usuario desactivado');
+      throw new UnauthorizedException(CREDENCIALES_INVALIDAS);
+    }
+    // Solo quien sabe la contraseña se entera de que la cuenta está desactivada: con una contraseña incorrecta
+    // la respuesta es la misma que para un correo que no existe.
+    if (!usuario.activo) {
+      await registrar('fallo');
+      throw new UnauthorizedException('Usuario desactivado');
     }
 
     await this.prisma.usuario.update({

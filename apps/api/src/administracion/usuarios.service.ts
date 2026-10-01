@@ -9,6 +9,7 @@ import {
   type ExcepcionPermisoDatos,
   type PermisoEfectivoItem,
   type TopesUsuario,
+  type PendientesUsuario,
   type UsuarioDetalle,
   type UsuarioListadoItem,
 } from '@grupoes/shared';
@@ -224,6 +225,35 @@ export class UsuariosService {
 
   private async esAdmin(usuarioId: string) {
     return (await this.prisma.usuarioRol.count({ where: { usuarioId, rol: { codigo: ROLES_BASE.ADMIN } } })) > 0;
+  }
+
+  /**
+   * Lo que la persona tiene a su nombre y seguirá ahí si se desactiva: tareas activas, trabajos activos en su equipo
+   * y prospectos abiertos. Sirve de aviso para reasignarlo antes.
+   */
+  async pendientes(id: string): Promise<PendientesUsuario> {
+    await this.detalle(id);
+    // Las tareas de prospectos o trabajos eliminados no cuentan.
+    const vivas = [{ OR: [{ prospectoId: null }, { prospecto: { eliminadoEn: null } }] }, { OR: [{ trabajoId: null }, { trabajo: { eliminadoEn: null } }] }];
+    const [tareas, equipo, prospectos] = await Promise.all([
+      this.prisma.tareaResponsable.findMany({
+        where: { usuarioId: id, tarea: { estado: { in: ['pendiente', 'en_proceso'] }, AND: vivas } },
+        select: { ordenCola: true, tarea: { select: { inicio: true } } },
+      }),
+      this.prisma.trabajoEquipo.findMany({
+        where: { usuarioId: id, hasta: null, trabajo: { eliminadoEn: null, estado: { notIn: ['finalizado', 'cancelado'] } } },
+        select: { funcion: true, trabajo: { select: { id: true, codigo: true, titulo: true } } },
+        orderBy: { trabajo: { fechaLimite: 'asc' } },
+      }),
+      this.prisma.prospecto.count({ where: { responsableId: id, eliminadoEn: null, etapa: { clase: 'abierta' } } }),
+    ]);
+    const enCola = tareas.filter((t) => t.ordenCola !== null).length;
+    return {
+      tareas: { total: tareas.length, enCola, conHora: tareas.filter((t) => t.tarea.inicio !== null).length },
+      trabajos: equipo.map((e) => ({ ...e.trabajo, funcion: e.funcion })),
+      prospectos,
+      total: tareas.length + equipo.length + prospectos,
+    };
   }
 
   async cambiarActivo(id: string, activo: boolean, actor: ActorAdmin): Promise<UsuarioDetalle> {
