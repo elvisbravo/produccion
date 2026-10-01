@@ -83,8 +83,36 @@ export type EstadoUrgente = (typeof ESTADOS_URGENTE)[number]
 export const NOMBRE_ESTADO_URGENTE: Record<EstadoUrgente, string> = { pendiente: 'Por ejecutar', ejecutada: 'Ejecutada', rechazada: 'Rechazada' }
 
 export const solicitarUrgenteSchema = z.object({ motivo: z.string().trim().min(5, 'Explica por qué es urgente').max(1000) })
-export const ejecutarUrgenteSchema = z.object({ usuarioId: z.string().min(1, 'Elige al auxiliar').pipe(z.uuid()), observacion: texto(500) })
+/** Personas distintas entre las que se puede repartir una urgencia. */
+export const MAX_PERSONAS_URGENTE = 4
+
+/** A quién va cada entregable de la urgencia; `entregableId: null` son las tareas del trabajo sin entregable. */
+export const repartoUrgenteSchema = z
+  .array(z.object({ entregableId: z.uuid().nullable(), usuarioId: z.string().min(1, 'Elige a la persona').pipe(z.uuid()) }))
+  .min(1, 'Asigna al menos un entregable')
+  .superRefine((reparto, ctx) => {
+    if (new Set(reparto.map((r) => r.entregableId)).size !== reparto.length) ctx.addIssue({ code: 'custom', message: 'Un entregable solo puede ir a una persona' })
+    if (new Set(reparto.map((r) => r.usuarioId)).size > MAX_PERSONAS_URGENTE) {
+      ctx.addIssue({ code: 'custom', message: `Reparte entre ${MAX_PERSONAS_URGENTE} personas como máximo` })
+    }
+  })
+export type RepartoUrgente = z.output<typeof repartoUrgenteSchema>
+
+/**
+ * Se ejecuta con un reparto por entregable o, como siempre, con un solo auxiliar para todo (`usuarioId`).
+ */
+export const ejecutarUrgenteSchema = z
+  .object({
+    usuarioId: opcional(z.string().pipe(z.uuid())),
+    reparto: repartoUrgenteSchema.optional(),
+    observacion: texto(500),
+  })
+  .superRefine((d, ctx) => {
+    if (!d.usuarioId && !d.reparto) ctx.addIssue({ code: 'custom', path: ['reparto'], message: 'Elige a quién se asigna' })
+    if (d.usuarioId && d.reparto) ctx.addIssue({ code: 'custom', path: ['reparto'], message: 'Indica un auxiliar o un reparto, no ambos' })
+  })
 export type EjecutarUrgenteDatos = z.output<typeof ejecutarUrgenteSchema>
+export const simularRepartoSchema = z.object({ reparto: repartoUrgenteSchema })
 export const rechazarUrgenteSchema = z.object({ observacion: z.string().trim().min(3, 'Explica el motivo').max(500) })
 
 export interface SolicitudUrgenteItem {
@@ -96,7 +124,10 @@ export interface SolicitudUrgenteItem {
   solicitadaEn: string
   resueltaPor: UsuarioResumen | null
   resueltaEn: string | null
+  /** Quien recibió más trabajo (o el único auxiliar). */
   usuarioAsignado: UsuarioResumen | null
+  /** Cómo se repartió; vacío si aún no se ejecuta. */
+  asignaciones: { usuario: UsuarioResumen; tareas: number; minutos: number }[]
   observacion: string | null
   /** Tareas del trabajo que aún no se hacen (las que pasan adelante). */
   tareasPendientes: number
@@ -110,6 +141,34 @@ export interface ImpactoItem {
   esUrgente: boolean
   antes: ResultadoPlan | null
   despues: ResultadoPlan
+}
+
+/** Tareas de la urgencia agrupadas por entregable: lo que se reparte entre las personas. */
+export interface BloqueUrgente {
+  /** null = tareas del trabajo sin entregable. */
+  entregableId: string | null
+  nombre: string
+  tareas: number
+  minutos: number
+  fechaLimite: string | null
+  /** Quien lo tiene hoy en su cola. */
+  responsableActual: UsuarioResumen | null
+  /** Quienes pueden tomarlo: con un rol permitido para sus tareas (y, si se elabora, que no sea el jefe que lo revisa). */
+  elegibles: UsuarioResumen[]
+}
+
+export interface PropuestaUrgente {
+  bloques: BloqueUrgente[]
+  /** Reparto que termina antes, repartiendo lo más parejo posible (se puede cambiar a mano). */
+  sugerencia: RepartoUrgente
+}
+
+/** Cómo queda cada cola si se ejecuta el reparto. */
+export interface ImpactoReparto {
+  personas: (ImpactoUrgente & { entregables: string[]; minutos: number })[]
+  /** Cuándo termina la última tarea urgente. */
+  terminaEl: string | null
+  pasanARojo: number
 }
 
 /** Cómo queda la cola del auxiliar si se ejecuta la urgencia. */

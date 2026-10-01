@@ -44,44 +44,45 @@ model Usuario {
   eliminadoEn    DateTime? @map("eliminado_en") @db.Timestamptz(6)
 
   roles                  UsuarioRol[]
-  permisos               UsuarioPermiso[]       @relation("PermisoDelUsuario")
-  permisosOtorgados      UsuarioPermiso[]       @relation("PermisoOtorgadoPor")
+  permisos               UsuarioPermiso[]             @relation("PermisoDelUsuario")
+  permisosOtorgados      UsuarioPermiso[]             @relation("PermisoOtorgadoPor")
   sesiones               Sesion[]
   accesos                AccesoLog[]
   auditorias             Auditoria[]
-  prospectosCaptados     Prospecto[]            @relation("ProspectoCaptadoPor")
-  prospectosACargo       Prospecto[]            @relation("ProspectoResponsable")
+  prospectosCaptados     Prospecto[]                  @relation("ProspectoCaptadoPor")
+  prospectosACargo       Prospecto[]                  @relation("ProspectoResponsable")
   eventosProspecto       ProspectoEvento[]
-  tareasCreadas          Tarea[]                @relation("TareaCreadaPor")
-  tareasAsignadas        TareaResponsable[]     @relation("TareaResponsableUsuario")
-  asignacionesHechas     TareaResponsable[]     @relation("TareaAsignadaPor")
-  trabajosEquipo         TrabajoEquipo[]        @relation("EquipoUsuario")
-  equiposAsignados       TrabajoEquipo[]        @relation("EquipoAsignadoPor")
+  tareasCreadas          Tarea[]                      @relation("TareaCreadaPor")
+  tareasAsignadas        TareaResponsable[]           @relation("TareaResponsableUsuario")
+  asignacionesHechas     TareaResponsable[]           @relation("TareaAsignadaPor")
+  trabajosEquipo         TrabajoEquipo[]              @relation("EquipoUsuario")
+  equiposAsignados       TrabajoEquipo[]              @relation("EquipoAsignadoPor")
   eventosTrabajo         TrabajoEvento[]
-  pagosRegistrados       Pago[]                 @relation("PagoRegistradoPor")
-  pagosAnulados          Pago[]                 @relation("PagoAnuladoPor")
-  cotizacionesCreadas    Cotizacion[]           @relation("CotizacionCreadaPor")
-  cotizacionesAnuladas   Cotizacion[]           @relation("CotizacionAnuladaPor")
-  comentarios            Comentario[]           @relation("ComentarioAutor")
-  menciones              ComentarioMencion[]    @relation("ComentarioMencionado")
-  adicionalesPropuestos  Adicional[]            @relation("AdicionalPropuestoPor")
-  adicionalesRespondidos Adicional[]            @relation("AdicionalRespondidoPor")
-  horarios               HorarioUsuario[]       @relation("HorarioDelUsuario")
-  revisiones             Revision[]             @relation("RevisionRevisor")
-  urgentesPedidas        SolicitudUrgente[]     @relation("UrgenteSolicitadaPor")
-  urgentesResueltas      SolicitudUrgente[]     @relation("UrgenteResueltaPor")
-  urgentesAsignadas      SolicitudUrgente[]     @relation("UrgenteAsignadoA")
-  extras                 HoraExtraBono[]        @relation("ExtraDelUsuario")
-  notificaciones         Notificacion[]         @relation("NotificacionDelUsuario")
+  pagosRegistrados       Pago[]                       @relation("PagoRegistradoPor")
+  pagosAnulados          Pago[]                       @relation("PagoAnuladoPor")
+  cotizacionesCreadas    Cotizacion[]                 @relation("CotizacionCreadaPor")
+  cotizacionesAnuladas   Cotizacion[]                 @relation("CotizacionAnuladaPor")
+  comentarios            Comentario[]                 @relation("ComentarioAutor")
+  menciones              ComentarioMencion[]          @relation("ComentarioMencionado")
+  adicionalesPropuestos  Adicional[]                  @relation("AdicionalPropuestoPor")
+  adicionalesRespondidos Adicional[]                  @relation("AdicionalRespondidoPor")
+  urgenciasAsignadas     SolicitudUrgenteAsignacion[] @relation("UrgenteAsignacionDe")
+  horarios               HorarioUsuario[]             @relation("HorarioDelUsuario")
+  revisiones             Revision[]                   @relation("RevisionRevisor")
+  urgentesPedidas        SolicitudUrgente[]           @relation("UrgenteSolicitadaPor")
+  urgentesResueltas      SolicitudUrgente[]           @relation("UrgenteResueltaPor")
+  urgentesAsignadas      SolicitudUrgente[]           @relation("UrgenteAsignadoA")
+  extras                 HoraExtraBono[]              @relation("ExtraDelUsuario")
+  notificaciones         Notificacion[]               @relation("NotificacionDelUsuario")
   topeHorasExtra         TopeHorasExtraUsuario?
-  tiempos                RegistroTiempo[]       @relation("TiempoDelUsuario")
-  costosHora             CostoHoraUsuario[]     @relation("CostoDelUsuario")
-  extrasPropuestas       HoraExtraBono[]        @relation("ExtraPropuestaPor")
-  extrasAprobadas        HoraExtraBono[]        @relation("ExtraAprobadaPor")
-  entregasEnviadas       EntregaCliente[]       @relation("EntregaEnviadaPor")
-  ausencias              Ausencia[]             @relation("AusenciaDelUsuario")
-  ausenciasPedidas       Ausencia[]             @relation("AusenciaSolicitadaPor")
-  ausenciasResueltas     Ausencia[]             @relation("AusenciaResueltaPor")
+  tiempos                RegistroTiempo[]             @relation("TiempoDelUsuario")
+  costosHora             CostoHoraUsuario[]           @relation("CostoDelUsuario")
+  extrasPropuestas       HoraExtraBono[]              @relation("ExtraPropuestaPor")
+  extrasAprobadas        HoraExtraBono[]              @relation("ExtraAprobadaPor")
+  entregasEnviadas       EntregaCliente[]             @relation("EntregaEnviadaPor")
+  ausencias              Ausencia[]                   @relation("AusenciaDelUsuario")
+  ausenciasPedidas       Ausencia[]                   @relation("AusenciaSolicitadaPor")
+  ausenciasResueltas     Ausencia[]                   @relation("AusenciaResueltaPor")
 
   @@map("usuario")
 }
@@ -1245,11 +1246,12 @@ model Entregable {
   creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
   actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz(6)
 
-  trabajo    Trabajo          @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
+  trabajo    Trabajo                      @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
   tareas     Tarea[]
   revisiones Revision[]
   entregas   EntregaCliente[]
   extras     HoraExtraBono[]
+  urgencias  SolicitudUrgenteAsignacion[]
 
   @@index([trabajoId, orden])
   @@index([estado])
@@ -1330,14 +1332,15 @@ model SolicitudUrgente {
   solicitadaEn      DateTime               @default(now()) @map("solicitada_en") @db.Timestamptz(6)
   resueltaPorId     String?                @map("resuelta_por_id") @db.Uuid
   resueltaEn        DateTime?              @map("resuelta_en") @db.Timestamptz(6)
-  /// Auxiliar en cuya cola se insertó.
+  /// Quien recibió más trabajo; el reparto completo está en asignaciones.
   usuarioAsignadoId String?                @map("usuario_asignado_id") @db.Uuid
   observacion       String?
 
-  trabajo         Trabajo  @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
-  solicitadaPor   Usuario  @relation("UrgenteSolicitadaPor", fields: [solicitadaPorId], references: [id])
-  resueltaPor     Usuario? @relation("UrgenteResueltaPor", fields: [resueltaPorId], references: [id])
-  usuarioAsignado Usuario? @relation("UrgenteAsignadoA", fields: [usuarioAsignadoId], references: [id])
+  trabajo         Trabajo                      @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
+  solicitadaPor   Usuario                      @relation("UrgenteSolicitadaPor", fields: [solicitadaPorId], references: [id])
+  resueltaPor     Usuario?                     @relation("UrgenteResueltaPor", fields: [resueltaPorId], references: [id])
+  usuarioAsignado Usuario?                     @relation("UrgenteAsignadoA", fields: [usuarioAsignadoId], references: [id])
+  asignaciones    SolicitudUrgenteAsignacion[]
 
   @@index([estado])
   @@index([trabajoId])
@@ -1629,4 +1632,22 @@ model Adicional {
 
   @@unique([contratoId, numero])
   @@map("adicional")
+}
+
+/// Cómo se repartió una urgencia: a quién se asignó cada entregable (o las tareas sueltas del trabajo).
+model SolicitudUrgenteAsignacion {
+  id           String  @id @default(uuid(7)) @db.Uuid
+  solicitudId  String  @map("solicitud_id") @db.Uuid
+  usuarioId    String  @map("usuario_id") @db.Uuid
+  /// null = tareas del trabajo sin entregable.
+  entregableId String? @map("entregable_id") @db.Uuid
+  tareas       Int
+  minutos      Int
+
+  solicitud  SolicitudUrgente @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+  usuario    Usuario          @relation("UrgenteAsignacionDe", fields: [usuarioId], references: [id])
+  entregable Entregable?      @relation(fields: [entregableId], references: [id], onDelete: SetNull)
+
+  @@index([solicitudId])
+  @@map("solicitud_urgente_asignacion")
 }

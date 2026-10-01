@@ -937,6 +937,7 @@ Diferencias entre el diseño de arriba y lo que ya está en `apps/api/prisma/sch
 | `entrega_cliente` | Una fila por envío con su respuesta (pendiente / conforme / observado) | Historial de entregas |
 | `trabajo_evento` | + tipo `entregable` | Línea de tiempo del trabajo |
 | `solicitud_urgente` | Nueva: trabajo, motivo, estado (pendiente / ejecutada / rechazada), auxiliar en cuya cola se insertó; una sola pendiente por trabajo (índice parcial) | La asistente administrativa autoriza; producción ejecuta |
+| `solicitud_urgente_asignacion` | Nueva: cómo se repartió una urgencia ejecutada (persona, entregable o "sin entregable", tareas y minutos). `usuario_asignado_id` queda como quien recibió más trabajo | Hasta 4 personas por urgencia; cada entregable va completo a una |
 | `hora_extra_bono` | `CHECK`: horas extra con día y tramo (minutos); bono con monto > 0. Estados: propuesta, aceptada, rechazada, aprobada, realizada, anulada. Sin "liquidada" (el pago queda fuera del sistema) | Las aprobadas abren capacidad en la agenda |
 | `usuario` | + `debe_cambiar_clave` (primer ingreso o contraseña restablecida) | Cambio obligatorio antes de usar el sistema |
 | `tope_horas_extra_usuario` | Nueva: tope semanal y mensual propio de una persona (vacío = sin tope) | Excepción al tope global de los parámetros |

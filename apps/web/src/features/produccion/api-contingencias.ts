@@ -2,10 +2,13 @@ import type {
   AplicarReasignacionDatos,
   EjecutarUrgenteDatos,
   HoraExtraItem,
+  ImpactoReparto,
   ImpactoUrgente,
   PlanReasignacion,
   ProponerExtraDatos,
   ResumenExtras,
+  PropuestaUrgente,
+  RepartoUrgente,
   SolicitudUrgenteItem,
   TopesExtra,
   VistaExtras,
@@ -17,6 +20,8 @@ export const clavesContingencias = {
   urgentes: ['urgentes'] as const,
   deTrabajo: (id: string) => ['urgentes', 'trabajo', id] as const,
   impacto: (id: string, usuarioId: string) => ['urgentes', 'impacto', id, usuarioId] as const,
+  propuesta: (id: string) => ['urgentes', 'propuesta', id] as const,
+  reparto: (id: string, reparto: RepartoUrgente) => ['urgentes', 'reparto', id, reparto] as const,
   reasignacion: (ausenciaId: string) => ['ausencias', 'reasignacion', ausenciaId] as const,
   extras: (vista: VistaExtras, desde: string, hasta: string) => ['horas-extra', vista, desde, hasta] as const,
 }
@@ -30,6 +35,18 @@ export const impactoQuery = (id: string, usuarioId: string) =>
   queryOptions({
     queryKey: clavesContingencias.impacto(id, usuarioId),
     queryFn: () => api<ImpactoUrgente>(`/urgentes/${id}/impacto?usuarioId=${usuarioId}`),
+    staleTime: 0,
+  })
+
+/** Entregables de la urgencia, quién puede tomar cada uno y el reparto sugerido. */
+export const propuestaQuery = (id: string) =>
+  queryOptions({ queryKey: clavesContingencias.propuesta(id), queryFn: () => api<PropuestaUrgente>(`/urgentes/${id}/propuesta`), staleTime: 0 })
+
+/** Simulación de un reparto: no cambia nada, solo muestra cómo quedan las colas. */
+export const repartoQuery = (id: string, reparto: RepartoUrgente) =>
+  queryOptions({
+    queryKey: clavesContingencias.reparto(id, reparto),
+    queryFn: () => api<ImpactoReparto>(`/urgentes/${id}/simular`, { method: 'POST', body: { reparto } }),
     staleTime: 0,
   })
 

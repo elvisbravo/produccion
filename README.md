@@ -88,7 +88,9 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | POST | `/api/tareas/:id/iniciar` | Quien la realiza marca que empezó |
 | GET/POST | `/api/ausencias/:id/reasignacion` | Propuesta de reasignación por ausencia (simula la cola de cada candidato) y su aplicación |
 | POST/GET | `/api/trabajos/:id/urgente`, `/api/trabajos/:id/urgentes`, `/api/urgentes` | Autorizar una urgencia (asistente administrativa) y bandeja de producción |
-| GET/POST | `/api/urgentes/:id/impacto?usuarioId=`, `…/ejecutar`, `…/rechazar` | Simulación en cascada e inserción en la cola de un auxiliar |
+| GET | `/api/urgentes/:id/propuesta` | Los entregables pendientes de la urgencia, quién puede tomar cada uno y el reparto sugerido (el que termina antes) |
+| POST | `/api/urgentes/:id/simular` | Cómo queda la cola de cada persona con un reparto por entregable (consulta; no cambia nada) |
+| GET/POST | `/api/urgentes/:id/impacto?usuarioId=`, `…/ejecutar`, `…/rechazar` | Simulación con un solo auxiliar; ejecutar con `reparto` (entregable → persona, hasta 4 personas) o con `usuarioId` para todo a una persona |
 | GET/POST/PUT | `/api/horas-extra`, `…/:id/responder`, `…/aprobar`, `…/realizar`, `…/anular`, `…/topes` | Horas extra y bonos: propuesta → aceptación → aprobación → realizado; topes y resumen por persona |
 | GET/POST | `/api/notificaciones`, `…/:id/leer`, `…/leer-todas` | Campanita: últimos 50 avisos y no leídas (cada usuario, los suyos) |
 | POST | `/api/auth/cambiar-clave` | Cambiar la contraseña propia (obligatorio en el primer ingreso o tras un restablecimiento) |
@@ -127,6 +129,7 @@ Una persona puede tener más de un rol (sus permisos se suman). Para que siempre
 
 - **Por trabajo:** el jefe responsable no puede ser también auxiliar (principal o de apoyo) del mismo trabajo. Alguien que es auxiliar y jefe puede ser jefe en un trabajo y auxiliar en otro. Se valida al armar el equipo (`armarEquipoSchema`) y el diálogo deshabilita esas opciones.
 - **Por entregable:** no se puede revisar (aprobar u observar) un entregable en cuya elaboración o corrección participó quien revisa, ni siquiera el administrador; lo revisa otro jefe o el administrador. Aplica a quien tiene una tarea de producción o corrección de ese entregable, o registró tiempo en ella.
+- **Inserción urgente:** al repartirla entre varias personas, cada entregable va completo a una sola persona y el jefe responsable del trabajo no puede tomar su elaboración.
 - **Reasignación por ausencia:** el jefe responsable de un trabajo no se sugiere para elaborar o corregir tareas de ese mismo trabajo.
 
 ### Avisos automáticos

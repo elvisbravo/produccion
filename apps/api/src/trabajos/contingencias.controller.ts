@@ -1,14 +1,18 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
 import {
   aplicarReasignacionSchema,
   ejecutarUrgenteSchema,
   ESTADOS_URGENTE,
   rechazarUrgenteSchema,
+  simularRepartoSchema,
   solicitarUrgenteSchema,
   type AplicarReasignacionDatos,
   type EjecutarUrgenteDatos,
+  type ImpactoReparto,
   type ImpactoUrgente,
   type PlanReasignacion,
+  type PropuestaUrgente,
+  type RepartoUrgente,
   type SolicitudUrgenteItem,
 } from '@grupoes/shared';
 import { z } from 'zod';
@@ -58,6 +62,21 @@ export class ContingenciasController {
   @Get('urgentes/:id/impacto')
   impacto(@Param('id', ParseUUIDPipe) id: string, @Query(new ZodValidationPipe(impactoSchema)) { usuarioId }: { usuarioId: string }): Promise<ImpactoUrgente> {
     return this.contingencias.simularUrgente(id, usuarioId);
+  }
+
+  /** Los entregables de la urgencia, quién puede tomar cada uno y el reparto que sugiere el sistema. */
+  @RequierePermiso('programacion.insertar_urgente')
+  @Get('urgentes/:id/propuesta')
+  propuesta(@Param('id', ParseUUIDPipe) id: string): Promise<PropuestaUrgente> {
+    return this.contingencias.propuestaUrgente(id);
+  }
+
+  /** Cómo queda la cola de cada persona con un reparto (es una consulta: no cambia nada). */
+  @RequierePermiso('programacion.insertar_urgente')
+  @Post('urgentes/:id/simular')
+  @HttpCode(200)
+  simular(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(simularRepartoSchema)) { reparto }: { reparto: RepartoUrgente }): Promise<ImpactoReparto> {
+    return this.contingencias.simularReparto(id, reparto);
   }
 
   @RequierePermiso('programacion.insertar_urgente')
