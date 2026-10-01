@@ -108,6 +108,9 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | GET/POST | `/api/cotizaciones`, `/api/cotizaciones/:id/anular` | Listado (búsqueda y estado: vigente, vencida, anulada) y anulación con motivo |
 | GET | `/api/documentos/cotizacion/:id`, `…/contrato/:trabajoId`, `…/recibo/:pagoId` | Datos para imprimir, con el texto de la plantilla ya rellenado y el monto en letras |
 | GET/PUT | `/api/documentos/configuracion` | Membrete de la empresa y plantillas de texto (con variables `{cliente}`, `{monto}`…) |
+| GET/POST | `/api/comentarios?entidad&entidadId`, `/api/comentarios` | Hilo de comentarios de un prospecto, trabajo, entregable o tarea; las menciones van como `@[Nombre](id)` y avisan a la persona |
+| GET | `/api/comentarios/mencionables?entidad&entidadId` | Personas que se pueden mencionar: activas y con acceso al registro |
+| PATCH/DELETE | `/api/comentarios/:id` | Editar (avisa solo a los nuevos mencionados) o eliminar; solo el autor |
 | WS | `/api/socket.io` | Avisos en vivo (Socket.IO). La web se conecta con su access token en `auth.token`; cada usuario tiene su sala |
 
 ### Documentos imprimibles

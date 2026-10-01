@@ -13,3 +13,4 @@ export * from './administracion.js';
 export * from './tiempo.js';
 export * from './reportes.js';
 export * from './documentos.js';
+export * from './comentarios.js';

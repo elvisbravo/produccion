@@ -28,6 +28,7 @@ const REFRESCAR: Record<AreaNotificacion, string[][]> = {
   extra: [['horas-extra'], ['agenda']],
   cuota: [['contratos']],
   recordatorio: [['tareas']],
+  comentario: [['comentarios']],
 }
 
 /**

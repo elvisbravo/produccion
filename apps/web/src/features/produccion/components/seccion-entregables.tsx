@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { BotonComentarios } from '@/features/comentarios/components/boton-comentarios'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { ApiError } from '@/lib/api'
@@ -205,6 +206,7 @@ function Entregable({ t, e }: { t: TrabajoDetalle; e: EntregableItem }) {
         </div>
         <div className="flex items-center gap-1">
           {accion}
+          <BotonComentarios entidad="entregable" entidadId={e.id} titulo={e.nombre} />
           {menu && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

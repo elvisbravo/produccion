@@ -9,6 +9,7 @@ import {
   CheckCheck,
   ClipboardList,
   Flame,
+  MessageSquare,
   PackageCheck,
   Timer,
   UserRound,
@@ -34,6 +35,7 @@ const ICONO: Record<AreaNotificacion, LucideIcon> = {
   extra: Timer,
   cuota: Wallet,
   recordatorio: AlarmClock,
+  comentario: MessageSquare,
 }
 
 /** Campanita del encabezado: avisos recientes, no leídas y acceso directo a lo que corresponde. */

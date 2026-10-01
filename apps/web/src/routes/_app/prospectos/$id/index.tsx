@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { HiloComentarios } from '@/features/comentarios/components/hilo-comentarios'
 import { CotizacionesProspecto } from '@/features/documentos/components/cotizaciones-prospecto'
 import { catalogosProspectoQuery, prospectoQuery } from '@/features/prospectos/api'
 import { InsigniaEtapa, InsigniaPrioridad, InsigniaTemperatura } from '@/features/prospectos/components/insignias'
@@ -131,6 +132,14 @@ function DetalleProspecto() {
             abierto={p.etapa.clase === 'abierta' && !p.trabajo}
             descripcionSugerida={[p.tipoTrabajo.nombre, p.titulo].filter(Boolean).join(': ')}
           />
+          <Card>
+            <CardHeader>
+              <CardTitle>Comentarios</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <HiloComentarios entidad="prospecto" entidadId={p.id} />
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>

@@ -13,6 +13,7 @@ import { CalendarClock, Check, CircleSlash, Clock, EllipsisVertical, Repeat2, Us
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { BotonComentarios } from '@/features/comentarios/components/boton-comentarios'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { describirCuando, duracion, nombreCompleto } from '@/lib/formato'
 import { useAlcance, usePermiso } from '@/lib/permisos'
@@ -146,6 +147,7 @@ export function TareaFila({ tarea, hoy, actividades, catalogos, mostrarProspecto
               </Button>
             )
           )}
+          <BotonComentarios entidad="tarea" entidadId={tarea.id} titulo={tarea.titulo ?? tarea.actividad.nombre} />
           {(puedeCancelar || puedeReprogramar || puedeAsignar || esResponsable) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

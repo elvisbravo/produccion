@@ -2,7 +2,7 @@
  * Notificaciones internas. El tipo es "área.evento" (p. ej. "tarea.asignada"):
  * el área decide el ícono y qué datos refrescar en la web al recibirla.
  */
-export const AREAS_NOTIFICACION = ['tarea', 'prospecto', 'trabajo', 'equipo', 'entregable', 'ausencia', 'urgente', 'extra', 'cuota', 'recordatorio'] as const
+export const AREAS_NOTIFICACION = ['tarea', 'prospecto', 'trabajo', 'equipo', 'entregable', 'ausencia', 'urgente', 'extra', 'cuota', 'recordatorio', 'comentario'] as const
 export type AreaNotificacion = (typeof AREAS_NOTIFICACION)[number]
 
 export const areaDe = (tipo: string): AreaNotificacion => {

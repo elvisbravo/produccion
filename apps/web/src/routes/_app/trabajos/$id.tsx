@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { HiloComentarios } from '@/features/comentarios/components/hilo-comentarios'
 import { SeccionEntregables } from '@/features/produccion/components/seccion-entregables'
 import { UrgenciaDelTrabajo } from '@/features/produccion/components/urgencias'
 import { InsigniaPrioridad } from '@/features/prospectos/components/insignias'
@@ -89,6 +90,14 @@ function DetalleTrabajo() {
           <UrgenciaDelTrabajo trabajoId={t.id} cerrado={['finalizado', 'cancelado'].includes(t.estado)} />
           <SeccionEntregables t={t} />
           {t.contrato && <Contrato contrato={t.contrato} trabajoId={t.id} />}
+          <Card>
+            <CardHeader>
+              <CardTitle>Comentarios</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <HiloComentarios entidad="trabajo" entidadId={t.id} />
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader>
               <CardTitle>Integrantes</CardTitle>

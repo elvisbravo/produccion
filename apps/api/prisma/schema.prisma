@@ -59,6 +59,8 @@ model Usuario {
   pagosAnulados        Pago[]                 @relation("PagoAnuladoPor")
   cotizacionesCreadas  Cotizacion[]           @relation("CotizacionCreadaPor")
   cotizacionesAnuladas Cotizacion[]           @relation("CotizacionAnuladaPor")
+  comentarios          Comentario[]           @relation("ComentarioAutor")
+  menciones            ComentarioMencion[]    @relation("ComentarioMencionado")
   horarios             HorarioUsuario[]       @relation("HorarioDelUsuario")
   revisiones           Revision[]             @relation("RevisionRevisor")
   urgentesPedidas      SolicitudUrgente[]     @relation("UrgenteSolicitadaPor")
@@ -1534,4 +1536,47 @@ model PlantillaDocumento {
   actualizadoPor String?                @map("actualizado_por") @db.Uuid
 
   @@map("plantilla_documento")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Comentarios con @menciones
+// ─────────────────────────────────────────────────────────────
+
+enum EntidadComentario {
+  prospecto
+  trabajo
+  entregable
+  tarea
+
+  @@map("entidad_comentario")
+}
+
+/// Hilo interno de un registro. Las menciones van en el texto como @[Nombre](id) y se copian a comentario_mencion.
+model Comentario {
+  id          String            @id @default(uuid(7)) @db.Uuid
+  entidad     EntidadComentario
+  entidadId   String            @map("entidad_id") @db.Uuid
+  autorId     String            @map("autor_id") @db.Uuid
+  texto       String
+  creadoEn    DateTime          @default(now()) @map("creado_en") @db.Timestamptz(6)
+  editadoEn   DateTime?         @map("editado_en") @db.Timestamptz(6)
+  eliminadoEn DateTime?         @map("eliminado_en") @db.Timestamptz(6)
+
+  autor     Usuario             @relation("ComentarioAutor", fields: [autorId], references: [id])
+  menciones ComentarioMencion[]
+
+  @@index([entidad, entidadId, creadoEn])
+  @@map("comentario")
+}
+
+model ComentarioMencion {
+  comentarioId String @map("comentario_id") @db.Uuid
+  usuarioId    String @map("usuario_id") @db.Uuid
+
+  comentario Comentario @relation(fields: [comentarioId], references: [id], onDelete: Cascade)
+  usuario    Usuario    @relation("ComentarioMencionado", fields: [usuarioId], references: [id])
+
+  @@id([comentarioId, usuarioId])
+  @@index([usuarioId])
+  @@map("comentario_mencion")
 }
