@@ -158,9 +158,11 @@ export class ContingenciasService {
       const bases = await this.agenda.basesDeCola(personal.map((c) => c.id));
       const equipos = await this.prisma.trabajoEquipo.findMany({
         where: { trabajoId: { in: afectadas.map((a) => a.tarea.trabajoId!).filter(Boolean) }, hasta: null },
-        select: { trabajoId: true, usuarioId: true },
+        select: { trabajoId: true, usuarioId: true, funcion: true },
       });
       for (const { tarea } of afectadas) {
+        // Quien elabora no puede revisar lo suyo: el jefe responsable del trabajo no recibe su elaboración ni su corrección.
+        const eselabora = ['produccion', 'correccion'].includes(tarea.actividad.tipo.comportamiento);
         const fechaLimite = limiteDe(tarea);
         const actual = resultado(planActual.get(tarea.id), fechaLimite);
         const responsable = await this.prisma.tareaResponsable.findFirst({ where: { tareaId: tarea.id, usuarioId: u } });
@@ -175,7 +177,14 @@ export class ContingenciasService {
             const enEquipo = equipos.some((e) => e.trabajoId === tarea.trabajoId && e.usuarioId === c.id);
             const motivo: MotivoCandidato = !esAuxiliar ? 'jefe' : enEquipo ? 'equipo' : 'auxiliar';
             const r = resultado(plan, fechaLimite);
-            return { usuario: { id: c.id, nombres: c.nombres, apellidos: c.apellidos }, motivo, resultado: r, disponible: r.semaforo !== 'rojo' && r.semaforo !== 'sin_plan', aviso: null };
+            const esJefeDelTrabajo = eselabora && equipos.some((e) => e.trabajoId === tarea.trabajoId && e.usuarioId === c.id && e.funcion === 'jefe_responsable');
+            return {
+              usuario: { id: c.id, nombres: c.nombres, apellidos: c.apellidos },
+              motivo,
+              resultado: r,
+              disponible: !esJefeDelTrabajo && r.semaforo !== 'rojo' && r.semaforo !== 'sin_plan',
+              aviso: esJefeDelTrabajo ? 'Es el jefe responsable de este trabajo: si la elabora, otra persona tendría que revisarla' : null,
+            };
           })
           .sort(
             (a, b) =>

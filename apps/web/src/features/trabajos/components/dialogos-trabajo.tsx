@@ -55,7 +55,9 @@ export function DialogoEquipo({ trabajo, abierto, onAbiertoChange }: PropsDialog
     },
   })
   const e = form.formState.errors
-  const principal = useWatch({ control: form.control, name: 'auxiliarPrincipalId' })
+  const [principal, jefe, apoyo] = useWatch({ control: form.control, name: ['auxiliarPrincipalId', 'jefeResponsableId', 'auxiliaresApoyo'] })
+  // Quien revisa no puede ser quien elabora: una persona con ambos roles va en un solo lado de este trabajo.
+  const auxiliaresElegidos = [principal, ...(apoyo ?? [])].filter(Boolean)
 
   const enviar = form.handleSubmit(async (datos) => {
     setError(null)
@@ -68,7 +70,7 @@ export function DialogoEquipo({ trabajo, abierto, onAbiertoChange }: PropsDialog
     }
   })
 
-  const selectorUsuario = (nombre: 'auxiliarPrincipalId' | 'jefeResponsableId', lista: { id: string; nombres: string; apellidos: string }[], idCampo: string) => (
+  const selectorUsuario = (nombre: 'auxiliarPrincipalId' | 'jefeResponsableId', lista: { id: string; nombres: string; apellidos: string }[], idCampo: string, ocupados: string[], motivoOcupado: string) => (
     <Controller
       control={form.control}
       name={nombre}
@@ -79,8 +81,9 @@ export function DialogoEquipo({ trabajo, abierto, onAbiertoChange }: PropsDialog
           </SelectTrigger>
           <SelectContent>
             {lista.map((u) => (
-              <SelectItem key={u.id} value={u.id}>
+              <SelectItem key={u.id} value={u.id} disabled={ocupados.includes(u.id)}>
                 {nombreCompleto(u)}
+                {ocupados.includes(u.id) && <span className="text-muted-foreground"> · {motivoOcupado}</span>}
               </SelectItem>
             ))}
           </SelectContent>
@@ -115,7 +118,7 @@ export function DialogoEquipo({ trabajo, abierto, onAbiertoChange }: PropsDialog
                     Auxiliar principal <Requerido />
                   </span>
                 </FieldLabel>
-                {selectorUsuario('auxiliarPrincipalId', candidatos.auxiliares, 'eq-principal')}
+                {selectorUsuario('auxiliarPrincipalId', candidatos.auxiliares, 'eq-principal', [jefe].filter(Boolean), 'ya es el jefe de este trabajo')}
                 {!hayEquipo && trabajo.dioElEnfoque && (
                   <FieldDescription>Dio el enfoque: {nombreCompleto(trabajo.dioElEnfoque.usuario)}.</FieldDescription>
                 )}
@@ -135,10 +138,12 @@ export function DialogoEquipo({ trabajo, abierto, onAbiertoChange }: PropsDialog
                           .map((u) => (
                             <Label key={u.id} className="flex items-center gap-2 font-normal">
                               <Checkbox
+                                disabled={u.id === jefe}
                                 checked={valor.includes(u.id)}
                                 onCheckedChange={(v) => field.onChange(v === true ? [...valor, u.id] : valor.filter((x) => x !== u.id))}
                               />
                               {nombreCompleto(u)}
+                              {u.id === jefe && <span className="text-xs text-muted-foreground">(jefe de este trabajo)</span>}
                             </Label>
                           ))}
                       </div>
@@ -153,8 +158,8 @@ export function DialogoEquipo({ trabajo, abierto, onAbiertoChange }: PropsDialog
                     Jefe responsable <Requerido />
                   </span>
                 </FieldLabel>
-                {selectorUsuario('jefeResponsableId', candidatos.jefes, 'eq-jefe')}
-                <FieldDescription>Revisa los entregables de este trabajo.</FieldDescription>
+                {selectorUsuario('jefeResponsableId', candidatos.jefes, 'eq-jefe', auxiliaresElegidos, 'ya es auxiliar de este trabajo')}
+                <FieldDescription>Revisa los entregables de este trabajo; debe ser otra persona que quienes los elaboran.</FieldDescription>
                 <FieldError errors={[e.jefeResponsableId]} />
               </Field>
               {hayEquipo && (

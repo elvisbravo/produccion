@@ -147,6 +147,10 @@ export const armarEquipoSchema = z
     if (d.auxiliaresApoyo.includes(d.auxiliarPrincipalId)) {
       ctx.addIssue({ code: 'custom', path: ['auxiliaresApoyo'], message: 'El auxiliar principal no puede ser también de apoyo' })
     }
+    // Quien revisa debe ser otra persona que quien elabora: alguien con ambos roles puede ser jefe en un trabajo y auxiliar en otro, no las dos cosas en el mismo.
+    if (d.jefeResponsableId === d.auxiliarPrincipalId || d.auxiliaresApoyo.includes(d.jefeResponsableId)) {
+      ctx.addIssue({ code: 'custom', path: ['jefeResponsableId'], message: 'El jefe responsable no puede ser también auxiliar de este trabajo: quien revisa debe ser otra persona' })
+    }
   })
 export type ArmarEquipoFormulario = z.input<typeof armarEquipoSchema>
 export type ArmarEquipoDatos = z.output<typeof armarEquipoSchema>

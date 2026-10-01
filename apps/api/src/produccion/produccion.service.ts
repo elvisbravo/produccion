@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   diaEnLima,
   NOMBRE_CANAL_ENTREGA,
@@ -414,10 +414,26 @@ export class ProduccionService {
     );
   }
 
+  /** Hizo (o registró tiempo en) alguna tarea de elaboración o corrección de este entregable. */
+  private async elaboro(tx: Tx, entregableId: string, usuarioId: string): Promise<boolean> {
+    const n = await tx.tarea.count({
+      where: {
+        entregableId,
+        estado: { not: 'cancelada' },
+        actividad: { tipo: { comportamiento: { in: ['produccion', 'correccion'] } } },
+        OR: [{ responsables: { some: { usuarioId } } }, { tiempos: { some: { usuarioId } } }],
+      },
+    });
+    return n > 0;
+  }
+
   async revisar(entregableId: string, datos: RevisarEntregableDatos, actor: ActorProduccion): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       const e = await this.entregable(tx, entregableId);
       if (e.estado !== 'en_revision') throw new BadRequestException('El entregable no está en revisión');
+      if (await this.elaboro(tx, entregableId, actor.usuarioId)) {
+        throw new ForbiddenException('No puedes revisar un entregable en cuya elaboración participaste. Pídele la revisión a otro jefe de producción o al administrador.');
+      }
       const tareasRevision = await tx.tarea.findMany({ where: { entregableId, estado: { in: [...ACTIVAS] }, actividad: { tipo: { comportamiento: 'revision' } } } });
       const ahora = new Date();
       await tx.tarea.updateMany({

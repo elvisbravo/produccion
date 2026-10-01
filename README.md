@@ -121,6 +121,14 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 
 La web arma la cotización, el contrato y el recibo como hojas A4 en `/imprimir/…` (sin el menú) y se imprimen o guardan en PDF desde el navegador. Los textos son plantillas editables en **Configuración → Documentos**; mientras no se carguen los formatos de la empresa se usan textos provisionales (`PLANTILLAS_POR_DEFECTO` en `packages/shared/src/documentos.ts`). Un dato que falta se imprime como una línea para completarlo a mano.
 
+### Personas con varios roles
+
+Una persona puede tener más de un rol (sus permisos se suman). Para que siempre revise alguien distinto de quien elabora:
+
+- **Por trabajo:** el jefe responsable no puede ser también auxiliar (principal o de apoyo) del mismo trabajo. Alguien que es auxiliar y jefe puede ser jefe en un trabajo y auxiliar en otro. Se valida al armar el equipo (`armarEquipoSchema`) y el diálogo deshabilita esas opciones.
+- **Por entregable:** no se puede revisar (aprobar u observar) un entregable en cuya elaboración o corrección participó quien revisa, ni siquiera el administrador; lo revisa otro jefe o el administrador. Aplica a quien tiene una tarea de producción o corrección de ese entregable, o registró tiempo en ella.
+- **Reasignación por ausencia:** el jefe responsable de un trabajo no se sugiere para elaborar o corregir tareas de ese mismo trabajo.
+
 ### Avisos automáticos
 
 `RecordatoriosService` (con `@nestjs/schedule`, hora de Lima) avisa sin repetir (clave única por usuario):
