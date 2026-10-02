@@ -161,6 +161,10 @@ export const MODULOS = [
     acciones: [ver(), editar()],
   },
   {
+    codigo: 'modulos', nombre: 'Módulos y permisos', padre: 'configuracion', ruta: '/modulos', icono: 'Blocks', orden: 48,
+    acciones: [ver()],
+  },
+  {
     codigo: 'documentos', nombre: 'Documentos', padre: 'configuracion', ruta: '/documentos', icono: 'FileCog', orden: 47,
     acciones: [ver(), editar()],
   },

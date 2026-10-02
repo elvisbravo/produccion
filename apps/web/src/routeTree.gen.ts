@@ -25,6 +25,7 @@ import { Route as AppCotizacionesIndexRouteImport } from './routes/_app/cotizaci
 import { Route as AppDocumentosIndexRouteImport } from './routes/_app/documentos/index'
 import { Route as AppEntregablesIndexRouteImport } from './routes/_app/entregables/index'
 import { Route as AppHorasExtraIndexRouteImport } from './routes/_app/horas-extra/index'
+import { Route as AppModulosIndexRouteImport } from './routes/_app/modulos/index'
 import { Route as AppParametrosIndexRouteImport } from './routes/_app/parametros/index'
 import { Route as AppProgramacionIndexRouteImport } from './routes/_app/programacion/index'
 import { Route as AppProspectosIndexRouteImport } from './routes/_app/prospectos/index'
@@ -122,6 +123,11 @@ const AppEntregablesIndexRoute = AppEntregablesIndexRouteImport.update({
 const AppHorasExtraIndexRoute = AppHorasExtraIndexRouteImport.update({
   id: '/horas-extra/',
   path: '/horas-extra/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppModulosIndexRoute = AppModulosIndexRouteImport.update({
+  id: '/modulos/',
+  path: '/modulos/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppParametrosIndexRoute = AppParametrosIndexRouteImport.update({
@@ -244,6 +250,7 @@ export interface FileRoutesByFullPath {
   '/documentos/': typeof AppDocumentosIndexRoute
   '/entregables/': typeof AppEntregablesIndexRoute
   '/horas-extra/': typeof AppHorasExtraIndexRoute
+  '/modulos/': typeof AppModulosIndexRoute
   '/parametros/': typeof AppParametrosIndexRoute
   '/programacion/': typeof AppProgramacionIndexRoute
   '/prospectos/': typeof AppProspectosIndexRoute
@@ -280,6 +287,7 @@ export interface FileRoutesByTo {
   '/documentos': typeof AppDocumentosIndexRoute
   '/entregables': typeof AppEntregablesIndexRoute
   '/horas-extra': typeof AppHorasExtraIndexRoute
+  '/modulos': typeof AppModulosIndexRoute
   '/parametros': typeof AppParametrosIndexRoute
   '/programacion': typeof AppProgramacionIndexRoute
   '/prospectos': typeof AppProspectosIndexRoute
@@ -318,6 +326,7 @@ export interface FileRoutesById {
   '/_app/documentos/': typeof AppDocumentosIndexRoute
   '/_app/entregables/': typeof AppEntregablesIndexRoute
   '/_app/horas-extra/': typeof AppHorasExtraIndexRoute
+  '/_app/modulos/': typeof AppModulosIndexRoute
   '/_app/parametros/': typeof AppParametrosIndexRoute
   '/_app/programacion/': typeof AppProgramacionIndexRoute
   '/_app/prospectos/': typeof AppProspectosIndexRoute
@@ -356,6 +365,7 @@ export interface FileRouteTypes {
     | '/documentos/'
     | '/entregables/'
     | '/horas-extra/'
+    | '/modulos/'
     | '/parametros/'
     | '/programacion/'
     | '/prospectos/'
@@ -392,6 +402,7 @@ export interface FileRouteTypes {
     | '/documentos'
     | '/entregables'
     | '/horas-extra'
+    | '/modulos'
     | '/parametros'
     | '/programacion'
     | '/prospectos'
@@ -429,6 +440,7 @@ export interface FileRouteTypes {
     | '/_app/documentos/'
     | '/_app/entregables/'
     | '/_app/horas-extra/'
+    | '/_app/modulos/'
     | '/_app/parametros/'
     | '/_app/programacion/'
     | '/_app/prospectos/'
@@ -561,6 +573,13 @@ declare module '@tanstack/react-router' {
       path: '/horas-extra'
       fullPath: '/horas-extra/'
       preLoaderRoute: typeof AppHorasExtraIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/modulos/': {
+      id: '/_app/modulos/'
+      path: '/modulos'
+      fullPath: '/modulos/'
+      preLoaderRoute: typeof AppModulosIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/parametros/': {
@@ -717,6 +736,7 @@ interface AppRouteChildren {
   AppDocumentosIndexRoute: typeof AppDocumentosIndexRoute
   AppEntregablesIndexRoute: typeof AppEntregablesIndexRoute
   AppHorasExtraIndexRoute: typeof AppHorasExtraIndexRoute
+  AppModulosIndexRoute: typeof AppModulosIndexRoute
   AppParametrosIndexRoute: typeof AppParametrosIndexRoute
   AppProgramacionIndexRoute: typeof AppProgramacionIndexRoute
   AppProspectosIndexRoute: typeof AppProspectosIndexRoute
@@ -749,6 +769,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppDocumentosIndexRoute: AppDocumentosIndexRoute,
   AppEntregablesIndexRoute: AppEntregablesIndexRoute,
   AppHorasExtraIndexRoute: AppHorasExtraIndexRoute,
+  AppModulosIndexRoute: AppModulosIndexRoute,
   AppParametrosIndexRoute: AppParametrosIndexRoute,
   AppProgramacionIndexRoute: AppProgramacionIndexRoute,
   AppProspectosIndexRoute: AppProspectosIndexRoute,

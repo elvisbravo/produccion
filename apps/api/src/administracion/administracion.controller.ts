@@ -16,6 +16,7 @@ import {
   type EditarUsuarioDatos,
   type ExcepcionPermisoDatos,
   type MatrizRolDatos,
+  type ModuloPermisos,
   type Paginado,
   type ParametroItem,
   type RolDatos,
@@ -33,6 +34,7 @@ import { ParametrosService } from '../parametros/parametros.service.js';
 import { RequierePermiso } from '../permisos/requiere-permiso.decorator.js';
 import { PermisosService } from '../permisos/permisos.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ModulosService } from './modulos.service.js';
 import { RolesService } from './roles.service.js';
 import { UsuariosService } from './usuarios.service.js';
 
@@ -247,5 +249,17 @@ export class AuditoriaController {
       porPagina: POR_PAGINA,
       entidades: entidades.map((e) => e.entidad),
     };
+  }
+}
+
+/** Módulos del sistema y quién tiene cada acción (solo consulta). */
+@Controller('modulos')
+export class ModulosController {
+  constructor(private readonly modulos: ModulosService) {}
+
+  @RequierePermiso('modulos.ver')
+  @Get()
+  listar(): Promise<ModuloPermisos[]> {
+    return this.modulos.listar();
   }
 }

@@ -12,6 +12,7 @@ import {
   LayoutGrid,
   ListChecks,
   ShieldCheck,
+  Blocks,
   SlidersHorizontal,
   SquareCheckBig,
   SquareKanban,
@@ -27,6 +28,7 @@ import {
  * Se listan explícitamente para no incluir todos los íconos de lucide en el bundle.
  */
 const ICONOS: Record<string, LucideIcon> = {
+  Blocks,
   BriefcaseBusiness,
   CalendarClock,
   CalendarCog,

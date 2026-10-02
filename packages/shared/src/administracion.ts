@@ -331,6 +331,28 @@ export interface RolDetalle extends RolItem {
   matriz: { permiso: string; alcance: Alcance | null }[]
 }
 
+/** Un módulo con sus acciones y quién las tiene (vista de consulta). */
+export interface ModuloPermisos {
+  codigo: string
+  nombre: string
+  /** Grupo del menú al que pertenece. */
+  grupo: string | null
+  ruta: string | null
+  activo: boolean
+  acciones: {
+    /** "modulo.accion", el código que usa el sistema. */
+    permiso: string
+    nombre: string
+    usaAlcance: boolean
+    /** false: la acción ya no existe en el sistema. */
+    vigente: boolean
+    roles: { codigo: string; nombre: string; alcance: Alcance | null }[]
+    /** Personas con una excepción individual (concedida o denegada) sobre esta acción. */
+    concedidas: number
+    denegadas: number
+  }[]
+}
+
 // ─── Auditoría ──────────────────────────────────────────────
 
 export const listarAuditoriaSchema = z.object({
