@@ -11,12 +11,16 @@ import {
   type EntregableItem,
   type EntregaItem,
   type EntregarDatos,
+  type OmitirTurnitinDatos,
   type PlanTarea,
   type RespuestaClienteDatos,
+  type ResultadoTurnitinDatos,
   type RevisarEntregableDatos,
   type RevisionItem,
   type Semaforo,
   type TareaEntregableDatos,
+  type TurnitinConfig,
+  type TurnitinItem,
   type VistaBandeja,
 } from '@grupoes/shared';
 import { AgendaService, type ColaDeUsuario } from '../agenda/agenda.service.js';
@@ -25,6 +29,7 @@ import { AuditoriaService } from '../common/auditoria.service.js';
 import { errorFechasFijas } from '../trabajos/fechas-fijas.error.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
+import { ParametrosService } from '../parametros/parametros.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { minutosReales } from '../tareas/mapeo.js';
 import { cerrarTramos } from '../tareas/tramos.js';
@@ -55,6 +60,7 @@ const INCLUIR_ENTREGABLE = {
   },
   revisiones: { orderBy: { fecha: 'desc' }, include: { revisor: { select: CAMPOS_USUARIO } } },
   entregas: { orderBy: { fecha: 'desc' }, include: { enviadoPor: { select: CAMPOS_USUARIO } } },
+  turnitin: { orderBy: { enviadoEn: 'desc' }, include: { enviadoPor: { select: CAMPOS_USUARIO }, registradoPor: { select: CAMPOS_USUARIO } } },
 } as const satisfies Prisma.EntregableInclude;
 type EntregableCompleto = Prisma.EntregableGetPayload<{ include: typeof INCLUIR_ENTREGABLE }>;
 
@@ -74,6 +80,17 @@ const aRevision = (r: EntregableCompleto['revisiones'][number]): RevisionItem =>
   revisor: r.revisor,
   fecha: r.fecha.toISOString(),
 });
+const aTurnitin = (t: EntregableCompleto['turnitin'][number]): TurnitinItem => ({
+  id: t.id,
+  enviadoPor: t.enviadoPor,
+  enviadoEn: t.enviadoEn.toISOString(),
+  resultado: t.resultado,
+  similitud: t.similitud === null ? null : Number(t.similitud),
+  ia: t.ia === null ? null : Number(t.ia),
+  observaciones: t.observaciones,
+  registradoPor: t.registradoPor,
+  registradoEn: t.registradoEn?.toISOString() ?? null,
+});
 const aEntrega = (e: EntregableCompleto['entregas'][number]): EntregaItem => ({
   id: e.id,
   fecha: e.fecha.toISOString(),
@@ -92,6 +109,7 @@ export class ProduccionService {
     private readonly agenda: AgendaService,
     private readonly auditoria: AuditoriaService,
     private readonly notificaciones: NotificacionesService,
+    private readonly parametros: ParametrosService,
   ) {}
 
   // ─── Lectura ─────────────────────────────────────────────
@@ -150,6 +168,8 @@ export class ProduccionService {
       tareas,
       revisiones: e.revisiones.map(aRevision),
       entregas: e.entregas.map(aEntrega),
+      turnitin: e.turnitin.map(aTurnitin),
+      turnitinConformeEn: e.turnitinConformeEn?.toISOString() ?? null,
       finPlan: fines.sort().at(-1) ?? null,
       semaforo: peor,
     };
@@ -409,7 +429,7 @@ export class ProduccionService {
       if (!revision) throw new BadRequestException('Falta la actividad "Revisión interna" en el catálogo');
       // Las revisiones van primero en la cola del jefe: no esperan detrás de su propia producción.
       await this.crearTareaTx(tx, { trabajoId: e.trabajoId, entregableId, actividadId: revision.id, titulo: `Revisión: ${e.nombre}`, minutos: revision.minutosEstimados }, undefined, actor, true);
-      await tx.entregable.update({ where: { id: entregableId }, data: { estado: 'en_revision' } });
+      await tx.entregable.update({ where: { id: entregableId }, data: { estado: 'en_revision', turnitinConformeEn: null } });
       await this.evento(tx, e.trabajoId, `${e.nombre} enviado a revisión`, actor);
     });
     const e = await this.entregable(this.prisma, entregableId);
@@ -482,7 +502,12 @@ export class ProduccionService {
     } else {
       // Quien sigue el prospecto de origen es quien lo entrega al cliente.
       const prospecto = await this.prisma.prospecto.findFirst({ where: { trabajo: { id: e.trabajoId } }, select: { responsableId: true } });
-      await this.avisarEquipo(e.trabajoId, ['auxiliar_principal'], 'entregable.aprobado', (codigo) => `${e.nombre} aprobado: listo para enviar (${codigo})`, null, actor, undefined, [prospecto?.responsableId]);
+      if (await this.turnitinObligatorio()) {
+        const responsables = await this.notificaciones.conPermiso('entregables.turnitin');
+        await this.notificaciones.notificar(responsables, { tipo: 'entregable.turnitin', titulo: `${e.nombre} aprobado: pasa por Turnitin (${e.trabajo.codigo})`, mensaje: null, enlace: `/trabajos/${e.trabajoId}` }, actor.usuarioId);
+      } else {
+        await this.avisarEquipo(e.trabajoId, ['auxiliar_principal'], 'entregable.aprobado', (codigo) => `${e.nombre} aprobado: listo para enviar (${codigo})`, null, actor, undefined, [prospecto?.responsableId]);
+      }
     }
   }
 
@@ -499,10 +524,89 @@ export class ProduccionService {
     );
   }
 
+  // ─── Turnitin ────────────────────────────────────────────
+
+  private async turnitinObligatorio() {
+    return (await this.parametros.numero('turnitin.obligatorio')) === 1;
+  }
+
+  async configTurnitin(): Promise<TurnitinConfig> {
+    const [obligatorio, sim, ia] = await Promise.all([this.turnitinObligatorio(), this.parametros.numero('turnitin.similitud_max'), this.parametros.numero('turnitin.ia_max')]);
+    return { obligatorio, similitudMax: sim >= 100 ? null : sim, iaMax: ia >= 100 ? null : ia };
+  }
+
+  /** El entregable aprobado sale a Turnitin. */
+  async enviarTurnitin(entregableId: string, actor: ActorProduccion): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const e = await this.entregable(tx, entregableId);
+      if (e.estado !== 'aprobado') throw new BadRequestException('Solo se envía a Turnitin un entregable aprobado en la revisión interna');
+      await tx.turnitinRegistro.create({ data: { entregableId, enviadoPorId: actor.usuarioId } });
+      await tx.entregable.update({ where: { id: entregableId }, data: { estado: 'en_turnitin' } });
+      await this.evento(tx, e.trabajoId, `${e.nombre} enviado a Turnitin`, actor);
+      await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'enviar_turnitin', entidad: 'entregable', entidadId: entregableId, ip: actor.ip }, tx);
+    });
+  }
+
+  /** Registra el resultado: dentro de los límites queda listo para entregar; si no, vuelve a corrección. */
+  async resultadoTurnitin(entregableId: string, datos: ResultadoTurnitinDatos, actor: ActorProduccion): Promise<void> {
+    const config = await this.configTurnitin();
+    const excede: string[] = [];
+    await this.prisma.$transaction(async (tx) => {
+      const e = await this.entregable(tx, entregableId);
+      if (e.estado !== 'en_turnitin') throw new BadRequestException('El entregable no está en Turnitin');
+      const abierto = await tx.turnitinRegistro.findFirst({ where: { entregableId, resultado: null }, orderBy: { enviadoEn: 'desc' } });
+      if (!abierto) throw new BadRequestException('No hay un envío a Turnitin pendiente de resultado');
+      if (config.similitudMax !== null && datos.similitud > config.similitudMax) excede.push(`similitud ${datos.similitud} % (máximo ${config.similitudMax} %)`);
+      if (config.iaMax !== null && datos.ia !== undefined && datos.ia > config.iaMax) excede.push(`detección de IA ${datos.ia} % (máximo ${config.iaMax} %)`);
+      const conforme = excede.length === 0;
+      await tx.turnitinRegistro.update({
+        where: { id: abierto.id },
+        data: { resultado: conforme ? 'conforme' : 'excede', similitud: datos.similitud, ia: datos.ia ?? null, observaciones: datos.observaciones ?? null, registradoPorId: actor.usuarioId, registradoEn: new Date() },
+      });
+      await tx.entregable.update({
+        where: { id: entregableId },
+        data: { estado: conforme ? 'aprobado' : 'observado', similitud: datos.similitud, ...(datos.ia !== undefined && { ia: datos.ia }), turnitinConformeEn: conforme ? new Date() : null },
+      });
+      if (!conforme) {
+        await this.crearCorreccion(tx, e.trabajoId, entregableId, `Corregir por Turnitin: ${e.nombre}`, `Turnitin: ${excede.join('; ')}.${datos.observaciones ? ` ${datos.observaciones}` : ''}`, undefined, actor);
+      }
+      await this.evento(tx, e.trabajoId, conforme ? `${e.nombre}: Turnitin conforme (similitud ${datos.similitud} %)` : `${e.nombre}: Turnitin fuera de los límites (${excede.join('; ')})`, actor);
+      await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'resultado_turnitin', entidad: 'entregable', entidadId: entregableId, despues: { ...datos, conforme }, ip: actor.ip }, tx);
+    });
+    const e = await this.entregable(this.prisma, entregableId);
+    if (excede.length > 0) {
+      await this.notificaciones.notificar(
+        await this.responsablesDe(entregableId, 'correccion'),
+        { tipo: 'entregable.observado', titulo: `Turnitin observó ${e.nombre} (${e.trabajo.codigo})`, mensaje: excede.join('; '), enlace: '/tareas?vista=cola' },
+        actor.usuarioId,
+      );
+    } else {
+      const prospecto = await this.prisma.prospecto.findFirst({ where: { trabajo: { id: e.trabajoId } }, select: { responsableId: true } });
+      await this.avisarEquipo(e.trabajoId, ['auxiliar_principal'], 'entregable.aprobado', (codigo) => `${e.nombre} pasó Turnitin: listo para enviar (${codigo})`, null, actor, undefined, [prospecto?.responsableId]);
+    }
+  }
+
+  /** Un permiso mayor permite saltarse el Turnitin con un motivo (queda registrado). */
+  async omitirTurnitin(entregableId: string, datos: OmitirTurnitinDatos, actor: ActorProduccion): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const e = await this.entregable(tx, entregableId);
+      if (e.estado !== 'aprobado' && e.estado !== 'en_turnitin') throw new BadRequestException('Solo se omite el Turnitin de un entregable aprobado');
+      const abierto = await tx.turnitinRegistro.findFirst({ where: { entregableId, resultado: null }, orderBy: { enviadoEn: 'desc' } });
+      const registro = { resultado: 'omitido' as const, observaciones: datos.motivo, registradoPorId: actor.usuarioId, registradoEn: new Date() };
+      if (abierto) await tx.turnitinRegistro.update({ where: { id: abierto.id }, data: registro });
+      else await tx.turnitinRegistro.create({ data: { entregableId, enviadoPorId: actor.usuarioId, ...registro } });
+      await tx.entregable.update({ where: { id: entregableId }, data: { estado: 'aprobado', turnitinConformeEn: new Date() } });
+      await this.evento(tx, e.trabajoId, `${e.nombre}: se omitió el Turnitin (${datos.motivo})`, actor);
+      await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'omitir_turnitin', entidad: 'entregable', entidadId: entregableId, despues: datos, ip: actor.ip }, tx);
+    });
+  }
+
   async entregar(entregableId: string, datos: EntregarDatos, actor: ActorProduccion): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       const e = await this.entregable(tx, entregableId);
+      if (e.estado === 'en_turnitin') throw new BadRequestException('El entregable está en Turnitin: registra su resultado antes de entregarlo');
       if (e.estado !== 'aprobado') throw new BadRequestException('Solo se entregan al cliente los entregables aprobados en la revisión interna');
+      if ((await this.turnitinObligatorio()) && !e.turnitinConformeEn) throw new BadRequestException('Antes de entregarlo, el entregable debe pasar por Turnitin (o se omite con un motivo)');
       await tx.entregaCliente.create({ data: { entregableId, enviadoPorId: actor.usuarioId, canal: datos.canal, notas: datos.notas ?? null } });
       await tx.entregable.update({ where: { id: entregableId }, data: { estado: 'entregado' } });
       await this.evento(tx, e.trabajoId, `${e.nombre} entregado al cliente (${NOMBRE_CANAL_ENTREGA[datos.canal]})`, actor);
@@ -555,7 +659,7 @@ export class ProduccionService {
   async bandeja(vista: VistaBandeja, filtroTrabajos: Prisma.TrabajoWhereInput): Promise<BandejaEntregable[]> {
     const estados: Record<VistaBandeja, Prisma.EntregableWhereInput['estado']> = {
       revision: 'en_revision',
-      por_entregar: 'aprobado',
+      por_entregar: { in: ['aprobado', 'en_turnitin'] },
       con_cliente: { in: ['entregado', 'observado_cliente'] },
       activos: { not: 'cerrado' },
     };

@@ -183,6 +183,54 @@ describe('Producción: entregables, cola y revisión (e2e)', () => {
     await http().post(`/api/entregables/${primero().id}/enviar-revision`).set(como('aux2')).expect(404);
   });
 
+  it('Turnitin: obligatorio antes de entregar, con límites que devuelven a corrección y omisión con motivo', async () => {
+    const aprobadoEn = primero().id;
+    // Sin pasar por Turnitin no se entrega.
+    await http().post(`/api/entregables/${aprobadoEn}/entregar`).set(como('ana')).send({ canal: 'whatsapp' }).expect(400);
+    // Quien no tiene el permiso no lo envía.
+    await http().post(`/api/entregables/${aprobadoEn}/turnitin/enviar`).set(como('aux')).expect(403);
+    trabajo = (await http().post(`/api/entregables/${aprobadoEn}/turnitin/enviar`).set(como('jefe')).expect(201)).body;
+    expect(primero().estado).toBe('en_turnitin');
+    expect(primero().turnitin[0]).toMatchObject({ resultado: null });
+    expect(trabajo.turnitin).toEqual({ obligatorio: true, similitudMax: null, iaMax: null });
+    expect([trabajo.seguimiento.principal, ...trabajo.seguimiento.etiquetas]).toContain('turnitin');
+    const bandeja = (await http().get('/api/entregables?vista=por_entregar').set(como('ana')).expect(200)).body as BandejaEntregable[];
+    expect(bandeja.find((e) => e.id === aprobadoEn)?.estado).toBe('en_turnitin');
+    // Mientras está en Turnitin no se entrega.
+    await http().post(`/api/entregables/${aprobadoEn}/entregar`).set(como('ana')).send({ canal: 'whatsapp' }).expect(400);
+    const filtrados = (await http().get('/api/trabajos?seguimiento=turnitin').set(como('prod')).expect(200)).body.datos as { id: string }[];
+    expect(filtrados.map((t) => t.id)).toContain(trabajo.id);
+
+    // Con un límite de similitud, pasarse devuelve el entregable a corrección.
+    await prisma.parametro.upsert({ where: { clave: 'turnitin.similitud_max' }, create: { clave: 'turnitin.similitud_max', valor: 10, descripcion: 'e2e' }, update: { valor: 10 } });
+    try {
+      await http().post(`/api/entregables/${aprobadoEn}/turnitin/resultado`).set(como('jefe')).send({}).expect(400);
+      trabajo = (await http().post(`/api/entregables/${aprobadoEn}/turnitin/resultado`).set(como('jefe')).send({ similitud: 15, ia: 2 }).expect(201)).body;
+      expect(trabajo.turnitin.similitudMax).toBe(10);
+      expect(primero()).toMatchObject({ estado: 'observado', turnitinConformeEn: null });
+      expect(primero().turnitin[0]).toMatchObject({ resultado: 'excede', similitud: 15, ia: 2 });
+      const cola = await colaDe('aux');
+      expect(cola.items[0].titulo).toBe('Corregir por Turnitin: Plan de tesis');
+      await http().post(`/api/tareas/${cola.items[0].tareaId}/completar`).set(como('aux')).send({}).expect(201);
+      await http().post(`/api/entregables/${aprobadoEn}/enviar-revision`).set(como('aux')).expect(201);
+      await http().post(`/api/entregables/${aprobadoEn}/revisar`).set(como('jefe')).send({ resultado: 'aprobado' }).expect(201);
+      await http().post(`/api/entregables/${aprobadoEn}/turnitin/enviar`).set(como('prod')).expect(201);
+      trabajo = (await http().post(`/api/entregables/${aprobadoEn}/turnitin/resultado`).set(como('prod')).send({ similitud: 8 }).expect(201)).body;
+    } finally {
+      await prisma.parametro.deleteMany({ where: { clave: 'turnitin.similitud_max' } });
+    }
+    expect(primero().estado).toBe('aprobado');
+    expect(primero().turnitinConformeEn).not.toBeNull();
+    expect(primero().turnitin[0]).toMatchObject({ resultado: 'conforme', similitud: 8 });
+
+    // Omitirlo exige un permiso mayor y un motivo; queda registrado.
+    await http().post(`/api/entregables/${aprobadoEn}/turnitin/omitir`).set(como('jefe')).send({ motivo: 'Lo pidió el cliente' }).expect(403);
+    await http().post(`/api/entregables/${aprobadoEn}/turnitin/omitir`).set(como('prod')).send({}).expect(400);
+    trabajo = (await http().post(`/api/entregables/${aprobadoEn}/turnitin/omitir`).set(como('prod')).send({ motivo: 'El cliente no lo exige' }).expect(201)).body;
+    expect(primero()).toMatchObject({ estado: 'aprobado' });
+    expect(primero().turnitin[0]).toMatchObject({ resultado: 'omitido', observaciones: 'El cliente no lo exige' });
+  });
+
   it('entrega al cliente y conformidad cierran el entregable', async () => {
     await http().post(`/api/entregables/${primero().id}/entregar`).set(como('aux')).send({ canal: 'whatsapp' }).expect(403);
     trabajo = (await http().post(`/api/entregables/${primero().id}/entregar`).set(como('ana')).send({ canal: 'whatsapp', notas: 'Enviado a Rocío' }).expect(201)).body;

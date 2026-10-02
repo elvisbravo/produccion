@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { EntregableItem } from './produccion.js'
+import type { EntregableItem, TurnitinConfig } from './produccion.js'
 import { TIPOS_DOCUMENTO, validarDocumento, type Opcion, type PersonaResumen, type UsuarioResumen } from './prospectos.js'
 
 // ─── Dinero ─────────────────────────────────────────────────
@@ -243,13 +243,14 @@ export interface AdicionalItem {
  * Cómo se ve un trabajo de un vistazo (la leyenda de colores del equipo). Se calcula con lo que ya existe:
  * el estado, la prioridad y los pagos vencidos; no se captura aparte.
  */
-export const SEGUIMIENTOS = ['entregado', 'urgente', 'pendiente_pago', 'abordando', 'programado', 'sin_asignar', 'suspendido', 'cancelado'] as const
+export const SEGUIMIENTOS = ['entregado', 'urgente', 'pendiente_pago', 'turnitin', 'abordando', 'programado', 'sin_asignar', 'suspendido', 'cancelado'] as const
 export type Seguimiento = (typeof SEGUIMIENTOS)[number]
 
 export const NOMBRE_SEGUIMIENTO: Record<Seguimiento, string> = {
   entregado: 'Entregado',
   urgente: 'Urgente',
   pendiente_pago: 'Pendiente de pago',
+  turnitin: 'En Turnitin',
   abordando: 'Se está abordando',
   programado: 'Programado',
   sin_asignar: 'Sin asignar',
@@ -261,6 +262,7 @@ export const DESCRIPCION_SEGUIMIENTO: Record<Seguimiento, string> = {
   entregado: 'El trabajo terminó: todos los entregables están cerrados con la conformidad del cliente.',
   urgente: 'Tiene prioridad urgente: pasa primero en la cola de producción.',
   pendiente_pago: 'Tiene cuotas vencidas sin pagar. Solo lo ve quien puede ver montos.',
+  turnitin: 'Un entregable aprobado pasa por Turnitin antes de entregarse al cliente.',
   abordando: 'Ya se empezó a trabajar en él.',
   programado: 'Tiene equipo asignado y tareas programadas, aún sin empezar.',
   sin_asignar: 'Todavía no tiene equipo de producción.',
@@ -277,9 +279,9 @@ export interface SeguimientoTrabajo {
 
 /**
  * Un trabajo puede estar en varias situaciones a la vez (urgente, con pago pendiente y abordándose). El color
- * principal sigue este orden: entregado, urgente, suspendido, pendiente de pago, y luego su avance.
+ * principal sigue este orden: entregado, urgente, suspendido, pendiente de pago, Turnitin y luego su avance.
  */
-export function seguimientoDe(t: { estado: EstadoTrabajo; urgente: boolean; pendientePago: boolean }): SeguimientoTrabajo {
+export function seguimientoDe(t: { estado: EstadoTrabajo; urgente: boolean; pendientePago: boolean; enTurnitin?: boolean }): SeguimientoTrabajo {
   if (t.estado === 'cancelado') return { principal: 'cancelado', etiquetas: [] }
   if (t.estado === 'finalizado') return { principal: 'entregado', etiquetas: t.pendientePago ? ['pendiente_pago'] : [] }
   const avance: Seguimiento = t.estado === 'en_proceso' ? 'abordando' : t.estado === 'asignado' ? 'programado' : t.estado === 'suspendido' ? 'suspendido' : 'sin_asignar'
@@ -287,6 +289,7 @@ export function seguimientoDe(t: { estado: EstadoTrabajo; urgente: boolean; pend
     ...(t.urgente ? (['urgente'] as const) : []),
     ...(t.estado === 'suspendido' ? (['suspendido'] as const) : []),
     ...(t.pendientePago ? (['pendiente_pago'] as const) : []),
+    ...(t.enTurnitin ? (['turnitin'] as const) : []),
     ...(t.estado === 'suspendido' ? [] : [avance]),
   ]
   const [principal, ...etiquetas] = todas
@@ -430,6 +433,7 @@ export interface TrabajoDetalle {
   /** Quien dio el enfoque al prospecto (se sugiere para el equipo). */
   dioElEnfoque: { usuario: UsuarioResumen; rol: string } | null
   entregables: EntregableItem[]
+  turnitin: TurnitinConfig
   /** Hay una plantilla de entregables para su tipo de trabajo. */
   hayPlantilla: boolean
 }

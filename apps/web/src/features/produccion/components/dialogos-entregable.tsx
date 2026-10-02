@@ -5,7 +5,9 @@ import {
   entregarSchema,
   NOMBRE_CANAL_ENTREGA,
   NOMBRE_FUNCION_EQUIPO,
+  omitirTurnitinSchema,
   respuestaClienteSchema,
+  resultadoTurnitinSchema,
   revisarEntregableSchema,
   tareaEntregableSchema,
   type EntregableDatos,
@@ -13,6 +15,10 @@ import {
   type EntregableItem,
   type EntregarDatos,
   type EntregarFormulario,
+  type OmitirTurnitinDatos,
+  type ResultadoTurnitinDatos,
+  type ResultadoTurnitinFormulario,
+  type TurnitinConfig,
   type RespuestaClienteDatos,
   type RespuestaClienteFormulario,
   type RevisarEntregableDatos,
@@ -41,7 +47,7 @@ import { actividadesQuery } from '@/features/tareas/api'
 import { nombreCompleto } from '@/lib/formato'
 import { aplicarErroresApi } from '@/lib/formularios'
 import { usePermiso } from '@/lib/permisos'
-import { useAgregarTarea, useCrearEntregable, useEditarEntregable, useEntregar, useRespuestaCliente, useRevisar } from '../api'
+import { useAgregarTarea, useCrearEntregable, useEditarEntregable, useEntregar, useOmitirTurnitin, useRespuestaCliente, useResultadoTurnitin, useRevisar } from '../api'
 
 interface PropsDialogo {
   abierto: boolean
@@ -375,6 +381,103 @@ export function DialogoRevisar({ entregable, abierto, onAbiertoChange }: PropsDi
             )}
           </div>
           <Pie enviando={form.formState.isSubmitting} texto={resultado === 'aprobado' ? 'Aprobar' : 'Observar'} onCancelar={() => onAbiertoChange(false)} />
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** Resultado de Turnitin: si pasa de los límites, el entregable vuelve a corrección. */
+export function DialogoResultadoTurnitin({ entregable, config, abierto, onAbiertoChange }: PropsDialogo & { entregable: EntregableItem; config: TurnitinConfig }) {
+  const registrar = useResultadoTurnitin(entregable.id)
+  const [error, setError] = useState<string | null>(null)
+  const form = useForm<ResultadoTurnitinFormulario, unknown, ResultadoTurnitinDatos>({ resolver: zodResolver(resultadoTurnitinSchema), defaultValues: { similitud: '' as unknown as number, ia: '', observaciones: '' } })
+  const e = form.formState.errors
+
+  const enviar = form.handleSubmit(async (datos) => {
+    setError(null)
+    try {
+      await registrar.mutateAsync(datos)
+      toast.success('Resultado de Turnitin registrado')
+      onAbiertoChange(false)
+    } catch (err) {
+      setError(aplicarErroresApi(err, form.setError, ['similitud', 'ia', 'observaciones']))
+    }
+  })
+
+  const limites = [config.similitudMax !== null && `similitud hasta ${config.similitudMax} %`, config.iaMax !== null && `IA hasta ${config.iaMax} %`].filter(Boolean).join(' · ')
+
+  return (
+    <Dialog open={abierto} onOpenChange={onAbiertoChange}>
+      <DialogContent className="sm:max-w-md">
+        <form onSubmit={enviar} noValidate className="flex flex-col gap-4">
+          <DialogHeader>
+            <DialogTitle>Resultado de Turnitin · {entregable.nombre}</DialogTitle>
+            <DialogDescription>
+              {limites ? `Límites aceptados: ${limites}. Si se pasa, el entregable vuelve a corrección.` : 'No hay límites configurados: el resultado solo se registra y el entregable queda listo para entregar.'}
+            </DialogDescription>
+          </DialogHeader>
+          <AvisoError error={error} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field data-invalid={Boolean(e.similitud)}>
+              <FieldLabel htmlFor="tn-sim">
+                % similitud <Requerido />
+              </FieldLabel>
+              <Input id="tn-sim" type="number" inputMode="decimal" min={0} max={100} step={0.1} {...form.register('similitud')} />
+              <FieldError errors={[e.similitud]} />
+            </Field>
+            <Field data-invalid={Boolean(e.ia)}>
+              <FieldLabel htmlFor="tn-ia">% IA</FieldLabel>
+              <Input id="tn-ia" type="number" inputMode="decimal" min={0} max={100} step={0.1} {...form.register('ia')} />
+              <FieldError errors={[e.ia]} />
+            </Field>
+          </div>
+          <Field data-invalid={Boolean(e.observaciones)}>
+            <FieldLabel htmlFor="tn-obs">Observaciones (opcional)</FieldLabel>
+            <Textarea id="tn-obs" rows={3} maxLength={500} {...form.register('observaciones')} />
+            <FieldError errors={[e.observaciones]} />
+          </Field>
+          <Pie enviando={form.formState.isSubmitting} texto="Registrar resultado" onCancelar={() => onAbiertoChange(false)} />
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** Saltarse el Turnitin de este entregable: queda registrado con su motivo. */
+export function DialogoOmitirTurnitin({ entregable, abierto, onAbiertoChange }: PropsDialogo & { entregable: EntregableItem }) {
+  const omitir = useOmitirTurnitin(entregable.id)
+  const [error, setError] = useState<string | null>(null)
+  const form = useForm<OmitirTurnitinDatos>({ resolver: zodResolver(omitirTurnitinSchema), defaultValues: { motivo: '' } })
+
+  const enviar = form.handleSubmit(async (datos) => {
+    setError(null)
+    try {
+      await omitir.mutateAsync(datos)
+      toast.success('Turnitin omitido: el entregable puede entregarse')
+      onAbiertoChange(false)
+    } catch (err) {
+      setError(aplicarErroresApi(err, form.setError, ['motivo']))
+    }
+  })
+
+  return (
+    <Dialog open={abierto} onOpenChange={onAbiertoChange}>
+      <DialogContent className="sm:max-w-md">
+        <form onSubmit={enviar} noValidate className="flex flex-col gap-4">
+          <DialogHeader>
+            <DialogTitle>Omitir Turnitin · {entregable.nombre}</DialogTitle>
+            <DialogDescription>Se podrá entregar al cliente sin pasar por Turnitin. Queda registrado con el motivo.</DialogDescription>
+          </DialogHeader>
+          <AvisoError error={error} />
+          <Field data-invalid={Boolean(form.formState.errors.motivo)}>
+            <FieldLabel htmlFor="tn-motivo">
+              Motivo <Requerido />
+            </FieldLabel>
+            <Textarea id="tn-motivo" rows={3} maxLength={500} {...form.register('motivo')} />
+            <FieldError errors={[form.formState.errors.motivo]} />
+          </Field>
+          <Pie enviando={form.formState.isSubmitting} texto="Omitir Turnitin" onCancelar={() => onAbiertoChange(false)} />
         </form>
       </DialogContent>
     </Dialog>

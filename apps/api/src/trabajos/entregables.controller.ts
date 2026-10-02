@@ -3,12 +3,16 @@ import {
   bandejaEntregablesSchema,
   entregableSchema,
   entregarSchema,
+  omitirTurnitinSchema,
+  resultadoTurnitinSchema,
   respuestaClienteSchema,
   revisarEntregableSchema,
   tareaEntregableSchema,
   type BandejaEntregable,
   type EntregableDatos,
   type EntregarDatos,
+  type OmitirTurnitinDatos,
+  type ResultadoTurnitinDatos,
   type RespuestaClienteDatos,
   type RevisarEntregableDatos,
   type TareaEntregableDatos,
@@ -110,6 +114,24 @@ export class EntregablesController {
     const permiso = datos.resultado === 'aprobado' ? 'entregables.aprobar' : 'entregables.observar';
     if (!(permiso in (await this.permisos.efectivos(req.usuario!.id)))) throw new ForbiddenException('No tienes permiso para esta acción');
     return this.enEntregable(id, req, () => this.produccion.revisar(id, datos, actor(req)));
+  }
+
+  @RequierePermiso('entregables.turnitin')
+  @Post('entregables/:id/turnitin/enviar')
+  enviarTurnitin(@Param('id', ParseUUIDPipe) id: string, @Req() req: SolicitudAutenticada) {
+    return this.enEntregable(id, req, () => this.produccion.enviarTurnitin(id, actor(req)));
+  }
+
+  @RequierePermiso('entregables.turnitin')
+  @Post('entregables/:id/turnitin/resultado')
+  resultadoTurnitin(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(resultadoTurnitinSchema)) datos: ResultadoTurnitinDatos, @Req() req: SolicitudAutenticada) {
+    return this.enEntregable(id, req, () => this.produccion.resultadoTurnitin(id, datos, actor(req)));
+  }
+
+  @RequierePermiso('entregables.omitir_turnitin')
+  @Post('entregables/:id/turnitin/omitir')
+  omitirTurnitin(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(omitirTurnitinSchema)) datos: OmitirTurnitinDatos, @Req() req: SolicitudAutenticada) {
+    return this.enEntregable(id, req, () => this.produccion.omitirTurnitin(id, datos, actor(req)));
   }
 
   @RequierePermiso('entregables.registrar_entrega')

@@ -41,6 +41,7 @@ export const ESTILO_SEGUIMIENTO: Record<Seguimiento, string> = {
   entregado: 'border-yellow-400 bg-yellow-200 text-yellow-950 dark:border-yellow-600 dark:bg-yellow-800/60 dark:text-yellow-50',
   urgente: 'border-red-400 bg-red-200 text-red-950 dark:border-red-700 dark:bg-red-900/60 dark:text-red-50',
   pendiente_pago: 'border-zinc-400 bg-zinc-300 text-zinc-900 dark:border-zinc-500 dark:bg-zinc-600 dark:text-zinc-50',
+  turnitin: 'border-fuchsia-400 bg-fuchsia-200 text-fuchsia-950 dark:border-fuchsia-700 dark:bg-fuchsia-900/60 dark:text-fuchsia-50',
   abordando: 'border-cyan-400 bg-cyan-200 text-cyan-950 dark:border-cyan-700 dark:bg-cyan-900/60 dark:text-cyan-50',
   programado: 'border-green-400 bg-green-200 text-green-950 dark:border-green-700 dark:bg-green-900/60 dark:text-green-50',
   sin_asignar: 'border-dashed text-muted-foreground',
@@ -84,7 +85,7 @@ export function LeyendaSeguimiento() {
         <span className="text-muted-foreground">Las fechas no se pueden mover: deben cumplirse por su prioridad. Se suma a cualquiera de los estados.</span>
       </li>
       <li className="border-t pt-2 text-xs text-muted-foreground">
-        Un trabajo puede cumplir varias a la vez: el color grande es el más importante (entregado, urgente, pendiente de pago y luego su avance) y las demás aparecen como etiquetas pequeñas.
+        Un trabajo puede cumplir varias a la vez: el color grande es el más importante (entregado, urgente, pendiente de pago, Turnitin y luego su avance) y las demás aparecen como etiquetas pequeñas.
       </li>
     </ul>
   )

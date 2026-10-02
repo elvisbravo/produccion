@@ -72,6 +72,8 @@ model Usuario {
   pausasReanudadas       PausaTrabajo[]               @relation("PausaReanudadaPor")
   horarios               HorarioUsuario[]             @relation("HorarioDelUsuario")
   revisiones             Revision[]                   @relation("RevisionRevisor")
+  turnitinEnviados       TurnitinRegistro[]           @relation("TurnitinEnvia")
+  turnitinRegistrados    TurnitinRegistro[]           @relation("TurnitinRegistra")
   urgentesPedidas        SolicitudUrgente[]           @relation("UrgenteSolicitadaPor")
   urgentesResueltas      SolicitudUrgente[]           @relation("UrgenteResueltaPor")
   urgentesAsignadas      SolicitudUrgente[]           @relation("UrgenteAsignadoA")
@@ -1237,6 +1239,7 @@ enum EstadoEntregable {
   en_revision
   observado
   aprobado
+  en_turnitin
   entregado
   observado_cliente
   cerrado
@@ -1245,20 +1248,23 @@ enum EstadoEntregable {
 }
 
 model Entregable {
-  id          String           @id @default(uuid(7)) @db.Uuid
-  trabajoId   String           @map("trabajo_id") @db.Uuid
-  nombre      String           @db.VarChar(120)
-  orden       Int
-  esFinal     Boolean          @default(false) @map("es_final")
-  fechaLimite DateTime         @map("fecha_limite") @db.Date
-  estado      EstadoEntregable @default(pendiente)
+  id                 String           @id @default(uuid(7)) @db.Uuid
+  trabajoId          String           @map("trabajo_id") @db.Uuid
+  nombre             String           @db.VarChar(120)
+  orden              Int
+  esFinal            Boolean          @default(false) @map("es_final")
+  fechaLimite        DateTime         @map("fecha_limite") @db.Date
+  estado             EstadoEntregable @default(pendiente)
   /// Último % de similitud (Turnitin) y de detección de IA registrados en la revisión.
-  similitud   Decimal?         @db.Decimal(5, 2)
-  ia          Decimal?         @db.Decimal(5, 2)
+  similitud          Decimal?         @db.Decimal(5, 2)
+  ia                 Decimal?         @db.Decimal(5, 2)
+  /// Cuándo se dio por conforme (o se omitió) el Turnitin de esta versión; se reinicia al volver a enviarlo a revisión.
+  turnitinConformeEn DateTime?        @map("turnitin_conforme_en") @db.Timestamptz(6)
 
   creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
   actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz(6)
 
+  turnitin   TurnitinRegistro[]
   trabajo    Trabajo                      @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
   tareas     Tarea[]
   revisiones Revision[]
@@ -1269,6 +1275,37 @@ model Entregable {
   @@index([trabajoId, orden])
   @@index([estado])
   @@map("entregable")
+}
+
+enum ResultadoTurnitin {
+  conforme
+  excede
+  omitido
+
+  @@map("resultado_turnitin")
+}
+
+/// Pasada por Turnitin de un entregable aprobado internamente, antes de entregarlo al cliente.
+model TurnitinRegistro {
+  id              String             @id @default(uuid(7)) @db.Uuid
+  entregableId    String             @map("entregable_id") @db.Uuid
+  enviadoPorId    String             @map("enviado_por_id") @db.Uuid
+  enviadoEn       DateTime           @default(now()) @map("enviado_en") @db.Timestamptz(6)
+  /// Nulos mientras el entregable espera el resultado.
+  resultado       ResultadoTurnitin?
+  similitud       Decimal?           @db.Decimal(5, 2)
+  ia              Decimal?           @db.Decimal(5, 2)
+  /// Observaciones del resultado o, si se omitió, el motivo.
+  observaciones   String?            @db.VarChar(500)
+  registradoPorId String?            @map("registrado_por_id") @db.Uuid
+  registradoEn    DateTime?          @map("registrado_en") @db.Timestamptz(6)
+
+  entregable    Entregable @relation(fields: [entregableId], references: [id], onDelete: Cascade)
+  enviadoPor    Usuario    @relation("TurnitinEnvia", fields: [enviadoPorId], references: [id])
+  registradoPor Usuario?   @relation("TurnitinRegistra", fields: [registradoPorId], references: [id])
+
+  @@index([entregableId, enviadoEn])
+  @@map("turnitin_registro")
 }
 
 enum ResultadoRevision {

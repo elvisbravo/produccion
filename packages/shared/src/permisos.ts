@@ -86,6 +86,8 @@ export const MODULOS = [
       { codigo: 'enviar_revision', nombre: 'Enviar a revisión' },
       { codigo: 'aprobar', nombre: 'Aprobar' },
       { codigo: 'observar', nombre: 'Observar' },
+      { codigo: 'turnitin', nombre: 'Enviar a Turnitin y registrar su resultado' },
+      { codigo: 'omitir_turnitin', nombre: 'Omitir el Turnitin de un entregable' },
       { codigo: 'registrar_entrega', nombre: 'Registrar entrega al cliente' },
       { codigo: 'liberar_candado', nombre: 'Entregar con deuda (liberar candado)' },
     ],

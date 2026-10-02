@@ -238,6 +238,8 @@ export class TrabajosService {
         return { estado: 'finalizado' };
       case 'urgente':
         return { estado: { notIn: ['finalizado', 'cancelado'] }, prioridad: { permiteInsercionUrgente: true } };
+      case 'turnitin':
+        return { estado: { notIn: ['finalizado', 'cancelado'] }, entregables: { some: { estado: 'en_turnitin' } } };
       case 'abordando':
         return { estado: 'en_proceso' };
       case 'programado':
@@ -288,13 +290,14 @@ export class TrabajosService {
       include: INCLUIR_DETALLE,
     });
     if (!trabajo) throw new NotFoundException('Trabajo no encontrado');
-    const [permisos, dioElEnfoque, entregables, hayPlantilla] = await Promise.all([
+    const [permisos, dioElEnfoque, entregables, hayPlantilla, turnitin] = await Promise.all([
       this.permisosDeMontos(usuarioId),
       this.dioElEnfoque(trabajo.prospectoId),
       this.produccion.deTrabajo(id),
       this.produccion.hayPlantilla(trabajo.tipoTrabajoId),
+      this.produccion.configTurnitin(),
     ]);
-    return { ...aDetalle(trabajo, permisos, diaEnLima(), dioElEnfoque), entregables, hayPlantilla };
+    return { ...aDetalle(trabajo, permisos, diaEnLima(), dioElEnfoque), entregables, hayPlantilla, turnitin };
   }
 
   /** Responsable principal de la última actividad coordinada completada del prospecto (el enfoque). */

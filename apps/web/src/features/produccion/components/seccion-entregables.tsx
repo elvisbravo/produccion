@@ -1,5 +1,5 @@
 import { NOMBRE_ESTADO_TAREA, type EntregableItem, type TrabajoDetalle } from '@grupoes/shared'
-import { CalendarClock, ClipboardCheck, EllipsisVertical, Loader2, PackageCheck, Pencil, Plus, Send, Sparkles, Trash2, UserCheck } from 'lucide-react'
+import { CalendarClock, ClipboardCheck, EllipsisVertical, FileSearch, Loader2, PackageCheck, Pencil, Plus, Send, Sparkles, SkipForward, Trash2, UserCheck } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -13,9 +13,9 @@ import { duracion, formatearFecha, formatearFechaHora, haceCuanto, nombreComplet
 import { usePermiso } from '@/lib/permisos'
 import { useSesion } from '@/stores/sesion'
 import { cn } from '@/lib/utils'
-import { useEliminarEntregable, useEnviarRevision, useGenerarPlan } from '../api'
-import { DialogoEntregable, DialogoEntregar, DialogoRespuestaCliente, DialogoRevisar, DialogoTareaEntregable } from './dialogos-entregable'
-import { InsigniaEstadoEntregable, PuntoSemaforo } from './insignias'
+import { useEliminarEntregable, useEnviarRevision, useEnviarTurnitin, useGenerarPlan } from '../api'
+import { DialogoEntregable, DialogoEntregar, DialogoOmitirTurnitin, DialogoRespuestaCliente, DialogoResultadoTurnitin, DialogoRevisar, DialogoTareaEntregable } from './dialogos-entregable'
+import { ESTILO_TURNITIN, InsigniaEstadoEntregable, PuntoSemaforo } from './insignias'
 
 const mensaje = (err: unknown) => (err instanceof ApiError || err instanceof Error ? err.message : 'No se pudo completar la acción')
 
@@ -100,7 +100,7 @@ export function SeccionEntregables({ t }: { t: TrabajoDetalle }) {
   )
 }
 
-type Dialogo = 'editar' | 'tarea' | 'revisar' | 'entregar' | 'respuesta' | null
+type Dialogo = 'editar' | 'tarea' | 'revisar' | 'entregar' | 'respuesta' | 'turnitin' | 'omitir' | null
 
 function Entregable({ t, e }: { t: TrabajoDetalle; e: EntregableItem }) {
   const [dialogo, setDialogo] = useState<Dialogo>(null)
@@ -114,7 +114,10 @@ function Entregable({ t, e }: { t: TrabajoDetalle; e: EntregableItem }) {
   const puedeObservar = usePermiso('entregables.observar')
   const puedeRevisar = puedeAprobar || puedeObservar
   const puedeEntregar = usePermiso('entregables.registrar_entrega')
+  const puedeTurnitin = usePermiso('entregables.turnitin')
+  const puedeOmitirTurnitin = usePermiso('entregables.omitir_turnitin')
   const enviar = useEnviarRevision(e.id)
+  const enviarTurnitin = useEnviarTurnitin(e.id)
   const eliminar = useEliminarEntregable(e.id)
 
   const activas = e.tareas.filter((x) => ['por_asignar', 'pendiente', 'en_proceso'].includes(x.estado))
@@ -130,6 +133,16 @@ function Entregable({ t, e }: { t: TrabajoDetalle; e: EntregableItem }) {
       toast.error(mensaje(err))
     }
   }
+  const mandarATurnitin = async () => {
+    try {
+      await enviarTurnitin.mutateAsync(undefined)
+      toast.success(`${e.nombre} enviado a Turnitin`)
+    } catch (err) {
+      toast.error(mensaje(err))
+    }
+  }
+  // Un entregable aprobado debe pasar por Turnitin antes de entregarse (si es obligatorio).
+  const faltaTurnitin = e.estado === 'aprobado' && t.turnitin.obligatorio && !e.turnitinConformeEn
   const borrar = async () => {
     try {
       await eliminar.mutateAsync(undefined)
@@ -156,7 +169,23 @@ function Entregable({ t, e }: { t: TrabajoDetalle; e: EntregableItem }) {
         </Button>
       )
     }
-    if (e.estado === 'aprobado' && puedeEntregar) {
+    if (faltaTurnitin && puedeTurnitin) {
+      return (
+        <Button size="sm" variant="outline" className={ESTILO_TURNITIN} onClick={() => void mandarATurnitin()} disabled={enviarTurnitin.isPending}>
+          {enviarTurnitin.isPending ? <Loader2 className="animate-spin" /> : <FileSearch />}
+          Enviar a Turnitin
+        </Button>
+      )
+    }
+    if (e.estado === 'en_turnitin' && puedeTurnitin) {
+      return (
+        <Button size="sm" className={ESTILO_TURNITIN} onClick={() => setDialogo('turnitin')}>
+          <FileSearch />
+          Resultado de Turnitin
+        </Button>
+      )
+    }
+    if (e.estado === 'aprobado' && puedeEntregar && !faltaTurnitin) {
       return (
         <Button size="sm" onClick={() => setDialogo('entregar')}>
           <Send />
@@ -175,7 +204,8 @@ function Entregable({ t, e }: { t: TrabajoDetalle; e: EntregableItem }) {
     return null
   })()
 
-  const menu = e.estado !== 'cerrado' && (puedeEditar || puedeProgramar || puedeCrear)
+  const puedeOmitir = puedeOmitirTurnitin && (e.estado === 'en_turnitin' || faltaTurnitin)
+  const menu = e.estado !== 'cerrado' && (puedeEditar || puedeProgramar || puedeCrear || puedeOmitir)
 
   return (
     <li className={cn('rounded-lg border', e.estado === 'cerrado' && 'bg-muted/30')}>
@@ -219,6 +249,12 @@ function Entregable({ t, e }: { t: TrabajoDetalle; e: EntregableItem }) {
                   <DropdownMenuItem onSelect={() => setDialogo('tarea')}>
                     <Plus />
                     Agregar tarea
+                  </DropdownMenuItem>
+                )}
+                {puedeOmitir && (
+                  <DropdownMenuItem onSelect={() => setDialogo('omitir')}>
+                    <SkipForward />
+                    Omitir Turnitin
                   </DropdownMenuItem>
                 )}
                 {puedeEditar && (
@@ -270,10 +306,10 @@ function Entregable({ t, e }: { t: TrabajoDetalle; e: EntregableItem }) {
         </ul>
       )}
 
-      {(e.revisiones.length > 0 || e.entregas.length > 0) && (
+      {(e.revisiones.length > 0 || e.entregas.length > 0 || e.turnitin.length > 0) && (
         <div className="border-t px-3 py-2">
           <Button variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => setVerHistorial((v) => !v)}>
-            {verHistorial ? 'Ocultar historial' : `Revisiones y entregas (${e.revisiones.length + e.entregas.length})`}
+            {verHistorial ? 'Ocultar historial' : `Revisiones y entregas (${e.revisiones.length + e.entregas.length + e.turnitin.length})`}
           </Button>
           {verHistorial && (
             <ul className="mt-1 flex flex-col gap-2 text-sm">
@@ -282,6 +318,16 @@ function Entregable({ t, e }: { t: TrabajoDetalle; e: EntregableItem }) {
                   fecha: r.fecha,
                   texto: `${r.resultado === 'aprobado' ? 'Aprobado' : 'Observado'} por ${nombreCompleto(r.revisor)}`,
                   detalle: r.observaciones,
+                })),
+                ...e.turnitin.map((x) => ({
+                  fecha: x.registradoEn ?? x.enviadoEn,
+                  texto:
+                    x.resultado === null
+                      ? `Enviado a Turnitin por ${nombreCompleto(x.enviadoPor)} · esperando resultado`
+                      : x.resultado === 'omitido'
+                        ? `Turnitin omitido por ${nombreCompleto(x.registradoPor ?? x.enviadoPor)}`
+                        : `Turnitin ${x.resultado === 'conforme' ? 'conforme' : 'fuera de límites'}: similitud ${x.similitud ?? '—'} % · IA ${x.ia ?? '—'} %`,
+                  detalle: x.observaciones,
                 })),
                 ...e.entregas.map((x) => ({
                   fecha: x.fecha,
@@ -307,6 +353,8 @@ function Entregable({ t, e }: { t: TrabajoDetalle; e: EntregableItem }) {
       {dialogo === 'tarea' && <DialogoTareaEntregable trabajo={t} entregable={e} abierto onAbiertoChange={cerrar} />}
       {dialogo === 'revisar' && <DialogoRevisar entregable={e} abierto onAbiertoChange={cerrar} />}
       {dialogo === 'entregar' && <DialogoEntregar entregable={e} trabajo={t} abierto onAbiertoChange={cerrar} />}
+      {dialogo === 'turnitin' && <DialogoResultadoTurnitin entregable={e} config={t.turnitin} abierto onAbiertoChange={cerrar} />}
+      {dialogo === 'omitir' && <DialogoOmitirTurnitin entregable={e} abierto onAbiertoChange={cerrar} />}
       {dialogo === 'respuesta' && <DialogoRespuestaCliente entregable={e} abierto onAbiertoChange={cerrar} />}
     </li>
   )

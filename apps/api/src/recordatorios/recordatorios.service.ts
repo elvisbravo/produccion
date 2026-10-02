@@ -148,7 +148,7 @@ export class RecordatoriosService {
     // Entregables que vencen pronto o ya vencieron (aún no entregados al cliente).
     const programadores = await this.notificaciones.conPermiso('programacion.programar');
     const entregables = await this.prisma.entregable.findMany({
-      where: { estado: { in: ['pendiente', 'en_proceso', 'en_revision', 'observado', 'observado_cliente', 'aprobado'] }, fechaLimite: { lte: limite }, trabajo: { estado: { notIn: ['finalizado', 'cancelado'] } } },
+      where: { estado: { in: ['pendiente', 'en_proceso', 'en_revision', 'observado', 'observado_cliente', 'aprobado', 'en_turnitin'] }, fechaLimite: { lte: limite }, trabajo: { estado: { notIn: ['finalizado', 'cancelado'] } } },
       include: { trabajo: { select: { id: true, codigo: true, equipo: { where: { hasta: null, funcion: 'auxiliar_principal' }, select: { usuarioId: true } } } } },
     });
     for (const e of entregables) {

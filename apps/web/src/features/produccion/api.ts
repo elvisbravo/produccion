@@ -3,7 +3,9 @@ import type {
   ColaPersona,
   EntregableDatos,
   EntregarDatos,
+  OmitirTurnitinDatos,
   RespuestaClienteDatos,
+  ResultadoTurnitinDatos,
   RevisarEntregableDatos,
   TareaEntregableDatos,
   TareaItem,
@@ -60,6 +62,14 @@ export const useEnviarRevision = (id: string) => useAccion(() => api<TrabajoDeta
 
 export const useRevisar = (id: string) =>
   useAccion((datos: RevisarEntregableDatos) => api<TrabajoDetalle>(`/entregables/${id}/revisar`, { method: 'POST', body: datos }))
+
+export const useEnviarTurnitin = (id: string) => useAccion(() => api<TrabajoDetalle>(`/entregables/${id}/turnitin/enviar`, { method: 'POST' }))
+
+export const useResultadoTurnitin = (id: string) =>
+  useAccion((datos: ResultadoTurnitinDatos) => api<TrabajoDetalle>(`/entregables/${id}/turnitin/resultado`, { method: 'POST', body: datos }))
+
+export const useOmitirTurnitin = (id: string) =>
+  useAccion((datos: OmitirTurnitinDatos) => api<TrabajoDetalle>(`/entregables/${id}/turnitin/omitir`, { method: 'POST', body: datos }))
 
 export const useEntregar = (id: string) => useAccion((datos: EntregarDatos) => api<TrabajoDetalle>(`/entregables/${id}/entregar`, { method: 'POST', body: datos }))
 

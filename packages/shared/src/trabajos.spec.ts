@@ -46,6 +46,11 @@ describe('seguimientoDe', () => {
     expect(seguimientoDe({ estado: 'cancelado', urgente: true, pendientePago: true })).toEqual({ principal: 'cancelado', etiquetas: [] })
   })
 
+  it('Turnitin va después del pago pendiente y antes del avance', () => {
+    expect(seguimientoDe({ ...base, estado: 'en_proceso', enTurnitin: true })).toEqual({ principal: 'turnitin', etiquetas: ['abordando'] })
+    expect(seguimientoDe({ estado: 'en_proceso', urgente: false, pendientePago: true, enTurnitin: true })).toEqual({ principal: 'pendiente_pago', etiquetas: ['turnitin', 'abordando'] })
+  })
+
   it('suspendido va después de urgente', () => {
     expect(seguimientoDe({ estado: 'suspendido', urgente: true, pendientePago: false })).toEqual({ principal: 'urgente', etiquetas: ['suspendido'] })
     expect(seguimientoDe({ estado: 'suspendido', urgente: false, pendientePago: true })).toEqual({ principal: 'suspendido', etiquetas: ['pendiente_pago'] })

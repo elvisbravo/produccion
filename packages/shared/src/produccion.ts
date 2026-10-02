@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { UsuarioResumen } from './prospectos.js'
 import type { Comportamiento, EstadoTarea } from './tareas.js'
 
-export const ESTADOS_ENTREGABLE = ['pendiente', 'en_proceso', 'en_revision', 'observado', 'aprobado', 'entregado', 'observado_cliente', 'cerrado'] as const
+export const ESTADOS_ENTREGABLE = ['pendiente', 'en_proceso', 'en_revision', 'observado', 'aprobado', 'en_turnitin', 'entregado', 'observado_cliente', 'cerrado'] as const
 export type EstadoEntregable = (typeof ESTADOS_ENTREGABLE)[number]
 export const NOMBRE_ESTADO_ENTREGABLE: Record<EstadoEntregable, string> = {
   pendiente: 'Pendiente',
@@ -10,6 +10,7 @@ export const NOMBRE_ESTADO_ENTREGABLE: Record<EstadoEntregable, string> = {
   en_revision: 'En revisión',
   observado: 'Observado',
   aprobado: 'Aprobado',
+  en_turnitin: 'En Turnitin',
   entregado: 'Entregado',
   observado_cliente: 'Observado por el cliente',
   cerrado: 'Cerrado',
@@ -72,6 +73,18 @@ export const revisarEntregableSchema = z
 export type RevisarEntregableFormulario = z.input<typeof revisarEntregableSchema>
 export type RevisarEntregableDatos = z.output<typeof revisarEntregableSchema>
 
+/** Resultado de la pasada por Turnitin. La similitud es obligatoria; la detección de IA, si la hubo. */
+export const resultadoTurnitinSchema = z.object({
+  similitud: z.coerce.number('Indica el % de similitud').min(0, 'Entre 0 y 100').max(100, 'Entre 0 y 100'),
+  ia: porcentaje,
+  observaciones: texto(500),
+})
+export type ResultadoTurnitinFormulario = z.input<typeof resultadoTurnitinSchema>
+export type ResultadoTurnitinDatos = z.output<typeof resultadoTurnitinSchema>
+
+export const omitirTurnitinSchema = z.object({ motivo: z.string().trim().min(3, 'Indica el motivo').max(500) })
+export type OmitirTurnitinDatos = z.output<typeof omitirTurnitinSchema>
+
 export const entregarSchema = z.object({ canal: z.enum(CANALES_ENTREGA).default('whatsapp'), notas: texto(1000) })
 export type EntregarFormulario = z.input<typeof entregarSchema>
 export type EntregarDatos = z.output<typeof entregarSchema>
@@ -120,6 +133,26 @@ export interface RevisionItem {
   fecha: string
 }
 
+export interface TurnitinItem {
+  id: string
+  enviadoPor: UsuarioResumen
+  enviadoEn: string
+  /** Nulo mientras espera el resultado. */
+  resultado: 'conforme' | 'excede' | 'omitido' | null
+  similitud: number | null
+  ia: number | null
+  observaciones: string | null
+  registradoPor: UsuarioResumen | null
+  registradoEn: string | null
+}
+
+/** Reglas de Turnitin vigentes (parámetros del sistema). Un límite nulo = sin límite. */
+export interface TurnitinConfig {
+  obligatorio: boolean
+  similitudMax: number | null
+  iaMax: number | null
+}
+
 export interface EntregaItem {
   id: string
   fecha: string
@@ -143,6 +176,9 @@ export interface EntregableItem {
   tareas: TareaDeEntregable[]
   revisiones: RevisionItem[]
   entregas: EntregaItem[]
+  turnitin: TurnitinItem[]
+  /** Turnitin dado por conforme u omitido para esta versión: ya puede entregarse al cliente. */
+  turnitinConformeEn: string | null
   /** Fin planificado de la última tarea activa y su semáforo respecto de la fecha límite. */
   finPlan: string | null
   semaforo: Semaforo | null

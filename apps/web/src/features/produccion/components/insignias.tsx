@@ -9,12 +9,16 @@ const AMBAR = 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800
 const AZUL = 'border-sky-300 bg-sky-50 text-sky-900 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-200'
 const VIOLETA = 'border-violet-300 bg-violet-50 text-violet-900 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-200'
 
+/** El magenta de la leyenda del equipo para Turnitin. */
+export const ESTILO_TURNITIN = 'border-fuchsia-400 bg-fuchsia-200 text-fuchsia-950 hover:bg-fuchsia-300 dark:border-fuchsia-700 dark:bg-fuchsia-900/60 dark:text-fuchsia-50'
+
 const ESTILO_ENTREGABLE: Record<EstadoEntregable, string> = {
   pendiente: '',
   en_proceso: AZUL,
   en_revision: VIOLETA,
   observado: AMBAR,
   aprobado: VERDE,
+  en_turnitin: ESTILO_TURNITIN,
   entregado: AZUL,
   observado_cliente: AMBAR,
   cerrado: 'text-muted-foreground',
