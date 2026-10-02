@@ -6,6 +6,7 @@ import { AlertCircle, ArrowLeft, CircleCheck, KeyRound, Loader2, Lock, LockOpen,
 import { useState } from 'react'
 import { FormProvider, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
+import { NoEncontrado } from '@/components/estado-vacio'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -38,7 +39,10 @@ const mensaje = (err: unknown) => (err instanceof ApiError || err instanceof Err
 
 function DetalleUsuario() {
   const { id } = Route.useParams()
-  const { data: u, isPending } = useQuery(usuarioQuery(id))
+  const { data: u, isPending, error } = useQuery(usuarioQuery(id))
+
+  // Sin acceso a una cuenta (p. ej. de un administrador) se responde como si no existiera.
+  if (error instanceof ApiError && error.status === 404) return <NoEncontrado />
 
   if (isPending || !u) {
     return (

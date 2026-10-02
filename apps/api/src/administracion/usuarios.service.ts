@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   EVENTO_SESION_ACTUALIZADA,
   EVENTO_SESION_CERRADA,
@@ -66,21 +66,32 @@ export class UsuariosService {
     };
   }
 
-  async listar(f: { q?: string; rol?: string; estado: 'activos' | 'inactivos' | 'todos' }): Promise<UsuarioListadoItem[]> {
+  async listar(f: { q?: string; rol?: string; estado: 'activos' | 'inactivos' | 'todos' }, actorId: string): Promise<UsuarioListadoItem[]> {
+    const sinAdmins = !(await this.permisos.veAdministradores(actorId));
     const palabras = f.q?.split(/\s+/).filter(Boolean) ?? [];
     const filas = await this.prisma.usuario.findMany({
       where: {
         eliminadoEn: null,
         ...(f.estado !== 'todos' && { activo: f.estado === 'activos' }),
         ...(f.rol && { roles: { some: { rol: { codigo: f.rol } } } }),
-        AND: palabras.map((p) => ({
+        AND: [
+          // Sin el permiso de gestionar administradores, sus cuentas no aparecen.
+          ...(sinAdmins ? [{ roles: { none: { rol: { codigo: ROLES_BASE.ADMIN } } } }] : []),
+          ...palabras.map((p) => ({
           OR: [{ nombres: { contains: p, mode: 'insensitive' as const } }, { apellidos: { contains: p, mode: 'insensitive' as const } }, { email: { contains: p, mode: 'insensitive' as const } }, { numeroDocumento: { contains: p, mode: 'insensitive' as const } }],
-        })),
+          })),
+        ],
       },
       include: INCLUIR,
       orderBy: [{ nombres: 'asc' }, { apellidos: 'asc' }],
     });
     return filas.map((u) => this.aListado(u));
+  }
+
+  /** La ficha para quien consulta: una cuenta de administrador no existe para quien no puede gestionarlas. */
+  async verDetalle(id: string, actorId: string): Promise<UsuarioDetalle> {
+    await this.permisos.verificarObjetivo(actorId, id);
+    return this.detalle(id);
   }
 
   async detalle(id: string): Promise<UsuarioDetalle> {
@@ -134,6 +145,29 @@ export class UsuariosService {
 
   // ─── Alta y edición ──────────────────────────────────────
 
+  /**
+   * Quien no puede gestionar administradores no da el rol Administrador ni roles con permisos que él mismo no tiene:
+   * así nadie escala privilegios por esta vía.
+   */
+  private async verificarRolesAsignables(actorId: string, roles: { id: string; codigo: string; nombre: string }[]) {
+    if (await this.permisos.veAdministradores(actorId)) return;
+    if (roles.some((r) => r.codigo === ROLES_BASE.ADMIN)) throw new ForbiddenException('Solo quien gestiona administradores puede asignar el rol Administrador');
+    const propios = await this.permisos.efectivos(actorId);
+    const filas = await this.prisma.rolPermiso.findMany({
+      where: { rolId: { in: roles.map((r) => r.id) }, accion: { vigente: true } },
+      include: { accion: { include: { modulo: { select: { codigo: true } } } } },
+    });
+    for (const r of roles) {
+      const exceso = filas.find((f) => f.rolId === r.id && !(`${f.accion.modulo.codigo}.${f.accion.codigo}` in propios));
+      if (exceso) throw new ForbiddenException(`El rol «${r.nombre}» da permisos que tú no tienes`);
+    }
+  }
+
+  /** Quien no gestiona administradores no cambia sus propios roles ni permisos. */
+  private async verificarNoEsUnoMismo(actorId: string, objetivoId: string) {
+    if (actorId === objetivoId && !(await this.permisos.veAdministradores(actorId))) throw new ForbiddenException('No puedes cambiar tus propios roles ni permisos');
+  }
+
   private async validarRoles(rolIds: string[]) {
     const roles = await this.prisma.rol.findMany({ where: { id: { in: rolIds }, activo: true, eliminadoEn: null } });
     if (roles.length !== new Set(rolIds).size) throw errorCampo('rolIds', 'Algún rol no existe o está inactivo');
@@ -141,7 +175,7 @@ export class UsuariosService {
   }
 
   async crear(datos: CrearUsuarioDatos, actor: ActorAdmin): Promise<ClaveTemporal> {
-    await this.validarRoles(datos.rolIds);
+    await this.verificarRolesAsignables(actor.usuarioId, await this.validarRoles(datos.rolIds));
     const claveTemporal = datos.clave ? null : generarClaveTemporal();
     try {
       const u = await this.prisma.$transaction(async (tx) => {
@@ -173,6 +207,7 @@ export class UsuariosService {
   }
 
   async editar(id: string, datos: EditarUsuarioDatos, actor: ActorAdmin): Promise<UsuarioDetalle> {
+    await this.permisos.verificarObjetivo(actor.usuarioId, id);
     const antes = await this.detalle(id);
     try {
       await this.prisma.usuario.update({
@@ -231,7 +266,8 @@ export class UsuariosService {
    * Lo que la persona tiene a su nombre y seguirá ahí si se desactiva: tareas activas, trabajos activos en su equipo
    * y prospectos abiertos. Sirve de aviso para reasignarlo antes.
    */
-  async pendientes(id: string): Promise<PendientesUsuario> {
+  async pendientes(id: string, actorId: string): Promise<PendientesUsuario> {
+    await this.permisos.verificarObjetivo(actorId, id);
     await this.detalle(id);
     // Las tareas de prospectos o trabajos eliminados no cuentan.
     const vivas = [{ OR: [{ prospectoId: null }, { prospecto: { eliminadoEn: null } }] }, { OR: [{ trabajoId: null }, { trabajo: { eliminadoEn: null } }] }];
@@ -257,6 +293,7 @@ export class UsuariosService {
   }
 
   async cambiarActivo(id: string, activo: boolean, actor: ActorAdmin): Promise<UsuarioDetalle> {
+    await this.permisos.verificarObjetivo(actor.usuarioId, id);
     if (id === actor.usuarioId && !activo) throw new BadRequestException('No puedes desactivar tu propio usuario');
     const u = await this.detalle(id);
     if (!activo && (await this.esAdmin(id))) await this.verificarOtroAdmin(id);
@@ -271,8 +308,11 @@ export class UsuariosService {
   }
 
   async asignarRoles(id: string, rolIds: string[], actor: ActorAdmin): Promise<UsuarioDetalle> {
+    await this.permisos.verificarObjetivo(actor.usuarioId, id);
+    await this.verificarNoEsUnoMismo(actor.usuarioId, id);
     const antes = await this.detalle(id);
     const roles = await this.validarRoles(rolIds);
+    await this.verificarRolesAsignables(actor.usuarioId, roles);
     const quedaAdmin = roles.some((r) => r.codigo === ROLES_BASE.ADMIN);
     if (!quedaAdmin && antes.roles.some((r) => r.codigo === ROLES_BASE.ADMIN)) await this.verificarOtroAdmin(id);
     await this.prisma.$transaction(async (tx) => {
@@ -288,6 +328,12 @@ export class UsuariosService {
   }
 
   async guardarExcepcion(id: string, datos: ExcepcionPermisoDatos, actor: ActorAdmin): Promise<UsuarioDetalle> {
+    await this.permisos.verificarObjetivo(actor.usuarioId, id);
+    await this.verificarNoEsUnoMismo(actor.usuarioId, id);
+    // Nadie concede un permiso que no tiene (el administrador y quien gestiona administradores sí pueden).
+    if (datos.tipo === 'conceder' && !(await this.permisos.veAdministradores(actor.usuarioId)) && !(datos.permiso in (await this.permisos.efectivos(actor.usuarioId)))) {
+      throw new ForbiddenException('No puedes conceder un permiso que tú no tienes');
+    }
     await this.detalle(id);
     const [modulo, codigo] = datos.permiso.split('.');
     const accion = await this.prisma.accion.findFirst({ where: { codigo, vigente: true, modulo: { codigo: modulo } } });
@@ -307,6 +353,8 @@ export class UsuariosService {
   }
 
   async quitarExcepcion(id: string, excepcionId: string, actor: ActorAdmin): Promise<UsuarioDetalle> {
+    await this.permisos.verificarObjetivo(actor.usuarioId, id);
+    await this.verificarNoEsUnoMismo(actor.usuarioId, id);
     const e = await this.prisma.usuarioPermiso.findFirst({ where: { id: excepcionId, usuarioId: id } });
     if (!e) throw new NotFoundException('Excepción no encontrada');
     await this.prisma.$transaction(async (tx) => {
@@ -319,6 +367,7 @@ export class UsuariosService {
 
   /** Genera una contraseña temporal, desbloquea la cuenta y cierra sus sesiones. */
   async restablecerClave(id: string, actor: ActorAdmin): Promise<ClaveTemporal> {
+    await this.permisos.verificarObjetivo(actor.usuarioId, id);
     await this.detalle(id);
     const claveTemporal = generarClaveTemporal();
     await this.prisma.$transaction(async (tx) => {
@@ -334,6 +383,7 @@ export class UsuariosService {
   }
 
   async desbloquear(id: string, actor: ActorAdmin): Promise<UsuarioDetalle> {
+    await this.permisos.verificarObjetivo(actor.usuarioId, id);
     await this.detalle(id);
     await this.prisma.usuario.update({ where: { id }, data: { intentosFallidos: 0, bloqueadoHasta: null } });
     await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'desbloquear', entidad: 'usuario', entidadId: id, ip: actor.ip });
@@ -342,6 +392,7 @@ export class UsuariosService {
 
   /** Excepción al tope global de horas extra (ambos vacíos = usa el global). */
   async guardarTopes(id: string, topes: TopesUsuario, actor: ActorAdmin): Promise<UsuarioDetalle> {
+    await this.permisos.verificarObjetivo(actor.usuarioId, id);
     await this.detalle(id);
     if (topes.semanal === null && topes.mensual === null) await this.prisma.topeHorasExtraUsuario.deleteMany({ where: { usuarioId: id } });
     else {

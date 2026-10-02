@@ -41,8 +41,8 @@ export class ProspectosController {
   /** Quiénes pueden recibir un prospecto. Va antes de ":id" para que no se tome como un id. */
   @RequierePermiso('prospectos.reasignar')
   @Get('posibles-responsables')
-  posiblesResponsables(): Promise<UsuarioResumen[]> {
-    return this.prospectos.posiblesResponsables();
+  posiblesResponsables(@Req() req: SolicitudAutenticada): Promise<UsuarioResumen[]> {
+    return this.prospectos.posiblesResponsables(req.usuario!.id);
   }
 
   @RequierePermiso('prospectos.reasignar')

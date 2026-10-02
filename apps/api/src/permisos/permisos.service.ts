@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { ROLES_BASE, type Alcance, type ItemMenu, type PermisoCodigo, type PermisosEfectivos } from '@grupoes/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { sincronizarCatalogo } from './catalogo.js';
@@ -26,6 +26,29 @@ export class PermisosService implements OnApplicationBootstrap {
     const permisos = await this.calcular(usuarioId);
     this.cache.set(usuarioId, { permisos, expira: Date.now() + CACHE_TTL_MS });
     return permisos;
+  }
+
+  /**
+   * Quien no tiene "Gestionar administradores" no ve ni toca las cuentas de administrador: para él no existen.
+   * El administrador la tiene siempre.
+   */
+  async veAdministradores(usuarioId: string): Promise<boolean> {
+    return 'usuarios.gestionar_administradores' in (await this.efectivos(usuarioId));
+  }
+
+  async esAdministrador(usuarioId: string): Promise<boolean> {
+    return (await this.prisma.usuarioRol.count({ where: { usuarioId, rol: { codigo: ROLES_BASE.ADMIN } } })) > 0;
+  }
+
+  /** Ids de las cuentas con el rol Administrador. */
+  async idsAdministradores(): Promise<string[]> {
+    return (await this.prisma.usuarioRol.findMany({ where: { rol: { codigo: ROLES_BASE.ADMIN } }, select: { usuarioId: true } })).map((r) => r.usuarioId);
+  }
+
+  /** Si la cuenta es de un administrador y quien actúa no puede verlas, responde como si no existiera. */
+  async verificarObjetivo(actorId: string, objetivoId: string): Promise<void> {
+    if (actorId === objetivoId) return;
+    if ((await this.esAdministrador(objetivoId)) && !(await this.veAdministradores(actorId))) throw new NotFoundException('Usuario no encontrado');
   }
 
   invalidar(usuarioId?: string) {

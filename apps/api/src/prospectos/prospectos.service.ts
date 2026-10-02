@@ -81,8 +81,9 @@ export class ProspectosService {
   // ─── Reasignar responsable ───────────────────────────────
 
   /** Personas que pueden seguir prospectos: las que tienen permiso para verlos. */
-  async posiblesResponsables(): Promise<UsuarioResumen[]> {
-    const ids = await this.notificaciones.conPermiso('prospectos.ver');
+  async posiblesResponsables(actorId: string): Promise<UsuarioResumen[]> {
+    const admins = (await this.permisos.veAdministradores(actorId)) ? [] : await this.permisos.idsAdministradores();
+    const ids = (await this.notificaciones.conPermiso('prospectos.ver')).filter((id) => !admins.includes(id));
     return this.prisma.usuario.findMany({
       where: { id: { in: ids }, activo: true, eliminadoEn: null },
       select: { id: true, nombres: true, apellidos: true },
@@ -90,8 +91,8 @@ export class ProspectosService {
     });
   }
 
-  private async validarNuevoResponsable(usuarioId: string): Promise<UsuarioResumen> {
-    const u = (await this.posiblesResponsables()).find((x) => x.id === usuarioId);
+  private async validarNuevoResponsable(usuarioId: string, actorId: string): Promise<UsuarioResumen> {
+    const u = (await this.posiblesResponsables(actorId)).find((x) => x.id === usuarioId);
     if (!u) {
       throw new BadRequestException({ message: 'Datos inválidos', errores: [{ campo: 'usuarioId', mensaje: 'Debe ser una persona activa que pueda seguir prospectos' }] });
     }
@@ -117,7 +118,7 @@ export class ProspectosService {
     if (!prospecto) throw new NotFoundException('Prospecto no encontrado');
     if (prospecto.trabajo || prospecto.etapa.clase !== 'abierta') throw new BadRequestException('Solo se reasignan prospectos abiertos');
     if (prospecto.responsableId === datos.usuarioId) throw new BadRequestException({ message: 'Datos inválidos', errores: [{ campo: 'usuarioId', mensaje: 'Ya es el responsable de este prospecto' }] });
-    const nuevo = await this.validarNuevoResponsable(datos.usuarioId);
+    const nuevo = await this.validarNuevoResponsable(datos.usuarioId, actor.usuarioId);
     const nombre = (u: { nombres: string; apellidos: string }) => `${u.nombres} ${u.apellidos}`;
 
     await this.prisma.$transaction(async (tx) => {
@@ -153,7 +154,8 @@ export class ProspectosService {
   /** Todos los prospectos abiertos de una persona pasan a otra. Mueve cartera ajena: exige ver todos los prospectos. */
   async reasignarLote(datos: ReasignarLoteDatos, actor: Actor): Promise<ResultadoReasignarLote> {
     if ((await this.alcanceDeVer(actor.usuarioId)) !== 'todos') throw new ForbiddenException('Reasignar la cartera de otra persona exige ver todos los prospectos');
-    const nuevo = await this.validarNuevoResponsable(datos.aUsuarioId);
+    await this.permisos.verificarObjetivo(actor.usuarioId, datos.desdeUsuarioId);
+    const nuevo = await this.validarNuevoResponsable(datos.aUsuarioId, actor.usuarioId);
     const origen = await this.prisma.usuario.findFirst({ where: { id: datos.desdeUsuarioId, eliminadoEn: null }, select: { id: true, nombres: true, apellidos: true } });
     if (!origen) throw new NotFoundException('Usuario no encontrado');
     const prospectos = await this.prisma.prospecto.findMany({

@@ -142,6 +142,7 @@ export const MODULOS = [
       { codigo: 'asignar_permisos', nombre: 'Asignar permisos' },
       { codigo: 'restablecer_clave', nombre: 'Restablecer contraseña' },
       { codigo: 'ver_costo_hora', nombre: 'Ver costo por hora' },
+      { codigo: 'gestionar_administradores', nombre: 'Gestionar administradores' },
     ],
   },
   {

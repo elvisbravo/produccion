@@ -31,6 +31,7 @@ import type { SolicitudAutenticada } from '../auth/tipos.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { ParametrosService } from '../parametros/parametros.service.js';
 import { RequierePermiso } from '../permisos/requiere-permiso.decorator.js';
+import { PermisosService } from '../permisos/permisos.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RolesService } from './roles.service.js';
 import { UsuariosService } from './usuarios.service.js';
@@ -44,14 +45,14 @@ export class UsuariosController {
 
   @RequierePermiso('usuarios.ver')
   @Get()
-  listar(@Query(new ZodValidationPipe(listarUsuariosSchema)) f: z.output<typeof listarUsuariosSchema>): Promise<UsuarioListadoItem[]> {
-    return this.usuarios.listar(f);
+  listar(@Query(new ZodValidationPipe(listarUsuariosSchema)) f: z.output<typeof listarUsuariosSchema>, @Req() req: SolicitudAutenticada): Promise<UsuarioListadoItem[]> {
+    return this.usuarios.listar(f, req.usuario!.id);
   }
 
   @RequierePermiso('usuarios.ver')
   @Get(':id')
-  detalle(@Param('id', ParseUUIDPipe) id: string): Promise<UsuarioDetalle> {
-    return this.usuarios.detalle(id);
+  detalle(@Param('id', ParseUUIDPipe) id: string, @Req() req: SolicitudAutenticada): Promise<UsuarioDetalle> {
+    return this.usuarios.verDetalle(id, req.usuario!.id);
   }
 
   @RequierePermiso('usuarios.crear')
@@ -69,8 +70,8 @@ export class UsuariosController {
   /** Lo que la persona deja a su nombre, para avisar antes de desactivarla. */
   @RequierePermiso('usuarios.desactivar')
   @Get(':id/pendientes')
-  pendientes(@Param('id', ParseUUIDPipe) id: string): Promise<PendientesUsuario> {
-    return this.usuarios.pendientes(id);
+  pendientes(@Param('id', ParseUUIDPipe) id: string, @Req() req: SolicitudAutenticada): Promise<PendientesUsuario> {
+    return this.usuarios.pendientes(id, req.usuario!.id);
   }
 
   @RequierePermiso('usuarios.desactivar')
@@ -141,14 +142,14 @@ export class RolesController {
   /** Para elegir roles al crear usuarios basta con poder crearlos o asignar roles; la gestión exige roles.ver. */
   @RequierePermiso('roles.ver')
   @Get()
-  listar(): Promise<RolItem[]> {
-    return this.roles.listar();
+  listar(@Req() req: SolicitudAutenticada): Promise<RolItem[]> {
+    return this.roles.listar(actor(req).usuarioId);
   }
 
   @RequierePermiso('roles.ver')
   @Get(':id')
-  detalle(@Param('id', ParseUUIDPipe) id: string): Promise<RolDetalle> {
-    return this.roles.detalle(id);
+  detalle(@Param('id', ParseUUIDPipe) id: string, @Req() req: SolicitudAutenticada): Promise<RolDetalle> {
+    return this.roles.detalle(id, actor(req).usuarioId);
   }
 
   @RequierePermiso('roles.crear')
@@ -196,12 +197,21 @@ export class ParametrosController {
 
 @Controller('auditoria')
 export class AuditoriaController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly permisos: PermisosService,
+  ) {}
 
   @RequierePermiso('auditoria.ver')
   @Get()
-  async listar(@Query(new ZodValidationPipe(listarAuditoriaSchema)) f: z.output<typeof listarAuditoriaSchema>): Promise<Paginado<AuditoriaItem> & { entidades: string[] }> {
+  async listar(
+    @Query(new ZodValidationPipe(listarAuditoriaSchema)) f: z.output<typeof listarAuditoriaSchema>,
+    @Req() req: SolicitudAutenticada,
+  ): Promise<Paginado<AuditoriaItem> & { entidades: string[] }> {
+    // Sin el permiso de gestionar administradores no se ven los cambios hechos a sus cuentas.
+    const admins = (await this.permisos.veAdministradores(req.usuario!.id)) ? [] : await this.permisos.idsAdministradores();
     const where = {
+      ...(admins.length > 0 && { NOT: { entidad: 'usuario', entidadId: { in: admins } } }),
       entidad: f.entidad,
       usuarioId: f.usuarioId,
       fecha: {

@@ -18,6 +18,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { rolQuery, useEditarRol, useEliminarRol, useMatrizRol } from '@/features/administracion/api'
 import { GRUPOS_PERMISOS, NOMBRE_ALCANCE } from '@/features/administracion/catalogo'
+import { NoEncontrado } from '@/components/estado-vacio'
 import { ApiError } from '@/lib/api'
 import { exigirPermiso } from '@/lib/guardas'
 import { usePermiso } from '@/lib/permisos'
@@ -31,7 +32,8 @@ const mensaje = (err: unknown) => (err instanceof ApiError || err instanceof Err
 
 function DetalleRol() {
   const { id } = Route.useParams()
-  const { data: rol } = useQuery(rolQuery(id))
+  const { data: rol, error } = useQuery(rolQuery(id))
+  if (error instanceof ApiError && error.status === 404) return <NoEncontrado />
   if (!rol) {
     return (
       <div className="mx-auto w-full max-w-5xl p-4 md:p-8">

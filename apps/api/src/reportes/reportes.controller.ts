@@ -70,8 +70,8 @@ export class ReportesController {
 
   @RequierePermiso('usuarios.ver_costo_hora')
   @Get('usuarios/:id/costos-hora')
-  costos(@Param('id', ParseUUIDPipe) id: string): Promise<CostoHoraItem[]> {
-    return this.reportes.costos(id);
+  costos(@Param('id', ParseUUIDPipe) id: string, @Req() req: SolicitudAutenticada): Promise<CostoHoraItem[]> {
+    return this.reportes.costos(id, req.usuario!.id);
   }
 
   /** Además de ver costos, exige poder editar usuarios (lo valida el servicio). */

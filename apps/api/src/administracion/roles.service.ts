@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { EVENTO_SESION_ACTUALIZADA, ROLES_BASE, type MatrizRolDatos, type RolDatos, type RolDetalle, type RolItem } from '@grupoes/shared';
 import { AuditoriaService } from '../common/auditoria.service.js';
 import { NotificacionesGateway } from '../notificaciones/notificaciones.gateway.js';
@@ -25,7 +25,13 @@ export class RolesService {
     private readonly gateway: NotificacionesGateway,
   ) {}
 
-  async listar(): Promise<RolItem[]> {
+  /** Quien no gestiona administradores no ve el rol Administrador (ni cuántos usuarios lo tienen). */
+  async listar(actorId: string): Promise<RolItem[]> {
+    const roles = await this.listarTodos();
+    return (await this.permisos.veAdministradores(actorId)) ? roles : roles.filter((r) => r.codigo !== ROLES_BASE.ADMIN);
+  }
+
+  private async listarTodos(): Promise<RolItem[]> {
     const roles = await this.prisma.rol.findMany({
       where: { eliminadoEn: null },
       orderBy: [{ esSistema: 'desc' }, { nombre: 'asc' }],
@@ -43,8 +49,8 @@ export class RolesService {
     }));
   }
 
-  async detalle(id: string): Promise<RolDetalle> {
-    const item = (await this.listar()).find((r) => r.id === id);
+  async detalle(id: string, actorId: string): Promise<RolDetalle> {
+    const item = (await this.listar(actorId)).find((r) => r.id === id);
     if (!item) throw new NotFoundException('Rol no encontrado');
     const filas = await this.prisma.rolPermiso.findMany({ where: { rolId: id, accion: { vigente: true } }, include: { accion: { include: { modulo: { select: { codigo: true } } } } } });
     return {
@@ -62,11 +68,11 @@ export class RolesService {
     for (let i = 2; await this.prisma.rol.count({ where: { codigo } }); i++) codigo = `${aCodigo(datos.nombre)}_${i}`;
     const rol = await this.prisma.rol.create({ data: { codigo, nombre: datos.nombre, descripcion: datos.descripcion ?? null, activo: datos.activo, creadoPor: actor.usuarioId } });
     await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'crear', entidad: 'rol', entidadId: rol.id, despues: { codigo, ...datos }, ip: actor.ip });
-    return this.detalle(rol.id);
+    return this.detalle(rol.id, actor.usuarioId);
   }
 
   async editar(id: string, datos: RolDatos, actor: ActorAdmin): Promise<RolDetalle> {
-    const antes = await this.detalle(id);
+    const antes = await this.detalle(id, actor.usuarioId);
     if (antes.esAdministrador && !datos.activo) throw new BadRequestException('El rol de administrador no se puede desactivar');
     if (await this.prisma.rol.count({ where: { nombre: datos.nombre, eliminadoEn: null, id: { not: id } } })) {
       throw new ConflictException({ message: 'Ya existe un rol con ese nombre', errores: [{ campo: 'nombre', mensaje: 'Ya existe un rol con ese nombre' }] });
@@ -74,18 +80,24 @@ export class RolesService {
     await this.prisma.rol.update({ where: { id }, data: { nombre: datos.nombre, descripcion: datos.descripcion ?? null, activo: datos.activo, actualizadoPor: actor.usuarioId } });
     await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'editar', entidad: 'rol', entidadId: id, antes: { nombre: antes.nombre, descripcion: antes.descripcion, activo: antes.activo }, despues: datos, ip: actor.ip });
     if (antes.activo !== datos.activo) await this.avisarUsuarios(id);
-    return this.detalle(id);
+    return this.detalle(id, actor.usuarioId);
   }
 
   /** Reemplaza la matriz de permisos del rol. Las acciones con alcance lo exigen (por defecto, "propios"). */
   async guardarMatriz(id: string, datos: MatrizRolDatos, actor: ActorAdmin): Promise<RolDetalle> {
-    const antes = await this.detalle(id);
+    const antes = await this.detalle(id, actor.usuarioId);
     if (antes.esAdministrador) throw new BadRequestException('El administrador tiene siempre todos los permisos');
     const acciones = await this.prisma.accion.findMany({ where: { vigente: true }, include: { modulo: { select: { codigo: true } } } });
     const porCodigo = new Map(acciones.map((a) => [`${a.modulo.codigo}.${a.codigo}`, a]));
     const desconocido = datos.permisos.find((p) => !porCodigo.has(p.permiso));
     if (desconocido) throw new BadRequestException(`Permiso desconocido: ${desconocido.permiso}`);
     const unicos = new Map(datos.permisos.map((p) => [p.permiso, p]));
+    // Quien no gestiona administradores no da a un rol permisos que él mismo no tiene (así no se los da a sí mismo por esta vía).
+    if (!(await this.permisos.veAdministradores(actor.usuarioId))) {
+      const propios = await this.permisos.efectivos(actor.usuarioId);
+      const exceso = [...unicos.keys()].find((p) => !(p in propios));
+      if (exceso) throw new ForbiddenException('No puedes dar a un rol un permiso que tú no tienes');
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.rolPermiso.deleteMany({ where: { rolId: id } });
@@ -98,12 +110,12 @@ export class RolesService {
       await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'editar_permisos', entidad: 'rol', entidadId: id, antes: antes.matriz, despues: [...unicos.values()], ip: actor.ip }, tx);
     });
     await this.avisarUsuarios(id);
-    return this.detalle(id);
+    return this.detalle(id, actor.usuarioId);
   }
 
   /** Solo roles creados por la empresa y sin usuarios. */
   async eliminar(id: string, actor: ActorAdmin): Promise<void> {
-    const rol = await this.detalle(id);
+    const rol = await this.detalle(id, actor.usuarioId);
     if (rol.esSistema) throw new BadRequestException('Los roles base del sistema no se eliminan (puedes desactivarlos)');
     if ((await this.prisma.usuarioRol.count({ where: { rolId: id } })) > 0) throw new BadRequestException('Quita primero el rol a sus usuarios');
     await this.prisma.$transaction(async (tx) => {

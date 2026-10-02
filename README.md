@@ -127,6 +127,10 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 
 La web arma la cotización, el contrato y el recibo como hojas A4 en `/imprimir/…` (sin el menú) y se imprimen o guardan en PDF desde el navegador. Los textos son plantillas editables en **Configuración → Documentos**; mientras no se carguen los formatos de la empresa se usan textos provisionales (`PLANTILLAS_POR_DEFECTO` en `packages/shared/src/documentos.ts`). Un dato que falta se imprime como una línea para completarlo a mano.
 
+### Administradores ocultos
+
+Quien no tiene el permiso **Usuarios → Gestionar administradores** (el administrador lo tiene siempre) no ve ni toca las cuentas con el rol Administrador: no salen en el listado ni en la búsqueda, su ficha y cualquier acción sobre ellas (editar, desactivar, restablecer contraseña, roles, permisos, costo por hora, pasar su cartera) responden "no encontrado", el rol Administrador no aparece en Roles ni en el selector, no se ofrecen como responsables de prospectos y no se ven en la auditoría los cambios hechos a sus cuentas. Además, sin ese permiso no se puede dar el rol Administrador, ni roles o permisos que uno mismo no tiene, ni cambiar los propios roles y permisos. Los nombres de administradores en el historial de trabajo (quién registró un pago, comentarios, líneas de tiempo) sí se ven.
+
 ### Personas con varios roles
 
 Una persona puede tener más de un rol (sus permisos se suman). Para que siempre revise alguien distinto de quien elabora:

@@ -516,7 +516,8 @@ export class ReportesService {
 
   // ─── Costo por hora ──────────────────────────────────────
 
-  async costos(usuarioId: string): Promise<CostoHoraItem[]> {
+  async costos(usuarioId: string, actorId: string): Promise<CostoHoraItem[]> {
+    await this.permisos.verificarObjetivo(actorId, usuarioId);
     if (!(await this.prisma.usuario.count({ where: { id: usuarioId, eliminadoEn: null } }))) throw new NotFoundException('Usuario no encontrado');
     const filas = await this.prisma.costoHoraUsuario.findMany({ where: { usuarioId }, orderBy: { vigenteDesde: 'desc' } });
     const autores = await this.prisma.usuario.findMany({ where: { id: { in: filas.map((f) => f.creadoPorId).filter((x): x is string => Boolean(x)) } }, select: CAMPOS_USUARIO });
@@ -532,7 +533,7 @@ export class ReportesService {
   /** Un costo nuevo rige desde una fecha; para corregir uno existente se registra otro con la misma fecha. */
   async guardarCosto(usuarioId: string, datos: CostoHoraDatos, actor: { usuarioId: string; ip: string | null }): Promise<CostoHoraItem[]> {
     if (!('usuarios.editar' in (await this.permisos.efectivos(actor.usuarioId)))) throw new ForbiddenException('No tienes permiso para esta acción');
-    await this.costos(usuarioId);
+    await this.costos(usuarioId, actor.usuarioId);
     const fila = await this.prisma.costoHoraUsuario.upsert({
       where: { usuarioId_vigenteDesde: { usuarioId, vigenteDesde: aFecha(datos.vigenteDesde) } },
       create: { usuarioId, costo: datos.costo, vigenteDesde: aFecha(datos.vigenteDesde), creadoPorId: actor.usuarioId },
@@ -540,11 +541,12 @@ export class ReportesService {
     });
     // Confidencial: la auditoría registra el cambio, pero no el monto.
     await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'costo_hora', entidad: 'usuario', entidadId: usuarioId, despues: { vigenteDesde: datos.vigenteDesde, registro: fila.id }, ip: actor.ip });
-    return this.costos(usuarioId);
+    return this.costos(usuarioId, actor.usuarioId);
   }
 
   async quitarCosto(usuarioId: string, costoId: string, actor: { usuarioId: string; ip: string | null }): Promise<CostoHoraItem[]> {
     if (!('usuarios.editar' in (await this.permisos.efectivos(actor.usuarioId)))) throw new ForbiddenException('No tienes permiso para esta acción');
+    await this.permisos.verificarObjetivo(actor.usuarioId, usuarioId);
     const c = await this.prisma.costoHoraUsuario.findFirst({ where: { id: costoId, usuarioId } });
     if (!c) throw new NotFoundException('Costo no encontrado');
     if ((await this.prisma.costoHoraUsuario.count({ where: { usuarioId } })) === 1 && soloFecha(c.vigenteDesde) <= diaEnLima()) {
@@ -552,6 +554,6 @@ export class ReportesService {
     }
     await this.prisma.costoHoraUsuario.delete({ where: { id: costoId } });
     await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'quitar_costo_hora', entidad: 'usuario', entidadId: usuarioId, antes: { vigenteDesde: soloFecha(c.vigenteDesde) }, ip: actor.ip });
-    return this.costos(usuarioId);
+    return this.costos(usuarioId, actor.usuarioId);
   }
 }
