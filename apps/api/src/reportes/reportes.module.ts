@@ -9,5 +9,6 @@ import { ReportesService } from './reportes.service.js';
   imports: [AgendaModule, ParametrosModule],
   controllers: [ReportesController],
   providers: [ReportesService],
+  exports: [ReportesService],
 })
 export class ReportesModule {}
