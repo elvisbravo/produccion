@@ -29,6 +29,7 @@ import { SeccionAdicionales } from '@/features/trabajos/components/adicionales'
 import { EtiquetasSeguimiento, InsigniaEstadoCuota } from '@/features/trabajos/components/insignias'
 import { AvisoFechasFijas, BotonFijarFechas, MarcaFechasFijas } from '@/features/trabajos/components/fechas-fijas'
 import { AvisoEnEspera, BotonPausar } from '@/features/trabajos/components/pausa'
+import { AvisoValoracion, BotonValorar } from '@/features/trabajos/components/valoracion'
 import { ApiError } from '@/lib/api'
 import { diasHasta, formatearFecha, formatearFechaHora, haceCuanto, nombreCompleto } from '@/lib/formato'
 import { exigirPermiso } from '@/lib/guardas'
@@ -81,6 +82,7 @@ function DetalleTrabajo() {
           </div>
           <div className="flex flex-col items-end gap-1 text-right">
             <BotonPausar t={t} />
+            <BotonValorar t={t} />
             <BotonFijarFechas t={t} />
             <span className="mt-1 text-sm text-muted-foreground">Entrega final</span>
             <span className="font-semibold">{formatearFecha(t.fechaLimite)}</span>
@@ -95,6 +97,7 @@ function DetalleTrabajo() {
         <div className="flex flex-col gap-6">
           <AvisoEnEspera t={t} />
           <AvisoFechasFijas t={t} />
+          <AvisoValoracion t={t} />
           <UrgenciaDelTrabajo trabajoId={t.id} cerrado={['finalizado', 'cancelado'].includes(t.estado)} />
           <SeccionEntregables t={t} />
           {t.contrato && <Contrato contrato={t.contrato} trabajoId={t.id} />}

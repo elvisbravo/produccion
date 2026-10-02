@@ -11,11 +11,13 @@ import { PausasController } from './pausas.controller.js';
 import { PausasService } from './pausas.service.js';
 import { TrabajosController } from './trabajos.controller.js';
 import { TrabajosService } from './trabajos.service.js';
+import { ValoracionesController } from './valoraciones.controller.js';
+import { ValoracionesService } from './valoraciones.service.js';
 
 @Module({
   imports: [PersonasModule, ProduccionModule],
-  controllers: [TrabajosController, AdicionalesController, PausasController, FechasFijasController, EntregablesController, ContingenciasController],
-  providers: [TrabajosService, AdicionalesService, PausasService, FechasFijasService],
+  controllers: [TrabajosController, AdicionalesController, PausasController, FechasFijasController, ValoracionesController, EntregablesController, ContingenciasController],
+  providers: [TrabajosService, AdicionalesService, PausasService, FechasFijasService, ValoracionesService],
   exports: [TrabajosService],
 })
 export class TrabajosModule {}

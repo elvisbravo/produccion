@@ -3,6 +3,7 @@ import {
   aCentimos,
   deCentimos,
   diaEnLima,
+  diasHabilesEntre,
   formatearSoles,
   NOMBRE_FUNCION_EQUIPO,
   NOMBRE_METODO_PAGO,
@@ -18,6 +19,7 @@ import {
   type TrabajoDetalle,
   type TrabajoListadoItem,
   type UsuarioResumen,
+  type ValoracionItem,
 } from '@grupoes/shared';
 import { AuditoriaService } from '../common/auditoria.service.js';
 import { contieneDigitos, contieneTodas, digitosDe, MAX_COINCIDENCIAS, palabrasDe } from '../common/busqueda.js';
@@ -39,6 +41,8 @@ export interface ActorTrabajo {
 const errorCampo = (campo: string, mensaje: string) => new BadRequestException({ message: 'Datos inválidos', errores: [{ campo, mensaje }] });
 const dia = (fecha: string) => new Date(`${fecha}T00:00:00Z`);
 const nombre = (u: { nombres: string; apellidos: string }) => `${u.nombres} ${u.apellidos}`;
+
+const soloFecha = (fecha: Date) => fecha.toISOString().slice(0, 10);
 
 @Injectable()
 export class TrabajosService {
@@ -231,6 +235,17 @@ export class TrabajosService {
     return { datos: filas.map((t) => aListado(t, verMontos, hoy)), total, pagina, porPagina };
   }
 
+  /** La última valoración, con los días hábiles que quedan hasta la fecha límite (sin domingos ni feriados). */
+  private async valoracionVigente(trabajo: { fechaLimite: Date; valoraciones: { id: string; fechaReunion: Date; diasEstimados: number; nota: string | null; registradaEn: Date; registradaPor: UsuarioResumen }[] }): Promise<ValoracionItem | null> {
+    const v = trabajo.valoraciones[0];
+    if (!v) return null;
+    const hoy = diaEnLima();
+    const limite = soloFecha(trabajo.fechaLimite);
+    const feriados = (await this.prisma.feriado.findMany({ where: { fecha: { gte: dia(hoy), lte: trabajo.fechaLimite } }, select: { fecha: true } })).map((f) => soloFecha(f.fecha));
+    const diasDisponibles = diasHabilesEntre(hoy, limite, feriados);
+    return { id: v.id, fechaReunion: soloFecha(v.fechaReunion), diasEstimados: v.diasEstimados, nota: v.nota, por: v.registradaPor, en: v.registradaEn.toISOString(), diasDisponibles, alcanza: v.diasEstimados <= diasDisponibles };
+  }
+
   /** Los trabajos que están en esa situación (la misma que muestra su etiqueta de seguimiento). */
   private async filtroSeguimiento(seguimiento: Seguimiento, verMontos: boolean): Promise<Prisma.TrabajoWhereInput> {
     switch (seguimiento) {
@@ -244,7 +259,10 @@ export class TrabajosService {
         return { estado: 'en_proceso' };
       case 'programado':
         return { estado: 'asignado' };
+      case 'valorado':
+        return { estado: 'sin_asignar', valoraciones: { some: {} } };
       case 'sin_asignar':
+        return { estado: 'sin_asignar', valoraciones: { none: {} } };
       case 'suspendido':
       case 'cancelado':
         return { estado: seguimiento };
@@ -290,14 +308,15 @@ export class TrabajosService {
       include: INCLUIR_DETALLE,
     });
     if (!trabajo) throw new NotFoundException('Trabajo no encontrado');
-    const [permisos, dioElEnfoque, entregables, hayPlantilla, turnitin] = await Promise.all([
+    const [permisos, dioElEnfoque, entregables, hayPlantilla, turnitin, valoracion] = await Promise.all([
       this.permisosDeMontos(usuarioId),
       this.dioElEnfoque(trabajo.prospectoId),
       this.produccion.deTrabajo(id),
       this.produccion.hayPlantilla(trabajo.tipoTrabajoId),
       this.produccion.configTurnitin(),
+      this.valoracionVigente(trabajo),
     ]);
-    return { ...aDetalle(trabajo, permisos, diaEnLima(), dioElEnfoque), entregables, hayPlantilla, turnitin };
+    return { ...aDetalle(trabajo, permisos, diaEnLima(), dioElEnfoque), entregables, hayPlantilla, turnitin, valoracion };
   }
 
   /** Responsable principal de la última actividad coordinada completada del prospecto (el enfoque). */

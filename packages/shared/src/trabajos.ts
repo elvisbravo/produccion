@@ -159,6 +159,29 @@ export const anularPagoSchema = z.object({ motivo: z.string().trim().min(3, 'Ind
 
 // ─── Fechas inamovibles ─────────────────────────────────────
 
+export const valorarTrabajoSchema = z.object({
+  fechaReunion: z.string().min(1, 'Elige la fecha de la reunión').pipe(z.iso.date('Fecha no válida')),
+  diasEstimados: z.coerce.number('Indica los días').int('Número entero').min(1, 'Mínimo 1 día').max(365, 'Máximo 365 días'),
+  nota: z.preprocess((v) => (v === '' || v === null ? undefined : v), z.string().trim().max(500, 'Máximo 500 caracteres').optional()),
+})
+export type ValorarTrabajoFormulario = z.input<typeof valorarTrabajoSchema>
+export type ValorarTrabajoDatos = z.output<typeof valorarTrabajoSchema>
+
+/** Lo que se estimó en una reunión y si cabe antes de la fecha límite. */
+export interface ValoracionItem {
+  id: string
+  fechaReunion: string
+  /** Días hábiles estimados. */
+  diasEstimados: number
+  nota: string | null
+  por: UsuarioResumen
+  en: string
+  /** Días hábiles que quedan desde hoy hasta la fecha límite del trabajo (feriados y domingos aparte). */
+  diasDisponibles: number
+  /** La estimación cabe en el tiempo que queda; si no, hay que hablarlo con el cliente. */
+  alcanza: boolean
+}
+
 export const fijarFechasSchema = z.object({ motivo: z.string().trim().min(3, 'Indica por qué no se pueden mover').max(300, 'Máximo 300 caracteres') })
 
 export interface FechasFijasItem {
@@ -243,7 +266,7 @@ export interface AdicionalItem {
  * Cómo se ve un trabajo de un vistazo (la leyenda de colores del equipo). Se calcula con lo que ya existe:
  * el estado, la prioridad y los pagos vencidos; no se captura aparte.
  */
-export const SEGUIMIENTOS = ['entregado', 'urgente', 'pendiente_pago', 'turnitin', 'abordando', 'programado', 'sin_asignar', 'suspendido', 'cancelado'] as const
+export const SEGUIMIENTOS = ['entregado', 'urgente', 'pendiente_pago', 'turnitin', 'abordando', 'programado', 'valorado', 'sin_asignar', 'suspendido', 'cancelado'] as const
 export type Seguimiento = (typeof SEGUIMIENTOS)[number]
 
 export const NOMBRE_SEGUIMIENTO: Record<Seguimiento, string> = {
@@ -253,6 +276,7 @@ export const NOMBRE_SEGUIMIENTO: Record<Seguimiento, string> = {
   turnitin: 'En Turnitin',
   abordando: 'Se está abordando',
   programado: 'Programado',
+  valorado: 'Valorado',
   sin_asignar: 'Sin asignar',
   suspendido: 'En espera del cliente',
   cancelado: 'Cancelado',
@@ -265,6 +289,7 @@ export const DESCRIPCION_SEGUIMIENTO: Record<Seguimiento, string> = {
   turnitin: 'Un entregable aprobado pasa por Turnitin antes de entregarse al cliente.',
   abordando: 'Ya se empezó a trabajar en él.',
   programado: 'Tiene equipo asignado y tareas programadas, aún sin empezar.',
+  valorado: 'Se valoró en una reunión (se estimó cuánto tardará) y aún no tiene equipo de producción.',
   sin_asignar: 'Todavía no tiene equipo de producción.',
   suspendido: 'Se detuvo porque falta información del cliente: sus tareas salen de la cola hasta reanudarlo.',
   cancelado: 'Se canceló.',
@@ -281,10 +306,10 @@ export interface SeguimientoTrabajo {
  * Un trabajo puede estar en varias situaciones a la vez (urgente, con pago pendiente y abordándose). El color
  * principal sigue este orden: entregado, urgente, suspendido, pendiente de pago, Turnitin y luego su avance.
  */
-export function seguimientoDe(t: { estado: EstadoTrabajo; urgente: boolean; pendientePago: boolean; enTurnitin?: boolean }): SeguimientoTrabajo {
+export function seguimientoDe(t: { estado: EstadoTrabajo; urgente: boolean; pendientePago: boolean; enTurnitin?: boolean; valorado?: boolean }): SeguimientoTrabajo {
   if (t.estado === 'cancelado') return { principal: 'cancelado', etiquetas: [] }
   if (t.estado === 'finalizado') return { principal: 'entregado', etiquetas: t.pendientePago ? ['pendiente_pago'] : [] }
-  const avance: Seguimiento = t.estado === 'en_proceso' ? 'abordando' : t.estado === 'asignado' ? 'programado' : t.estado === 'suspendido' ? 'suspendido' : 'sin_asignar'
+  const avance: Seguimiento = t.estado === 'en_proceso' ? 'abordando' : t.estado === 'asignado' ? 'programado' : t.estado === 'suspendido' ? 'suspendido' : t.valorado ? 'valorado' : 'sin_asignar'
   const todas: Seguimiento[] = [
     ...(t.urgente ? (['urgente'] as const) : []),
     ...(t.estado === 'suspendido' ? (['suspendido'] as const) : []),
@@ -434,6 +459,8 @@ export interface TrabajoDetalle {
   dioElEnfoque: { usuario: UsuarioResumen; rol: string } | null
   entregables: EntregableItem[]
   turnitin: TurnitinConfig
+  /** La valoración vigente (la última registrada). */
+  valoracion: ValoracionItem | null
   /** Hay una plantilla de entregables para su tipo de trabajo. */
   hayPlantilla: boolean
 }

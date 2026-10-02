@@ -68,6 +68,7 @@ model Usuario {
   adicionalesRespondidos Adicional[]                  @relation("AdicionalRespondidoPor")
   urgenciasAsignadas     SolicitudUrgenteAsignacion[] @relation("UrgenteAsignacionDe")
   pausasCreadas          PausaTrabajo[]               @relation("PausaCreadaPor")
+  valoraciones           ValoracionTrabajo[]          @relation("ValoracionPor")
   trabajosConFechasFijas Trabajo[]                    @relation("TrabajoFechasFijasPor")
   pausasReanudadas       PausaTrabajo[]               @relation("PausaReanudadaPor")
   horarios               HorarioUsuario[]             @relation("HorarioDelUsuario")
@@ -865,15 +866,16 @@ model Trabajo {
   carrera        Carrera?         @relation(fields: [carreraId], references: [id])
   nivelAcademico NivelAcademico?  @relation(fields: [nivelAcademicoId], references: [id])
 
-  integrantes TrabajoIntegrante[]
-  equipo      TrabajoEquipo[]
-  eventos     TrabajoEvento[]
-  contrato    Contrato?
-  pausas      PausaTrabajo[]
-  entregables Entregable[]
-  tareas      Tarea[]
-  urgencias   SolicitudUrgente[]
-  extras      HoraExtraBono[]
+  integrantes  TrabajoIntegrante[]
+  equipo       TrabajoEquipo[]
+  eventos      TrabajoEvento[]
+  contrato     Contrato?
+  pausas       PausaTrabajo[]
+  valoraciones ValoracionTrabajo[]
+  entregables  Entregable[]
+  tareas       Tarea[]
+  urgencias    SolicitudUrgente[]
+  extras       HoraExtraBono[]
 
   @@index([estado])
   @@index([fechaLimite])
@@ -1730,4 +1732,22 @@ model PausaTrabajo {
 
   @@index([trabajoId])
   @@map("pausa_trabajo")
+}
+
+/// Valoración del trabajo en una reunión: en cuánto tiempo se estima hacerlo (para dárselo al cliente). La última es la vigente.
+model ValoracionTrabajo {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  trabajoId       String   @map("trabajo_id") @db.Uuid
+  fechaReunion    DateTime @map("fecha_reunion") @db.Date
+  /// Días hábiles estimados (sin domingos ni feriados).
+  diasEstimados   Int      @map("dias_estimados")
+  nota            String?  @db.VarChar(500)
+  registradaPorId String   @map("registrada_por_id") @db.Uuid
+  registradaEn    DateTime @default(now()) @map("registrada_en") @db.Timestamptz(6)
+
+  trabajo       Trabajo @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
+  registradaPor Usuario @relation("ValoracionPor", fields: [registradaPorId], references: [id])
+
+  @@index([trabajoId, registradaEn])
+  @@map("valoracion_trabajo")
 }

@@ -21,7 +21,7 @@ export const INCLUIR_LISTADO = {
   integrantes: { orderBy: [{ esTitular: 'desc' }, { orden: 'asc' }], select: { esTitular: true, persona: { select: CAMPOS_PERSONA } } },
   equipo: { where: { hasta: null }, include: { usuario: { select: CAMPOS_USUARIO } } },
   contrato: { include: { cuotas: INCLUIR_CUOTAS } },
-  _count: { select: { entregables: { where: { estado: 'en_turnitin' } } } },
+  _count: { select: { entregables: { where: { estado: 'en_turnitin' } }, valoraciones: true } },
 } as const satisfies Prisma.TrabajoInclude;
 
 export const INCLUIR_DETALLE = {
@@ -36,8 +36,9 @@ export const INCLUIR_DETALLE = {
   // Los ids (uuid v7) desempatan eventos del mismo instante en el orden en que se crearon.
   eventos: { orderBy: [{ fecha: 'desc' }, { id: 'desc' }], take: 100, include: { usuario: { select: CAMPOS_USUARIO } } },
   pausas: { where: { reanudadaEn: null }, take: 1, include: { creadaPor: { select: CAMPOS_USUARIO } } },
+  valoraciones: { orderBy: { registradaEn: 'desc' }, take: 1, include: { registradaPor: { select: CAMPOS_USUARIO } } },
   fechasFijasPor: { select: CAMPOS_USUARIO },
-  _count: { select: { entregables: { where: { estado: 'en_turnitin' } } } },
+  _count: { select: { entregables: { where: { estado: 'en_turnitin' } }, valoraciones: true } },
   contrato: {
     include: {
       cuotas: INCLUIR_CUOTAS,
@@ -90,7 +91,7 @@ export function aListado(t: TrabajoListado, verMontos: boolean, hoy: string): Tr
     carrera: t.carrera?.nombre ?? null,
     prioridad: { nombre: t.prioridad.nombre, color: t.prioridad.color },
     estado: t.estado,
-    seguimiento: seguimientoDe({ estado: t.estado, urgente: t.prioridad.permiteInsercionUrgente, pendientePago: (cuenta?.vencido ?? 0) > 0 && t.contrato?.estado === 'vigente', enTurnitin: t._count.entregables > 0 }),
+    seguimiento: seguimientoDe({ estado: t.estado, urgente: t.prioridad.permiteInsercionUrgente, pendientePago: (cuenta?.vencido ?? 0) > 0 && t.contrato?.estado === 'vigente', enTurnitin: t._count.entregables > 0, valorado: t._count.valoraciones > 0 }),
     fechasFijas: t.fechasFijas,
     fechaLimite: soloFecha(t.fechaLimite),
     titular: t.integrantes[0]?.persona ?? null,
@@ -170,7 +171,7 @@ export function aDetalle(
   permisos: { verContrato: boolean; verMontos: boolean },
   hoy: string,
   dioElEnfoque: TrabajoDetalle['dioElEnfoque'] = null,
-): Omit<TrabajoDetalle, 'entregables' | 'hayPlantilla' | 'turnitin'> {
+): Omit<TrabajoDetalle, 'entregables' | 'hayPlantilla' | 'turnitin' | 'valoracion'> {
   return {
     id: t.id,
     codigo: t.codigo,
@@ -192,6 +193,7 @@ export function aDetalle(
       estado: t.estado,
       urgente: t.prioridad.permiteInsercionUrgente,
       enTurnitin: t._count.entregables > 0,
+      valorado: t._count.valoraciones > 0,
       pendientePago: permisos.verMontos && t.contrato?.estado === 'vigente' && resumenCuenta(t.contrato.cuotas.map(aCalculo), hoy).vencido > 0,
     }),
     fechasFijas: t.fechasFijas ? { motivo: t.fechasFijasMotivo ?? '', por: t.fechasFijasPor, desde: (t.fechasFijasEn ?? t.actualizadoEn).toISOString() } : null,

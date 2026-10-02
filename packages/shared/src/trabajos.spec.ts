@@ -51,6 +51,12 @@ describe('seguimientoDe', () => {
     expect(seguimientoDe({ estado: 'en_proceso', urgente: false, pendientePago: true, enTurnitin: true })).toEqual({ principal: 'pendiente_pago', etiquetas: ['turnitin', 'abordando'] })
   })
 
+  it('valorado reemplaza a sin asignar solo mientras no hay equipo', () => {
+    expect(seguimientoDe({ ...base, estado: 'sin_asignar', valorado: true })).toEqual({ principal: 'valorado', etiquetas: [] })
+    expect(seguimientoDe({ ...base, estado: 'asignado', valorado: true })).toEqual({ principal: 'programado', etiquetas: [] })
+    expect(seguimientoDe({ estado: 'sin_asignar', urgente: true, pendientePago: false, valorado: true })).toEqual({ principal: 'urgente', etiquetas: ['valorado'] })
+  })
+
   it('suspendido va después de urgente', () => {
     expect(seguimientoDe({ estado: 'suspendido', urgente: true, pendientePago: false })).toEqual({ principal: 'urgente', etiquetas: ['suspendido'] })
     expect(seguimientoDe({ estado: 'suspendido', urgente: false, pendientePago: true })).toEqual({ principal: 'suspendido', etiquetas: ['pendiente_pago'] })

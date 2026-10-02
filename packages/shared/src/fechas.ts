@@ -28,3 +28,12 @@ export function sumarDias(dia: string, dias: number): string {
   fecha.setUTCDate(fecha.getUTCDate() + dias)
   return fecha.toISOString().slice(0, 10)
 }
+
+/** Días hábiles entre dos días (ambos incluidos): sin domingos ni los feriados indicados. */
+export function diasHabilesEntre(desde: string, hasta: string, feriados: readonly string[] = []): number {
+  let n = 0
+  for (let dia = desde; dia <= hasta; dia = sumarDias(dia, 1)) {
+    if (new Date(`${dia}T12:00:00Z`).getUTCDay() !== 0 && !feriados.includes(dia)) n++
+  }
+  return n
+}

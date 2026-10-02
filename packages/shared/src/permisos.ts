@@ -77,7 +77,8 @@ export const MODULOS = [
   },
   {
     codigo: 'trabajos', nombre: 'Trabajos', padre: 'produccion', ruta: '/trabajos', icono: 'BriefcaseBusiness', orden: 22,
-    acciones: [ver(true), crear, editar(true), exportar, { codigo: 'armar_equipo', nombre: 'Armar equipo' }, { codigo: 'pausar', nombre: 'Pausar o reanudar (falta información del cliente)' }, { codigo: 'fijar_fechas', nombre: 'Fijar o liberar fechas inamovibles' }],
+    acciones: [ver(true), crear, editar(true), exportar, { codigo: 'armar_equipo', nombre: 'Armar equipo' }, { codigo: 'pausar', nombre: 'Pausar o reanudar (falta información del cliente)' }, { codigo: 'valorar', nombre: 'Valorar el trabajo (tiempo estimado en una reunión)' },
+      { codigo: 'fijar_fechas', nombre: 'Fijar o liberar fechas inamovibles' }],
   },
   {
     codigo: 'entregables', nombre: 'Entregables', padre: 'produccion', ruta: '/entregables', icono: 'SquareCheckBig', orden: 23,

@@ -44,6 +44,7 @@ export const ESTILO_SEGUIMIENTO: Record<Seguimiento, string> = {
   turnitin: 'border-fuchsia-400 bg-fuchsia-200 text-fuchsia-950 dark:border-fuchsia-700 dark:bg-fuchsia-900/60 dark:text-fuchsia-50',
   abordando: 'border-cyan-400 bg-cyan-200 text-cyan-950 dark:border-cyan-700 dark:bg-cyan-900/60 dark:text-cyan-50',
   programado: 'border-green-400 bg-green-200 text-green-950 dark:border-green-700 dark:bg-green-900/60 dark:text-green-50',
+  valorado: 'border-purple-400 bg-purple-200 text-purple-950 dark:border-purple-700 dark:bg-purple-900/60 dark:text-purple-50',
   sin_asignar: 'border-dashed text-muted-foreground',
   suspendido: 'border-orange-400 bg-orange-200 text-orange-950 dark:border-orange-700 dark:bg-orange-900/60 dark:text-orange-50',
   cancelado: 'text-muted-foreground line-through',

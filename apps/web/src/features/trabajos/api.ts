@@ -9,6 +9,7 @@ import type {
   TrabajoDetalle,
   TrabajoListadoItem,
   UsuarioResumen,
+  ValorarTrabajoDatos,
 } from '@grupoes/shared'
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -169,6 +170,16 @@ export function useLiberarFechas(trabajoId: string) {
   const guardar = useGuardarDetalle()
   return useMutation({
     mutationFn: () => api<TrabajoDetalle>(`/trabajos/${trabajoId}/fechas-fijas`, { method: 'DELETE' }),
+    onSuccess: guardar,
+  })
+}
+
+// ─── Valoración en una reunión ──────────────────────────────
+
+export function useValorarTrabajo(trabajoId: string) {
+  const guardar = useGuardarDetalle()
+  return useMutation({
+    mutationFn: (datos: ValorarTrabajoDatos) => api<TrabajoDetalle>(`/trabajos/${trabajoId}/valoracion`, { method: 'POST', body: datos }),
     onSuccess: guardar,
   })
 }
