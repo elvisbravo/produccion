@@ -208,13 +208,13 @@ export function DialogoActividad({ catalogo, actividad, abierto, onAbiertoChange
           {errores.participaciones && <p className="text-sm text-destructive">{errores.participaciones}</p>}
           {participaciones.map((p, i) => (
             <div key={p.id ?? `nueva-${i}`} className="flex flex-col gap-3 rounded-lg border p-3">
-              <div className="grid items-end gap-3 sm:grid-cols-[1fr_6rem_auto_auto]">
-                <Field data-invalid={Boolean(errores[`participaciones.${i}.nombre`])}>
+              <div className="flex flex-wrap items-end gap-3">
+                <Field data-invalid={Boolean(errores[`participaciones.${i}.nombre`])} className="min-w-48 flex-1 basis-full sm:basis-0">
                   <FieldLabel htmlFor={`act-p-${i}`}>Participación</FieldLabel>
                   <Input id={`act-p-${i}`} placeholder="Ej.: Responsable, Revisor" value={p.nombre} maxLength={80} onChange={(e) => cambiarParticipacion(i, { nombre: e.target.value })} aria-invalid={Boolean(errores[`participaciones.${i}.nombre`])} />
                   <FieldError>{errores[`participaciones.${i}.nombre`]}</FieldError>
                 </Field>
-                <Field>
+                <Field className="w-24">
                   <FieldLabel htmlFor={`act-c-${i}`}>Personas</FieldLabel>
                   <Input id={`act-c-${i}`} type="number" min={1} max={10} value={p.cantidad} onChange={(e) => cambiarParticipacion(i, { cantidad: e.target.value })} />
                 </Field>
@@ -222,7 +222,7 @@ export function DialogoActividad({ catalogo, actividad, abierto, onAbiertoChange
                   <Switch checked={p.obligatoria} onCheckedChange={(v) => cambiarParticipacion(i, { obligatoria: v })} />
                   Obligatoria
                 </label>
-                <Button type="button" variant="ghost" size="icon" aria-label="Quitar participación" disabled={participaciones.length === 1} onClick={() => setParticipaciones((ps) => ps.filter((_, j) => j !== i))}>
+                <Button type="button" variant="ghost" size="icon" className="ml-auto" aria-label="Quitar participación" disabled={participaciones.length === 1} onClick={() => setParticipaciones((ps) => ps.filter((_, j) => j !== i))}>
                   <Trash2 />
                 </Button>
               </div>

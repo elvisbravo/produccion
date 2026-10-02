@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { actividadesAdminQuery, useCambiarActiva } from '@/features/catalogos/api'
 import { DialogoActividad } from '@/features/catalogos/components/dialogo-actividad'
 import { ApiError } from '@/lib/api'
@@ -58,79 +57,80 @@ function Catalogos() {
       {!data ? (
         <Skeleton className="h-96" />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Actividad</TableHead>
-                  <TableHead>Tiempo</TableHead>
-                  <TableHead>Se usa con</TableHead>
-                  <TableHead>Asignación</TableHead>
-                  <TableHead>Quién la hace (prioridad)</TableHead>
-                  <TableHead className="w-24" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.actividades.map((a) => (
-                  <TableRow key={a.id} className={a.activa ? '' : 'opacity-60'}>
-                    <TableCell className="align-top">
-                      <div className="flex items-center gap-2 font-medium">
-                        <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: a.tipo.color }} aria-hidden="true" />
-                        {a.nombre}
+        <ul className="flex flex-col gap-3">
+          {data.actividades.map((a) => (
+            <li key={a.id}>
+              <Card className={a.activa ? '' : 'opacity-60'}>
+                <CardContent className="flex flex-col gap-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1.5">
+                      <div className="flex items-center gap-2 text-base font-medium">
+                        <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: a.tipo.color }} aria-hidden="true" />
+                        <span className="break-words">{a.nombre}</span>
                       </div>
-                      <div className="mt-1 flex flex-wrap gap-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <Badge variant="outline" className="text-[11px]">
                           {a.tipo.nombre}
                         </Badge>
                         {!a.activa && <Badge variant="secondary">Inactiva</Badge>}
-                        {a.deSistema && <Badge variant="outline" className="text-[11px]">Del sistema</Badge>}
+                        {a.deSistema && (
+                          <Badge variant="outline" className="text-[11px]">
+                            Del sistema
+                          </Badge>
+                        )}
                       </div>
-                    </TableCell>
-                    <TableCell className="align-top whitespace-nowrap">{duracion(a.minutosEstimados)}</TableCell>
-                    <TableCell className="align-top">{NOMBRE_APLICA_A[a.aplicaA]}</TableCell>
-                    <TableCell className="align-top text-sm text-muted-foreground">{NOMBRE_MODO_ASIGNACION[a.modoAsignacion]}</TableCell>
-                    <TableCell className="align-top">
-                      <ul className="flex flex-col gap-1.5 text-sm">
-                        {a.participaciones.map((p) => (
-                          <li key={p.id}>
-                            <span className="font-medium">{p.nombre}</span>
-                            <span className="text-muted-foreground">
-                              {' '}
-                              ({p.cantidad}
-                              {p.obligatoria ? '' : ', opcional'})
-                            </span>
-                            <span className="ml-1 inline-flex flex-wrap gap-1 align-middle">
-                              {p.roles.map((r) => (
-                                <Badge key={r.rolId} variant={r.prioridad.nivel === 1 ? 'secondary' : 'outline'} className="text-[11px]">
-                                  {r.rol} · {r.prioridad.nombre}
-                                </Badge>
-                              ))}
-                            </span>
-                          </li>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      {puedeEditar && (
+                        <Button variant="ghost" size="icon-sm" aria-label={`Editar ${a.nombre}`} onClick={() => setEditando(a)}>
+                          <Pencil />
+                        </Button>
+                      )}
+                      {puedeDesactivar && !a.deSistema && (
+                        <Button variant="ghost" size="icon-sm" aria-label={a.activa ? `Desactivar ${a.nombre}` : `Activar ${a.nombre}`} title={a.activa ? 'Desactivar' : 'Activar'} onClick={() => void alternar(a)}>
+                          <Power />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Tiempo estimado</dt>
+                      <dd className="font-medium">{duracion(a.minutosEstimados)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Se usa con</dt>
+                      <dd>{NOMBRE_APLICA_A[a.aplicaA]}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Asignación</dt>
+                      <dd>{NOMBRE_MODO_ASIGNACION[a.modoAsignacion]}</dd>
+                    </div>
+                  </dl>
+
+                  <div className="flex flex-col gap-2 border-t pt-3">
+                    <p className="text-xs text-muted-foreground">Quién la hace</p>
+                    {a.participaciones.map((p) => (
+                      <div key={p.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                        <span className="font-medium">{p.nombre}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {p.cantidad} {p.cantidad === 1 ? 'persona' : 'personas'}
+                          {p.obligatoria ? '' : ' · opcional'}
+                        </span>
+                        {p.roles.map((r) => (
+                          <Badge key={r.rolId} variant={r.prioridad.nivel === 1 ? 'secondary' : 'outline'} className="text-[11px]">
+                            {r.rol} · {r.prioridad.nombre}
+                          </Badge>
                         ))}
-                      </ul>
-                    </TableCell>
-                    <TableCell className="align-top">
-                      <div className="flex justify-end gap-1">
-                        {puedeEditar && (
-                          <Button variant="ghost" size="icon-sm" aria-label={`Editar ${a.nombre}`} onClick={() => setEditando(a)}>
-                            <Pencil />
-                          </Button>
-                        )}
-                        {puedeDesactivar && !a.deSistema && (
-                          <Button variant="ghost" size="icon-sm" aria-label={a.activa ? `Desactivar ${a.nombre}` : `Activar ${a.nombre}`} title={a.activa ? 'Desactivar' : 'Activar'} onClick={() => void alternar(a)}>
-                            <Power />
-                          </Button>
-                        )}
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </li>
+          ))}
+        </ul>
       )}
 
       {editando && data && (
