@@ -1,3 +1,4 @@
+import { seguimientoDe } from '@grupoes/shared';
 import type { AdicionalItem, ContratoDetalle, MiembroEquipo, PagoDetalle, TrabajoDetalle, TrabajoListadoItem } from '@grupoes/shared';
 import type { Prisma } from '../generated/prisma/client.js';
 import { CAMPOS_PERSONA } from '../personas/personas.service.js';
@@ -16,7 +17,7 @@ export const INCLUIR_LISTADO = {
   nivelAcademico: { select: { nombre: true } },
   universidad: { select: { nombre: true, siglas: true } },
   carrera: { select: { nombre: true } },
-  prioridad: { select: { nombre: true, color: true } },
+  prioridad: { select: { nombre: true, color: true, permiteInsercionUrgente: true } },
   integrantes: { orderBy: [{ esTitular: 'desc' }, { orden: 'asc' }], select: { esTitular: true, persona: { select: CAMPOS_PERSONA } } },
   equipo: { where: { hasta: null }, include: { usuario: { select: CAMPOS_USUARIO } } },
   contrato: { include: { cuotas: INCLUIR_CUOTAS } },
@@ -25,7 +26,7 @@ export const INCLUIR_LISTADO = {
 export const INCLUIR_DETALLE = {
   prospecto: { select: { id: true, codigo: true } },
   tipoTrabajo: { select: { id: true, nombre: true } },
-  prioridad: { select: { id: true, nombre: true, color: true } },
+  prioridad: { select: { id: true, nombre: true, color: true, permiteInsercionUrgente: true } },
   nivelAcademico: { select: { id: true, nombre: true } },
   universidad: { select: { id: true, nombre: true } },
   carrera: { select: { id: true, nombre: true } },
@@ -83,8 +84,9 @@ export function aListado(t: TrabajoListado, verMontos: boolean, hoy: string): Tr
     nivelAcademico: t.nivelAcademico?.nombre ?? null,
     universidad: t.universidad ? (t.universidad.siglas ?? t.universidad.nombre) : null,
     carrera: t.carrera?.nombre ?? null,
-    prioridad: t.prioridad,
+    prioridad: { nombre: t.prioridad.nombre, color: t.prioridad.color },
     estado: t.estado,
+    seguimiento: seguimientoDe({ estado: t.estado, urgente: t.prioridad.permiteInsercionUrgente, pendientePago: (cuenta?.vencido ?? 0) > 0 && t.contrato?.estado === 'vigente' }),
     fechaLimite: soloFecha(t.fechaLimite),
     titular: t.integrantes[0]?.persona ?? null,
     totalIntegrantes: t.integrantes.length,
@@ -170,7 +172,7 @@ export function aDetalle(
     prospecto: t.prospecto,
     titulo: t.titulo,
     tipoTrabajo: t.tipoTrabajo,
-    prioridad: t.prioridad,
+    prioridad: { id: t.prioridad.id, nombre: t.prioridad.nombre, color: t.prioridad.color },
     nivelAcademico: t.nivelAcademico,
     universidad: t.universidad,
     carrera: t.carrera,
@@ -180,6 +182,12 @@ export function aDetalle(
     fechaInicio: soloFecha(t.fechaInicio),
     fechaLimite: soloFecha(t.fechaLimite),
     estado: t.estado,
+    // El pago pendiente solo se muestra a quien puede ver montos.
+    seguimiento: seguimientoDe({
+      estado: t.estado,
+      urgente: t.prioridad.permiteInsercionUrgente,
+      pendientePago: permisos.verMontos && t.contrato?.estado === 'vigente' && resumenCuenta(t.contrato.cuotas.map(aCalculo), hoy).vencido > 0,
+    }),
     integrantes: t.integrantes.map((i) => ({ ...i.persona, esTitular: i.esTitular })),
     equipo: t.equipo.filter((e) => !e.hasta).map(aMiembro),
     historialEquipo: t.equipo.filter((e) => e.hasta).map(aMiembro),

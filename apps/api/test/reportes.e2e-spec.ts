@@ -171,7 +171,8 @@ describe('Tableros e indicadores (e2e)', () => {
     await http().post(`/api/usuarios/${ids.aux}/costos-hora`).set(como('admin')).send({ costo: 30, vigenteDesde: sumarDias(hoy, 1) }).expect(201);
     // La auditoría registra el cambio sin el monto.
     const auditoria = await prisma.auditoria.findFirstOrThrow({ where: { accion: 'costo_hora', entidadId: ids.aux }, orderBy: { fecha: 'desc' } });
-    expect(JSON.stringify(auditoria.despues)).not.toContain('30');
+    // El monto no queda en la auditoría (se comprueba por el nombre del campo: un número suelto puede aparecer en un id).
+    expect(Object.keys(auditoria.despues as object).sort()).toEqual(['registro', 'vigenteDesde']);
   });
 
   it('rentabilidad: ingresos − horas × costo − horas extra − bonos (solo con permiso)', async () => {

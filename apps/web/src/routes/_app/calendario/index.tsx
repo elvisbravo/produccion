@@ -1,12 +1,14 @@
 import { diaEnLima, NOMBRE_ALCANCE_FERIADO, resumirHorario, type FeriadoItem, type PersonalItem, type PlantillaHorarioItem } from '@grupoes/shared'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Cake, ChevronLeft, ChevronRight, Clock, Pencil, Plus } from 'lucide-react'
+import { Cake, ChevronLeft, ChevronRight, Clock, Pencil, Plus, Search, X } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -60,15 +62,59 @@ const proximoCumple =(nacimiento: string, hoy: string) => {
   return esteAnio >= hoy ? esteAnio : `${Number(hoy.slice(0, 4)) + 1}${nacimiento.slice(4)}`
 }
 
+/** Sin tildes ni mayúsculas: "maria" encuentra a "María". */
+const normalizar = (t: string) => t.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+
 function Personal() {
   const { data, isPending } = useQuery(personalQuery)
+  const [busqueda, setBusqueda] = useState('')
   const puedeEditar = usePermiso('calendario.editar')
   const [editando, setEditando] = useState<{ persona: PersonalItem; que: 'horario' | 'cumple' } | null>(null)
   const hoy = diaEnLima()
 
   if (isPending || !data) return <Skeleton className="h-64" />
+  // Cada palabra escrita debe estar en el nombre o en alguno de sus roles.
+  const palabras = normalizar(busqueda).split(/\s+/).filter(Boolean)
+  const personal = palabras.length
+    ? data.filter((p) => {
+        const texto = normalizar(`${nombreCompleto(p.usuario)} ${p.roles.join(' ')}`)
+        return palabras.every((x) => texto.includes(x))
+      })
+    : data
   return (
     <>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="relative min-w-60 flex-1 sm:max-w-sm">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Buscar personal"
+            placeholder="Buscar por nombre o rol"
+            className="pr-8 pl-8"
+            value={busqueda}
+            onChange={(ev) => setBusqueda(ev.target.value)}
+            onKeyDown={(ev) => ev.key === 'Escape' && setBusqueda('')}
+          />
+          {busqueda && (
+            <button type="button" aria-label="Borrar búsqueda" onClick={() => setBusqueda('')} className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground">
+              <X className="size-4" />
+            </button>
+          )}
+        </div>
+        <span className="text-sm text-muted-foreground" aria-live="polite">
+          {palabras.length ? `${personal.length} de ${data.length}` : `${data.length} ${data.length === 1 ? 'persona' : 'personas'}`}
+        </span>
+      </div>
+      {personal.length === 0 ? (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Search />
+            </EmptyMedia>
+            <EmptyTitle>Nadie coincide con «{busqueda.trim()}»</EmptyTitle>
+            <EmptyDescription>Prueba con otro nombre, apellido o rol.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
       <div className="overflow-hidden rounded-xl border bg-card">
         <Table>
           <TableHeader>
@@ -80,7 +126,7 @@ function Personal() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.map((p) => (
+            {personal.map((p) => (
               <TableRow key={p.usuario.id}>
                 <TableCell>
                   <div className="flex flex-col">
@@ -130,6 +176,7 @@ function Personal() {
           </TableBody>
         </Table>
       </div>
+      )}
       {editando?.que === 'horario' && (
         <DialogoHorario key={editando.persona.usuario.id} persona={editando.persona} abierto onAbiertoChange={(v) => !v && setEditando(null)} />
       )}

@@ -127,6 +127,10 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 
 La web arma la cotización, el contrato y el recibo como hojas A4 en `/imprimir/…` (sin el menú) y se imprimen o guardan en PDF desde el navegador. Los textos son plantillas editables en **Configuración → Documentos**; mientras no se carguen los formatos de la empresa se usan textos provisionales (`PLANTILLAS_POR_DEFECTO` en `packages/shared/src/documentos.ts`). Un dato que falta se imprime como una línea para completarlo a mano.
 
+### Seguimiento de los trabajos (colores)
+
+Cada trabajo muestra su situación con los colores que usa el equipo: **entregado** (amarillo), **urgente** (rojo), **pendiente de pago** (gris), **se está abordando** (celeste) y **programado** (verde); sin equipo aparece "sin asignar". Se calcula con lo que ya existe (estado, prioridad urgente y cuotas vencidas): `seguimientoDe` en `packages/shared/src/trabajos.ts`. Un trabajo puede cumplir varias a la vez: el color grande es el más importante (entregado, urgente, suspendido, pendiente de pago y luego su avance) y las demás van como etiquetas. El pago pendiente solo lo ve quien puede ver montos. El listado se filtra con `/api/trabajos?seguimiento=` (trabajos que están en esa situación) y tiene una leyenda de colores.
+
 ### Administradores ocultos
 
 Quien no tiene el permiso **Usuarios → Gestionar administradores** (el administrador lo tiene siempre) no ve ni toca las cuentas con el rol Administrador: no salen en el listado ni en la búsqueda, su ficha y cualquier acción sobre ellas (editar, desactivar, restablecer contraseña, roles, permisos, costo por hora, pasar su cartera) responden "no encontrado", el rol Administrador no aparece en Roles ni en el selector, no se ofrecen como responsables de prospectos y no se ven en la auditoría los cambios hechos a sus cuentas. Además, sin ese permiso no se puede dar el rol Administrador, ni roles o permisos que uno mismo no tiene, ni cambiar los propios roles y permisos. Los nombres de administradores en el historial de trabajo (quién registró un pago, comentarios, líneas de tiempo) sí se ven.

@@ -1,18 +1,19 @@
-import { diaEnLima, ESTADOS_TRABAJO, formatearCelular, formatearSoles, NOMBRE_ESTADO_TRABAJO } from '@grupoes/shared'
+import { diaEnLima, formatearCelular, formatearSoles, NOMBRE_SEGUIMIENTO, SEGUIMIENTOS } from '@grupoes/shared'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { BriefcaseBusiness, ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { BriefcaseBusiness, ChevronLeft, ChevronRight, Info, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { InsigniaPrioridad } from '@/features/prospectos/components/insignias'
 import { trabajosQuery } from '@/features/trabajos/api'
-import { InsigniaEstadoTrabajo } from '@/features/trabajos/components/insignias'
+import { EtiquetasSeguimiento, LeyendaSeguimiento } from '@/features/trabajos/components/insignias'
 import { useDebounce } from '@/hooks/use-debounce'
 import { diasHasta, formatearFecha, nombreCompleto } from '@/lib/formato'
 import { exigirPermiso } from '@/lib/guardas'
@@ -22,7 +23,7 @@ import { cn } from '@/lib/utils'
 export const Route = createFileRoute('/_app/trabajos/')({
   validateSearch: z.object({
     q: z.string().optional(),
-    estado: z.enum(ESTADOS_TRABAJO).optional().catch(undefined),
+    seguimiento: z.enum(SEGUIMIENTOS).optional().catch(undefined),
     pagina: z.coerce.number().int().min(1).optional().catch(undefined),
   }),
   beforeLoad: () => exigirPermiso('trabajos.ver'),
@@ -63,21 +64,33 @@ function ListadoTrabajos() {
           <Input aria-label="Buscar trabajo" placeholder="Código, título, integrante o DNI" className="pl-8" value={texto} onChange={(e) => setTexto(e.target.value)} />
         </div>
         <Select
-          value={filtros.estado ?? TODOS}
-          onValueChange={(v) => void navigate({ search: (s) => ({ ...s, estado: v === TODOS ? undefined : (v as (typeof ESTADOS_TRABAJO)[number]), pagina: undefined }), replace: true })}
+          value={filtros.seguimiento ?? TODOS}
+          onValueChange={(v) => void navigate({ search: (s) => ({ ...s, seguimiento: v === TODOS ? undefined : (v as (typeof SEGUIMIENTOS)[number]), pagina: undefined }), replace: true })}
         >
-          <SelectTrigger aria-label="Estado" className="w-44">
+          <SelectTrigger aria-label="Seguimiento" className="w-52">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={TODOS}>Todos los estados</SelectItem>
-            {ESTADOS_TRABAJO.map((e) => (
+            <SelectItem value={TODOS}>Todos</SelectItem>
+            {/* El pago pendiente solo se ofrece a quien puede ver montos. */}
+            {SEGUIMIENTOS.filter((e) => e !== 'pendiente_pago' || verMontos).map((e) => (
               <SelectItem key={e} value={e}>
-                {NOMBRE_ESTADO_TRABAJO[e]}
+                {NOMBRE_SEGUIMIENTO[e]}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline">
+              <Info />
+              Leyenda de colores
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-[min(32rem,calc(100vw-2rem))]">
+            <LeyendaSeguimiento />
+          </PopoverContent>
+        </Popover>
       </div>
 
       {!isPending && data?.total === 0 ? (
@@ -98,7 +111,7 @@ function ListadoTrabajos() {
                 <TableHead className="w-32">Código</TableHead>
                 <TableHead>Cliente</TableHead>
                 <TableHead className="hidden md:table-cell">Trabajo</TableHead>
-                <TableHead>Estado</TableHead>
+                <TableHead>Seguimiento</TableHead>
                 <TableHead className="hidden lg:table-cell">Equipo</TableHead>
                 <TableHead>Entrega</TableHead>
                 {verMontos && <TableHead className="hidden sm:table-cell text-right">Saldo</TableHead>}
@@ -144,7 +157,7 @@ function ListadoTrabajos() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <InsigniaEstadoTrabajo estado={t.estado} />
+                          <EtiquetasSeguimiento seguimiento={t.seguimiento} />
                         </TableCell>
                         <TableCell className="hidden text-sm lg:table-cell">
                           {t.auxiliarPrincipal ? (

@@ -14,6 +14,7 @@ import {
   type Paginado,
   type PagoDatos,
   type ResumenCobranza,
+  type Seguimiento,
   type TrabajoDetalle,
   type TrabajoListadoItem,
   type UsuarioResumen,
@@ -203,15 +204,20 @@ export class TrabajosService {
   // ─── Consultas ───────────────────────────────────────────
 
   async listar(filtros: ListarTrabajosConsulta, usuarioId: string): Promise<Paginado<TrabajoListadoItem>> {
-    const { q, estado, pagina, porPagina } = filtros;
+    const { q, estado, seguimiento, pagina, porPagina } = filtros;
+    const permisosMontos = await this.permisosDeMontos(usuarioId);
     const where: Prisma.TrabajoWhereInput = {
       eliminadoEn: null,
       ...(await this.filtroVisibles(usuarioId)),
       ...(estado && { estado }),
-      ...(q && { id: { in: await this.idsQueCoinciden(q) } }),
+      // Cada filtro va en su propio AND: así no se pisan entre sí (varios usan "id" o "estado").
+      AND: [
+        ...(seguimiento ? [await this.filtroSeguimiento(seguimiento, permisosMontos.verMontos)] : []),
+        ...(q ? [{ id: { in: await this.idsQueCoinciden(q) } }] : []),
+      ],
     };
     const [{ verMontos }, total, filas] = await Promise.all([
-      this.permisosDeMontos(usuarioId),
+      Promise.resolve(permisosMontos),
       this.prisma.trabajo.count({ where }),
       this.prisma.trabajo.findMany({
         where,
@@ -223,6 +229,36 @@ export class TrabajosService {
     ]);
     const hoy = diaEnLima();
     return { datos: filas.map((t) => aListado(t, verMontos, hoy)), total, pagina, porPagina };
+  }
+
+  /** Los trabajos que están en esa situación (la misma que muestra su etiqueta de seguimiento). */
+  private async filtroSeguimiento(seguimiento: Seguimiento, verMontos: boolean): Promise<Prisma.TrabajoWhereInput> {
+    switch (seguimiento) {
+      case 'entregado':
+        return { estado: 'finalizado' };
+      case 'urgente':
+        return { estado: { notIn: ['finalizado', 'cancelado'] }, prioridad: { permiteInsercionUrgente: true } };
+      case 'abordando':
+        return { estado: 'en_proceso' };
+      case 'programado':
+        return { estado: 'asignado' };
+      case 'sin_asignar':
+      case 'suspendido':
+      case 'cancelado':
+        return { estado: seguimiento };
+      case 'pendiente_pago': {
+        if (!verMontos) throw new ForbiddenException('No tienes permiso para ver montos');
+        // Con alguna cuota vencida sin pagar del todo (la misma regla de la cuenta del contrato).
+        const hoy = diaEnLima();
+        const filas = await this.prisma.$queryRaw<{ id: string }[]>`
+          SELECT DISTINCT t.id FROM trabajo t
+          JOIN contrato c ON c.trabajo_id = t.id AND c.estado = 'vigente'
+          JOIN cuota q ON q.contrato_id = c.id
+          WHERE t.eliminado_en IS NULL AND t.estado <> 'cancelado' AND q.vencimiento < ${hoy}::date
+            AND q.monto > COALESCE((SELECT SUM(pc.monto_aplicado) FROM pago_cuota pc JOIN pago p ON p.id = pc.pago_id WHERE pc.cuota_id = q.id AND p.anulado_en IS NULL), 0)`;
+        return { id: { in: filas.map((f) => f.id) } };
+      }
+    }
   }
 
   /** Código, título o nombre/celular/documento de un integrante (sin distinguir tildes). */

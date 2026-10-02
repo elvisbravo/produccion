@@ -26,7 +26,7 @@ import { InsigniaPrioridad } from '@/features/prospectos/components/insignias'
 import { trabajoQuery } from '@/features/trabajos/api'
 import { DialogoAnularPago, DialogoEquipo, DialogoPago } from '@/features/trabajos/components/dialogos-trabajo'
 import { SeccionAdicionales } from '@/features/trabajos/components/adicionales'
-import { InsigniaEstadoCuota, InsigniaEstadoTrabajo } from '@/features/trabajos/components/insignias'
+import { EtiquetasSeguimiento, InsigniaEstadoCuota } from '@/features/trabajos/components/insignias'
 import { ApiError } from '@/lib/api'
 import { diasHasta, formatearFecha, formatearFechaHora, haceCuanto, nombreCompleto } from '@/lib/formato'
 import { exigirPermiso } from '@/lib/guardas'
@@ -63,7 +63,7 @@ function DetalleTrabajo() {
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-sm text-muted-foreground">{t.codigo}</span>
-              <InsigniaEstadoTrabajo estado={t.estado} />
+              <EtiquetasSeguimiento seguimiento={t.seguimiento} />
               <InsigniaPrioridad nombre={t.prioridad.nombre} color={t.prioridad.color} />
             </div>
             <h1 className="text-2xl font-semibold tracking-tight">

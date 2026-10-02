@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { armarEquipoSchema } from './trabajos.js'
+import { armarEquipoSchema, seguimientoDe } from './trabajos.js'
 
 const A = '0199a000-0000-7000-8000-000000000001'
 const B = '0199a000-0000-7000-8000-000000000002'
@@ -23,5 +23,31 @@ describe('armarEquipoSchema', () => {
 
   it('el auxiliar principal tampoco puede ser de apoyo', () => {
     expect(armarEquipoSchema.safeParse({ auxiliarPrincipalId: A, auxiliaresApoyo: [A], jefeResponsableId: C }).success).toBe(false)
+  })
+})
+
+describe('seguimientoDe', () => {
+  const base = { urgente: false, pendientePago: false }
+
+  it('un trabajo normal muestra su avance', () => {
+    expect(seguimientoDe({ ...base, estado: 'sin_asignar' })).toEqual({ principal: 'sin_asignar', etiquetas: [] })
+    expect(seguimientoDe({ ...base, estado: 'asignado' })).toEqual({ principal: 'programado', etiquetas: [] })
+    expect(seguimientoDe({ ...base, estado: 'en_proceso' })).toEqual({ principal: 'abordando', etiquetas: [] })
+  })
+
+  it('lo urgente y el pago pendiente pasan por delante, y el avance queda como etiqueta', () => {
+    expect(seguimientoDe({ estado: 'en_proceso', urgente: true, pendientePago: true })).toEqual({ principal: 'urgente', etiquetas: ['pendiente_pago', 'abordando'] })
+    expect(seguimientoDe({ estado: 'asignado', urgente: false, pendientePago: true })).toEqual({ principal: 'pendiente_pago', etiquetas: ['programado'] })
+  })
+
+  it('entregado y cancelado cierran el trabajo: no hay urgencia que valga, pero el pago pendiente sí se avisa', () => {
+    expect(seguimientoDe({ estado: 'finalizado', urgente: true, pendientePago: true })).toEqual({ principal: 'entregado', etiquetas: ['pendiente_pago'] })
+    expect(seguimientoDe({ estado: 'finalizado', urgente: false, pendientePago: false })).toEqual({ principal: 'entregado', etiquetas: [] })
+    expect(seguimientoDe({ estado: 'cancelado', urgente: true, pendientePago: true })).toEqual({ principal: 'cancelado', etiquetas: [] })
+  })
+
+  it('suspendido va después de urgente', () => {
+    expect(seguimientoDe({ estado: 'suspendido', urgente: true, pendientePago: false })).toEqual({ principal: 'urgente', etiquetas: ['suspendido'] })
+    expect(seguimientoDe({ estado: 'suspendido', urgente: false, pendientePago: true })).toEqual({ principal: 'suspendido', etiquetas: ['pendiente_pago'] })
   })
 })

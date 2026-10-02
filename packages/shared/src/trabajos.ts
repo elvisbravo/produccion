@@ -210,9 +210,67 @@ export interface AdicionalItem {
   conPagos: boolean
 }
 
+// ─── Seguimiento: el estado de un trabajo con los colores que usa el equipo ───
+
+/**
+ * Cómo se ve un trabajo de un vistazo (la leyenda de colores del equipo). Se calcula con lo que ya existe:
+ * el estado, la prioridad y los pagos vencidos; no se captura aparte.
+ */
+export const SEGUIMIENTOS = ['entregado', 'urgente', 'pendiente_pago', 'abordando', 'programado', 'sin_asignar', 'suspendido', 'cancelado'] as const
+export type Seguimiento = (typeof SEGUIMIENTOS)[number]
+
+export const NOMBRE_SEGUIMIENTO: Record<Seguimiento, string> = {
+  entregado: 'Entregado',
+  urgente: 'Urgente',
+  pendiente_pago: 'Pendiente de pago',
+  abordando: 'Se está abordando',
+  programado: 'Programado',
+  sin_asignar: 'Sin asignar',
+  suspendido: 'Suspendido',
+  cancelado: 'Cancelado',
+}
+
+export const DESCRIPCION_SEGUIMIENTO: Record<Seguimiento, string> = {
+  entregado: 'El trabajo terminó: todos los entregables están cerrados con la conformidad del cliente.',
+  urgente: 'Tiene prioridad urgente: pasa primero en la cola de producción.',
+  pendiente_pago: 'Tiene cuotas vencidas sin pagar. Solo lo ve quien puede ver montos.',
+  abordando: 'Ya se empezó a trabajar en él.',
+  programado: 'Tiene equipo asignado y tareas programadas, aún sin empezar.',
+  sin_asignar: 'Todavía no tiene equipo de producción.',
+  suspendido: 'Está detenido.',
+  cancelado: 'Se canceló.',
+}
+
+export interface SeguimientoTrabajo {
+  /** Lo más importante del trabajo ahora: el color grande. */
+  principal: Seguimiento
+  /** Lo demás que también le pasa, en orden de importancia. */
+  etiquetas: Seguimiento[]
+}
+
+/**
+ * Un trabajo puede estar en varias situaciones a la vez (urgente, con pago pendiente y abordándose). El color
+ * principal sigue este orden: entregado, urgente, suspendido, pendiente de pago, y luego su avance.
+ */
+export function seguimientoDe(t: { estado: EstadoTrabajo; urgente: boolean; pendientePago: boolean }): SeguimientoTrabajo {
+  if (t.estado === 'cancelado') return { principal: 'cancelado', etiquetas: [] }
+  if (t.estado === 'finalizado') return { principal: 'entregado', etiquetas: t.pendientePago ? ['pendiente_pago'] : [] }
+  const avance: Seguimiento = t.estado === 'en_proceso' ? 'abordando' : t.estado === 'asignado' ? 'programado' : t.estado === 'suspendido' ? 'suspendido' : 'sin_asignar'
+  const todas: Seguimiento[] = [
+    ...(t.urgente ? (['urgente'] as const) : []),
+    ...(t.estado === 'suspendido' ? (['suspendido'] as const) : []),
+    ...(t.pendientePago ? (['pendiente_pago'] as const) : []),
+    ...(t.estado === 'suspendido' ? [] : [avance]),
+  ]
+  const [principal, ...etiquetas] = todas
+  return { principal, etiquetas }
+}
+
 export const listarTrabajosSchema = z.object({
   q: z.string().trim().max(100).optional(),
   estado: z.enum(ESTADOS_TRABAJO).optional(),
+  /** Trabajos que están en esa situación (puede cumplir varias a la vez). */
+  seguimiento: z.enum(SEGUIMIENTOS).optional(),
   pagina: z.coerce.number().int().min(1).default(1),
   porPagina: z.coerce.number().int().min(5).max(100).default(20),
 })
@@ -294,6 +352,7 @@ export interface TrabajoListadoItem {
   carrera: string | null
   prioridad: { nombre: string; color: string }
   estado: EstadoTrabajo
+  seguimiento: SeguimientoTrabajo
   fechaLimite: string
   titular: PersonaResumen | null
   totalIntegrantes: number
@@ -328,6 +387,7 @@ export interface TrabajoDetalle {
   fechaInicio: string
   fechaLimite: string
   estado: EstadoTrabajo
+  seguimiento: SeguimientoTrabajo
   integrantes: (PersonaResumen & { esTitular: boolean })[]
   equipo: MiembroEquipo[]
   historialEquipo: MiembroEquipo[]
