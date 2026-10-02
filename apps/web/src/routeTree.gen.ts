@@ -19,6 +19,7 @@ import { Route as AppAgendaIndexRouteImport } from './routes/_app/agenda/index'
 import { Route as AppAuditoriaIndexRouteImport } from './routes/_app/auditoria/index'
 import { Route as AppAusenciasIndexRouteImport } from './routes/_app/ausencias/index'
 import { Route as AppCalendarioIndexRouteImport } from './routes/_app/calendario/index'
+import { Route as AppCatalogosIndexRouteImport } from './routes/_app/catalogos/index'
 import { Route as AppContratosIndexRouteImport } from './routes/_app/contratos/index'
 import { Route as AppCotizacionesIndexRouteImport } from './routes/_app/cotizaciones/index'
 import { Route as AppDocumentosIndexRouteImport } from './routes/_app/documentos/index'
@@ -91,6 +92,11 @@ const AppAusenciasIndexRoute = AppAusenciasIndexRouteImport.update({
 const AppCalendarioIndexRoute = AppCalendarioIndexRouteImport.update({
   id: '/calendario/',
   path: '/calendario/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCatalogosIndexRoute = AppCatalogosIndexRouteImport.update({
+  id: '/catalogos/',
+  path: '/catalogos/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppContratosIndexRoute = AppContratosIndexRouteImport.update({
@@ -232,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/auditoria/': typeof AppAuditoriaIndexRoute
   '/ausencias/': typeof AppAusenciasIndexRoute
   '/calendario/': typeof AppCalendarioIndexRoute
+  '/catalogos/': typeof AppCatalogosIndexRoute
   '/contratos/': typeof AppContratosIndexRoute
   '/cotizaciones/': typeof AppCotizacionesIndexRoute
   '/documentos/': typeof AppDocumentosIndexRoute
@@ -267,6 +274,7 @@ export interface FileRoutesByTo {
   '/auditoria': typeof AppAuditoriaIndexRoute
   '/ausencias': typeof AppAusenciasIndexRoute
   '/calendario': typeof AppCalendarioIndexRoute
+  '/catalogos': typeof AppCatalogosIndexRoute
   '/contratos': typeof AppContratosIndexRoute
   '/cotizaciones': typeof AppCotizacionesIndexRoute
   '/documentos': typeof AppDocumentosIndexRoute
@@ -304,6 +312,7 @@ export interface FileRoutesById {
   '/_app/auditoria/': typeof AppAuditoriaIndexRoute
   '/_app/ausencias/': typeof AppAusenciasIndexRoute
   '/_app/calendario/': typeof AppCalendarioIndexRoute
+  '/_app/catalogos/': typeof AppCatalogosIndexRoute
   '/_app/contratos/': typeof AppContratosIndexRoute
   '/_app/cotizaciones/': typeof AppCotizacionesIndexRoute
   '/_app/documentos/': typeof AppDocumentosIndexRoute
@@ -341,6 +350,7 @@ export interface FileRouteTypes {
     | '/auditoria/'
     | '/ausencias/'
     | '/calendario/'
+    | '/catalogos/'
     | '/contratos/'
     | '/cotizaciones/'
     | '/documentos/'
@@ -376,6 +386,7 @@ export interface FileRouteTypes {
     | '/auditoria'
     | '/ausencias'
     | '/calendario'
+    | '/catalogos'
     | '/contratos'
     | '/cotizaciones'
     | '/documentos'
@@ -412,6 +423,7 @@ export interface FileRouteTypes {
     | '/_app/auditoria/'
     | '/_app/ausencias/'
     | '/_app/calendario/'
+    | '/_app/catalogos/'
     | '/_app/contratos/'
     | '/_app/cotizaciones/'
     | '/_app/documentos/'
@@ -507,6 +519,13 @@ declare module '@tanstack/react-router' {
       path: '/calendario'
       fullPath: '/calendario/'
       preLoaderRoute: typeof AppCalendarioIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/catalogos/': {
+      id: '/_app/catalogos/'
+      path: '/catalogos'
+      fullPath: '/catalogos/'
+      preLoaderRoute: typeof AppCatalogosIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/contratos/': {
@@ -692,6 +711,7 @@ interface AppRouteChildren {
   AppAuditoriaIndexRoute: typeof AppAuditoriaIndexRoute
   AppAusenciasIndexRoute: typeof AppAusenciasIndexRoute
   AppCalendarioIndexRoute: typeof AppCalendarioIndexRoute
+  AppCatalogosIndexRoute: typeof AppCatalogosIndexRoute
   AppContratosIndexRoute: typeof AppContratosIndexRoute
   AppCotizacionesIndexRoute: typeof AppCotizacionesIndexRoute
   AppDocumentosIndexRoute: typeof AppDocumentosIndexRoute
@@ -723,6 +743,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAuditoriaIndexRoute: AppAuditoriaIndexRoute,
   AppAusenciasIndexRoute: AppAusenciasIndexRoute,
   AppCalendarioIndexRoute: AppCalendarioIndexRoute,
+  AppCatalogosIndexRoute: AppCatalogosIndexRoute,
   AppContratosIndexRoute: AppContratosIndexRoute,
   AppCotizacionesIndexRoute: AppCotizacionesIndexRoute,
   AppDocumentosIndexRoute: AppDocumentosIndexRoute,

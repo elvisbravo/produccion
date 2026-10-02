@@ -1,3 +1,4 @@
+export * from './actividades.js';
 export * from './permisos.js';
 export * from './auth.js';
 export * from './celular.js';

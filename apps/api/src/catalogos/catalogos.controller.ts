@@ -1,10 +1,12 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
-import { nuevoCatalogoSchema, type CatalogosProspecto, type Opcion } from '@grupoes/shared';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query, Req } from '@nestjs/common';
+import { actividadSchema, nuevoCatalogoSchema, type ActividadAdmin, type ActividadDatos, type CatalogoActividades, type CatalogosProspecto, type Opcion } from '@grupoes/shared';
+import type { Request } from 'express';
 import { z } from 'zod';
 import { UsuarioActual } from '../auth/decoradores.js';
 import type { UsuarioToken } from '../auth/tipos.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { RequierePermiso } from '../permisos/requiere-permiso.decorator.js';
+import { ActividadesService } from './actividades.service.js';
 import { CatalogosService } from './catalogos.service.js';
 
 const busquedaSchema = z.object({
@@ -14,7 +16,10 @@ const busquedaSchema = z.object({
 
 @Controller('catalogos')
 export class CatalogosController {
-  constructor(private readonly catalogos: CatalogosService) {}
+  constructor(
+    private readonly catalogos: CatalogosService,
+    private readonly actividades: ActividadesService,
+  ) {}
 
   /** Todas las listas cortas que usa el formulario del prospecto. */
   @RequierePermiso('prospectos.ver')
@@ -45,5 +50,37 @@ export class CatalogosController {
   @Post('carreras')
   crearCarrera(@Body(new ZodValidationPipe(nuevoCatalogoSchema)) { nombre }: { nombre: string }, @UsuarioActual() u: UsuarioToken) {
     return this.catalogos.crearSiNoExiste('carrera', nombre, u.id);
+  }
+
+  // ─── Catálogo de actividades (tiempo estimado, roles y prioridades) ───
+
+  @RequierePermiso('catalogos.ver')
+  @Get('actividades')
+  listarActividades(): Promise<CatalogoActividades> {
+    return this.actividades.listar();
+  }
+
+  @RequierePermiso('catalogos.crear')
+  @Post('actividades')
+  crearActividad(@Body(new ZodValidationPipe(actividadSchema)) datos: ActividadDatos, @UsuarioActual() u: UsuarioToken, @Req() req: Request): Promise<ActividadAdmin> {
+    return this.actividades.crear(datos, { usuarioId: u.id, ip: req.ip ?? null });
+  }
+
+  @RequierePermiso('catalogos.editar')
+  @Put('actividades/:id')
+  editarActividad(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(actividadSchema)) datos: ActividadDatos, @UsuarioActual() u: UsuarioToken, @Req() req: Request): Promise<ActividadAdmin> {
+    return this.actividades.editar(id, datos, { usuarioId: u.id, ip: req.ip ?? null });
+  }
+
+  @RequierePermiso('catalogos.desactivar')
+  @Post('actividades/:id/desactivar')
+  desactivarActividad(@Param('id', ParseUUIDPipe) id: string, @UsuarioActual() u: UsuarioToken, @Req() req: Request): Promise<ActividadAdmin> {
+    return this.actividades.cambiarActiva(id, false, { usuarioId: u.id, ip: req.ip ?? null });
+  }
+
+  @RequierePermiso('catalogos.desactivar')
+  @Post('actividades/:id/activar')
+  activarActividad(@Param('id', ParseUUIDPipe) id: string, @UsuarioActual() u: UsuarioToken, @Req() req: Request): Promise<ActividadAdmin> {
+    return this.actividades.cambiarActiva(id, true, { usuarioId: u.id, ip: req.ip ?? null });
   }
 }
