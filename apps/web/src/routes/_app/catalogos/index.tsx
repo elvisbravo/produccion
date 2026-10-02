@@ -1,12 +1,14 @@
 import { NOMBRE_APLICA_A, NOMBRE_MODO_ASIGNACION, type ActividadAdmin } from '@grupoes/shared'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Pencil, Plus, Power } from 'lucide-react'
-import { useState } from 'react'
+import { ChevronLeft, ChevronRight, Pencil, Plus, Power, Search } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { actividadesAdminQuery, useCambiarActiva } from '@/features/catalogos/api'
@@ -21,6 +23,9 @@ export const Route = createFileRoute('/_app/catalogos/')({
   component: Catalogos,
 })
 
+const POR_PAGINA = 10
+const plano = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+
 function Catalogos() {
   const { data } = useQuery(actividadesAdminQuery)
   const puedeCrear = usePermiso('catalogos.crear')
@@ -28,6 +33,23 @@ function Catalogos() {
   const puedeDesactivar = usePermiso('catalogos.desactivar')
   const cambiar = useCambiarActiva()
   const [editando, setEditando] = useState<ActividadAdmin | 'nueva' | null>(null)
+  const [texto, setTexto] = useState('')
+  const [estado, setEstado] = useState<'todas' | 'activas' | 'inactivas'>('todas')
+  const [pagina, setPagina] = useState(1)
+
+  // Se busca por nombre, tipo, participación o rol (sin distinguir tildes ni mayúsculas).
+  const filtradas = useMemo(() => {
+    const palabras = plano(texto).split(/s+/).filter(Boolean)
+    return (data?.actividades ?? []).filter((a) => {
+      if (estado === 'activas' && !a.activa) return false
+      if (estado === 'inactivas' && a.activa) return false
+      const paja = plano([a.nombre, a.tipo.nombre, ...a.participaciones.flatMap((p) => [p.nombre, ...p.roles.map((r) => r.rol)])].join(' '))
+      return palabras.every((w) => paja.includes(w))
+    })
+  }, [data, texto, estado])
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA))
+  const paginaActual = Math.min(pagina, totalPaginas)
+  const visibles = filtradas.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA)
 
   const alternar = async (a: ActividadAdmin) => {
     try {
@@ -55,6 +77,38 @@ function Catalogos() {
         )}
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        <div className="relative min-w-60 flex-1 sm:max-w-sm">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Buscar actividad"
+            placeholder="Nombre, tipo, participación o rol"
+            className="pl-8"
+            value={texto}
+            onChange={(e) => {
+              setTexto(e.target.value)
+              setPagina(1)
+            }}
+          />
+        </div>
+        <Select
+          value={estado}
+          onValueChange={(v) => {
+            setEstado(v as typeof estado)
+            setPagina(1)
+          }}
+        >
+          <SelectTrigger aria-label="Estado" className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todas">Todas</SelectItem>
+            <SelectItem value="activas">Activas</SelectItem>
+            <SelectItem value="inactivas">Inactivas</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {!data ? (
         <Skeleton className="h-96" />
       ) : (
@@ -71,7 +125,7 @@ function Catalogos() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.actividades.map((a) => (
+                {visibles.map((a) => (
                   <TableRow key={a.id} className={a.activa ? 'align-top' : 'align-top opacity-60'}>
                     <TableCell className="whitespace-normal">
                       <div className="flex items-start gap-2 font-medium">
@@ -136,6 +190,25 @@ function Catalogos() {
                 ))}
               </TableBody>
             </Table>
+            {filtradas.length === 0 && <p className="px-4 py-10 text-center text-sm text-muted-foreground">Ninguna actividad coincide con la búsqueda.</p>}
+            {filtradas.length > 0 && (
+              <div className="flex items-center justify-between gap-4 border-t px-4 py-3 text-sm text-muted-foreground">
+                <span>
+                  {filtradas.length} {filtradas.length === 1 ? 'actividad' : 'actividades'}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span>
+                    Página {paginaActual} de {totalPaginas}
+                  </span>
+                  <Button variant="outline" size="icon-sm" aria-label="Página anterior" disabled={paginaActual <= 1} onClick={() => setPagina(paginaActual - 1)}>
+                    <ChevronLeft />
+                  </Button>
+                  <Button variant="outline" size="icon-sm" aria-label="Página siguiente" disabled={paginaActual >= totalPaginas} onClick={() => setPagina(paginaActual + 1)}>
+                    <ChevronRight />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
