@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { actividadesAdminQuery, useCambiarActiva } from '@/features/catalogos/api'
 import { DialogoActividad } from '@/features/catalogos/components/dialogo-actividad'
 import { ApiError } from '@/lib/api'
@@ -57,18 +58,27 @@ function Catalogos() {
       {!data ? (
         <Skeleton className="h-96" />
       ) : (
-        <ul className="flex flex-col gap-3">
-          {data.actividades.map((a) => (
-            <li key={a.id}>
-              <Card className={a.activa ? '' : 'opacity-60'}>
-                <CardContent className="flex flex-col gap-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-1.5">
-                      <div className="flex items-center gap-2 text-base font-medium">
-                        <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: a.tipo.color }} aria-hidden="true" />
+        <Card className="py-0">
+          <CardContent className="p-0">
+            <Table className="min-w-[44rem]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[26%]">Actividad</TableHead>
+                  <TableHead className="w-24">Tiempo</TableHead>
+                  <TableHead className="w-[22%]">Se usa con · Asignación</TableHead>
+                  <TableHead>Quién la hace (prioridad)</TableHead>
+                  <TableHead className="w-20" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.actividades.map((a) => (
+                  <TableRow key={a.id} className={a.activa ? 'align-top' : 'align-top opacity-60'}>
+                    <TableCell className="whitespace-normal">
+                      <div className="flex items-start gap-2 font-medium">
+                        <span className="mt-1.5 size-2 shrink-0 rounded-full" style={{ backgroundColor: a.tipo.color }} aria-hidden="true" />
                         <span className="break-words">{a.nombre}</span>
                       </div>
-                      <div className="flex flex-wrap items-center gap-1.5">
+                      <div className="mt-1.5 flex flex-wrap gap-1">
                         <Badge variant="outline" className="text-[11px]">
                           {a.tipo.nombre}
                         </Badge>
@@ -79,58 +89,55 @@ function Catalogos() {
                           </Badge>
                         )}
                       </div>
-                    </div>
-                    <div className="flex shrink-0 gap-1">
-                      {puedeEditar && (
-                        <Button variant="ghost" size="icon-sm" aria-label={`Editar ${a.nombre}`} onClick={() => setEditando(a)}>
-                          <Pencil />
-                        </Button>
-                      )}
-                      {puedeDesactivar && !a.deSistema && (
-                        <Button variant="ghost" size="icon-sm" aria-label={a.activa ? `Desactivar ${a.nombre}` : `Activar ${a.nombre}`} title={a.activa ? 'Desactivar' : 'Activar'} onClick={() => void alternar(a)}>
-                          <Power />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Tiempo estimado</dt>
-                      <dd className="font-medium">{duracion(a.minutosEstimados)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Se usa con</dt>
-                      <dd>{NOMBRE_APLICA_A[a.aplicaA]}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted-foreground">Asignación</dt>
-                      <dd>{NOMBRE_MODO_ASIGNACION[a.modoAsignacion]}</dd>
-                    </div>
-                  </dl>
-
-                  <div className="flex flex-col gap-2 border-t pt-3">
-                    <p className="text-xs text-muted-foreground">Quién la hace</p>
-                    {a.participaciones.map((p) => (
-                      <div key={p.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                        <span className="font-medium">{p.nombre}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {p.cantidad} {p.cantidad === 1 ? 'persona' : 'personas'}
-                          {p.obligatoria ? '' : ' · opcional'}
-                        </span>
-                        {p.roles.map((r) => (
-                          <Badge key={r.rolId} variant={r.prioridad.nivel === 1 ? 'secondary' : 'outline'} className="text-[11px]">
-                            {r.rol} · {r.prioridad.nombre}
-                          </Badge>
+                    </TableCell>
+                    <TableCell className="font-medium whitespace-nowrap">{duracion(a.minutosEstimados)}</TableCell>
+                    <TableCell className="text-sm whitespace-normal">
+                      <div>{NOMBRE_APLICA_A[a.aplicaA]}</div>
+                      <div className="text-xs text-muted-foreground">{NOMBRE_MODO_ASIGNACION[a.modoAsignacion]}</div>
+                    </TableCell>
+                    <TableCell className="whitespace-normal">
+                      <ul className="flex flex-col gap-2 text-sm">
+                        {a.participaciones.map((p) => (
+                          <li key={p.id} className="flex flex-col gap-1">
+                            <span>
+                              <span className="font-medium">{p.nombre}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {' '}
+                                · {p.cantidad} {p.cantidad === 1 ? 'persona' : 'personas'}
+                                {p.obligatoria ? '' : ' · opcional'}
+                              </span>
+                            </span>
+                            <span className="flex flex-wrap gap-1">
+                              {p.roles.map((r) => (
+                                <Badge key={r.rolId} variant={r.prioridad.nivel === 1 ? 'secondary' : 'outline'} className="text-[11px]">
+                                  {r.rol} · {r.prioridad.nombre}
+                                </Badge>
+                              ))}
+                            </span>
+                          </li>
                         ))}
+                      </ul>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-1">
+                        {puedeEditar && (
+                          <Button variant="ghost" size="icon-sm" aria-label={`Editar ${a.nombre}`} onClick={() => setEditando(a)}>
+                            <Pencil />
+                          </Button>
+                        )}
+                        {puedeDesactivar && !a.deSistema && (
+                          <Button variant="ghost" size="icon-sm" aria-label={a.activa ? `Desactivar ${a.nombre}` : `Activar ${a.nombre}`} title={a.activa ? 'Desactivar' : 'Activar'} onClick={() => void alternar(a)}>
+                            <Power />
+                          </Button>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </li>
-          ))}
-        </ul>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
 
       {editando && data && (
