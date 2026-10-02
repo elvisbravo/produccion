@@ -159,7 +159,7 @@ export interface ColaItem {
   minutosReales: number
   /** Si la persona tiene el cronómetro corriendo en esta tarea, desde cuándo. */
   enCursoDesde: string | null
-  trabajo: { id: string; codigo: string; titulo: string | null; prioridad: { nombre: string; color: string } }
+  trabajo: { id: string; codigo: string; titulo: string | null; prioridad: { nombre: string; color: string }; fechasFijas: boolean }
   entregable: { id: string; nombre: string } | null
   /** Fecha límite del entregable (o del trabajo). */
   fechaLimite: string

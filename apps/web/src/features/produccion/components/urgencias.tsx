@@ -1,16 +1,18 @@
 import { diaEnLima, MAX_PERSONAS_URGENTE, NOMBRE_ESTADO_URGENTE, type ImpactoItem, type ResultadoPlan, type SolicitudUrgenteItem } from '@grupoes/shared'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { AlertCircle, ArrowRight, Flame, Loader2, PauseCircle, TriangleAlert, Wand2 } from 'lucide-react'
+import { AlertCircle, ArrowRight, Flame, Loader2, PauseCircle, Pin, TriangleAlert, Wand2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
@@ -191,6 +193,8 @@ const claveDe = (entregableId: string | null) => entregableId ?? CLAVE_SIN_ENTRE
 function DialogoEjecutarUrgente({ solicitud: s, onCerrar }: { solicitud: SolicitudUrgenteItem; onCerrar: () => void }) {
   const { data: propuesta } = useQuery(propuestaQuery(s.id))
   const [observacion, setObservacion] = useState('')
+  const [forzar, setForzar] = useState(false)
+  const puedeForzar = usePermiso('trabajos.fijar_fechas')
   const [error, setError] = useState<string | null>(null)
   // Mientras no se cambie nada a mano, se usa el reparto sugerido.
   const [manual, setManual] = useState<Record<string, string> | null>(null)
@@ -209,7 +213,7 @@ function DialogoEjecutarUrgente({ solicitud: s, onCerrar }: { solicitud: Solicit
     if (!reparto) return
     setError(null)
     try {
-      await ejecutar.mutateAsync({ reparto, observacion: observacion || undefined })
+      await ejecutar.mutateAsync({ reparto, observacion: observacion || undefined, forzarFechasFijas: forzar || undefined })
       toast.success(personas.size > 1 ? `${s.trabajo.codigo} repartido entre ${personas.size} personas` : `${s.trabajo.codigo} insertado primero en la cola`)
       onCerrar()
     } catch (err) {
@@ -330,6 +334,24 @@ function DialogoEjecutarUrgente({ solicitud: s, onCerrar }: { solicitud: Solicit
                   )}
                 </AlertDescription>
               </Alert>
+              {impacto.data.pasanFijasARojo > 0 && (
+                <Alert variant="destructive">
+                  <Pin />
+                  <AlertTitle>Atrasaría trabajos con fechas inamovibles</AlertTitle>
+                  <AlertDescription className="flex flex-col gap-2">
+                    <p>
+                      {impacto.data.pasanFijasARojo} {impacto.data.pasanFijasARojo === 1 ? 'tarea' : 'tareas'} de {impacto.data.trabajosFijosAfectados.join(', ')} dejarían de llegar a su fecha, y esas fechas no se pueden mover. Cambia el reparto
+                      {puedeForzar ? ' o acéptalo de forma expresa:' : ' o pídele a quien pueda fijar fechas que lo autorice.'}
+                    </p>
+                    {puedeForzar && (
+                      <Label className="flex items-center gap-2 font-normal">
+                        <Checkbox checked={forzar} onCheckedChange={(v) => setForzar(v === true)} />
+                        Entiendo que se atrasarán y lo acepto
+                      </Label>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
               {impacto.data.personas.map((p) => (
                 <section key={p.usuario.id} className="flex flex-col gap-1.5">
                   <h3 className="text-sm font-medium">
@@ -353,7 +375,7 @@ function DialogoEjecutarUrgente({ solicitud: s, onCerrar }: { solicitud: Solicit
           <Button variant="outline" onClick={onCerrar}>
             Cancelar
           </Button>
-          <Button onClick={() => void confirmar()} disabled={!impacto.data || ejecutar.isPending}>
+          <Button onClick={() => void confirmar()} disabled={!impacto.data || ejecutar.isPending || (impacto.data.pasanFijasARojo > 0 && !forzar)}>
             {ejecutar.isPending && <Loader2 className="animate-spin" />}
             Confirmar inserción
           </Button>
@@ -369,6 +391,7 @@ function FilaImpacto({ item: i }: { item: ImpactoItem }) {
     <li className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2', i.esUrgente && 'bg-red-50/60 dark:bg-red-950/30', empeora && 'bg-amber-50/70 dark:bg-amber-950/30')}>
       <span className="min-w-0 flex-1">
         {i.esUrgente && <Flame className="mr-1 inline size-3.5 text-red-600" />}
+        {i.fija && <Pin className="mr-1 inline size-3.5 text-blue-700 dark:text-blue-400" aria-label="Fechas inamovibles" />}
         {i.titulo} <span className="font-mono text-xs text-muted-foreground">{i.trabajo.codigo}</span>
       </span>
       <span className="flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums">

@@ -3,7 +3,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities'
 import type { ColaItem } from '@grupoes/shared'
 import { Link } from '@tanstack/react-router'
-import { Check, Clock, GripVertical, Loader2 } from 'lucide-react'
+import { Check, Clock, GripVertical, Loader2, Pin } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -92,6 +92,7 @@ function FilaCola({ item, posicion, ordenable, acciones }: { item: ColaItem; pos
         <span className="text-xs text-muted-foreground">
           <Link to="/trabajos/$id" params={{ id: item.trabajo.id }} className="font-mono hover:text-foreground hover:underline">
             {item.trabajo.codigo}
+            {item.trabajo.fechasFijas && <Pin className="ml-1 inline size-3 text-blue-700 dark:text-blue-400" aria-label="Fechas inamovibles" />}
           </Link>
           {item.entregable && ` · ${item.entregable.nombre}`} · {duracion(item.minutos)} · vence el {formatearFecha(item.fechaLimite)}
         </span>

@@ -105,6 +105,8 @@ export const ejecutarUrgenteSchema = z
   .object({
     usuarioId: opcional(z.string().pipe(z.uuid())),
     reparto: repartoUrgenteSchema.optional(),
+    /** Ejecutar aunque atrase trabajos con fechas fijas (solo quien puede fijarlas). */
+    forzarFechasFijas: z.boolean().optional(),
     observacion: texto(500),
   })
   .superRefine((d, ctx) => {
@@ -139,6 +141,8 @@ export interface ImpactoItem {
   titulo: string
   trabajo: { id: string; codigo: string }
   esUrgente: boolean
+  /** De un trabajo con fechas fijas: no debería atrasarse. */
+  fija: boolean
   antes: ResultadoPlan | null
   despues: ResultadoPlan
 }
@@ -169,6 +173,10 @@ export interface ImpactoReparto {
   /** Cuándo termina la última tarea urgente. */
   terminaEl: string | null
   pasanARojo: number
+  /** Tareas de trabajos con fechas fijas que llegaban a tiempo y dejarían de llegar. */
+  pasanFijasARojo: number
+  /** Códigos de esos trabajos. */
+  trabajosFijosAfectados: string[]
 }
 
 /** Cómo queda la cola del auxiliar si se ejecuta la urgencia. */

@@ -46,6 +46,7 @@ const INCLUIR_TAREA_AGENDA = {
       codigo: true,
       titulo: true,
       fechaLimite: true,
+      fechasFijas: true,
       prioridad: { select: { nombre: true, color: true, nivel: true } },
     },
   },

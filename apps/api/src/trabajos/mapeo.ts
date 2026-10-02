@@ -35,6 +35,7 @@ export const INCLUIR_DETALLE = {
   // Los ids (uuid v7) desempatan eventos del mismo instante en el orden en que se crearon.
   eventos: { orderBy: [{ fecha: 'desc' }, { id: 'desc' }], take: 100, include: { usuario: { select: CAMPOS_USUARIO } } },
   pausas: { where: { reanudadaEn: null }, take: 1, include: { creadaPor: { select: CAMPOS_USUARIO } } },
+  fechasFijasPor: { select: CAMPOS_USUARIO },
   contrato: {
     include: {
       cuotas: INCLUIR_CUOTAS,
@@ -88,6 +89,7 @@ export function aListado(t: TrabajoListado, verMontos: boolean, hoy: string): Tr
     prioridad: { nombre: t.prioridad.nombre, color: t.prioridad.color },
     estado: t.estado,
     seguimiento: seguimientoDe({ estado: t.estado, urgente: t.prioridad.permiteInsercionUrgente, pendientePago: (cuenta?.vencido ?? 0) > 0 && t.contrato?.estado === 'vigente' }),
+    fechasFijas: t.fechasFijas,
     fechaLimite: soloFecha(t.fechaLimite),
     titular: t.integrantes[0]?.persona ?? null,
     totalIntegrantes: t.integrantes.length,
@@ -189,6 +191,7 @@ export function aDetalle(
       urgente: t.prioridad.permiteInsercionUrgente,
       pendientePago: permisos.verMontos && t.contrato?.estado === 'vigente' && resumenCuenta(t.contrato.cuotas.map(aCalculo), hoy).vencido > 0,
     }),
+    fechasFijas: t.fechasFijas ? { motivo: t.fechasFijasMotivo ?? '', por: t.fechasFijasPor, desde: (t.fechasFijasEn ?? t.actualizadoEn).toISOString() } : null,
     pausa: t.pausas[0]
       ? {
           id: t.pausas[0].id,

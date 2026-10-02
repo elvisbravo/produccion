@@ -154,3 +154,21 @@ export function useReanudarTrabajo(trabajoId: string) {
     },
   })
 }
+
+// ─── Fechas inamovibles ─────────────────────────────────────
+
+export function useFijarFechas(trabajoId: string) {
+  const guardar = useGuardarDetalle()
+  return useMutation({
+    mutationFn: (motivo: string) => api<TrabajoDetalle>(`/trabajos/${trabajoId}/fechas-fijas`, { method: 'POST', body: { motivo } }),
+    onSuccess: guardar,
+  })
+}
+
+export function useLiberarFechas(trabajoId: string) {
+  const guardar = useGuardarDetalle()
+  return useMutation({
+    mutationFn: () => api<TrabajoDetalle>(`/trabajos/${trabajoId}/fechas-fijas`, { method: 'DELETE' }),
+    onSuccess: guardar,
+  })
+}

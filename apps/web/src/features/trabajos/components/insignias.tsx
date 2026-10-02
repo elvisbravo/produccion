@@ -77,6 +77,12 @@ export function LeyendaSeguimiento() {
           <span className="text-muted-foreground">{DESCRIPCION_SEGUIMIENTO[x]}</span>
         </li>
       ))}
+      <li className="flex items-start gap-3">
+        <Badge variant="outline" className="w-36 shrink-0 justify-center gap-1 border-blue-400 bg-blue-200 font-medium text-blue-950 dark:border-blue-700 dark:bg-blue-900/60 dark:text-blue-50">
+          Fechas fijas
+        </Badge>
+        <span className="text-muted-foreground">Las fechas no se pueden mover: deben cumplirse por su prioridad. Se suma a cualquiera de los estados.</span>
+      </li>
       <li className="border-t pt-2 text-xs text-muted-foreground">
         Un trabajo puede cumplir varias a la vez: el color grande es el más importante (entregado, urgente, pendiente de pago y luego su avance) y las demás aparecen como etiquetas pequeñas.
       </li>

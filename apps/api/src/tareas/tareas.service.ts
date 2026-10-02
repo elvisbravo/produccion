@@ -17,6 +17,7 @@ import {
   type TareaItem,
 } from '@grupoes/shared';
 import { AgendaService } from '../agenda/agenda.service.js';
+import { errorFechasFijas } from '../trabajos/fechas-fijas.error.js';
 import { AuditoriaService } from '../common/auditoria.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { ParametrosService } from '../parametros/parametros.service.js';
@@ -610,6 +611,11 @@ export class TareasService {
   async reprogramar(tareaId: string, datos: ReprogramarTareaDatos, actor: ActorTarea): Promise<TareaItem> {
     const tarea = await this.obtenerVisible(tareaId, actor.usuarioId, 'tareas.editar');
     if (!esActiva(tarea.estado)) throw new BadRequestException('Solo se reprograman tareas pendientes');
+    // Las tareas de producción de un trabajo con fechas fijas no se mueven.
+    if (tarea.trabajoId && tarea.entregableId) {
+      const trabajo = await this.prisma.trabajo.findUniqueOrThrow({ where: { id: tarea.trabajoId }, select: { codigo: true, fechasFijas: true, fechasFijasMotivo: true } });
+      if (trabajo.fechasFijas) throw errorFechasFijas(trabajo);
+    }
     const { fecha, inicio } = this.validarProgramacion(tarea.actividad, { ...datos, modalidad: tarea.modalidad ?? undefined });
 
     await this.verificarLaborable(

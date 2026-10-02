@@ -157,6 +157,16 @@ export type ArmarEquipoDatos = z.output<typeof armarEquipoSchema>
 
 export const anularPagoSchema = z.object({ motivo: z.string().trim().min(3, 'Indica el motivo').max(300) })
 
+// ─── Fechas inamovibles ─────────────────────────────────────
+
+export const fijarFechasSchema = z.object({ motivo: z.string().trim().min(3, 'Indica por qué no se pueden mover').max(300, 'Máximo 300 caracteres') })
+
+export interface FechasFijasItem {
+  motivo: string
+  por: UsuarioResumen | null
+  desde: string
+}
+
 // ─── Trabajo en espera del cliente ──────────────────────────
 
 export const pausarTrabajoSchema = z.object({ motivo: z.string().trim().min(3, 'Indica qué información falta').max(500, 'Máximo 500 caracteres') })
@@ -370,6 +380,8 @@ export interface TrabajoListadoItem {
   prioridad: { nombre: string; color: string }
   estado: EstadoTrabajo
   seguimiento: SeguimientoTrabajo
+  /** Las fechas no se pueden mover. */
+  fechasFijas: boolean
   fechaLimite: string
   titular: PersonaResumen | null
   totalIntegrantes: number
@@ -407,6 +419,8 @@ export interface TrabajoDetalle {
   seguimiento: SeguimientoTrabajo
   /** Si está en espera del cliente. */
   pausa: PausaItem | null
+  /** Si sus fechas no se pueden mover (con el motivo y quién lo decidió). */
+  fechasFijas: FechasFijasItem | null
   integrantes: (PersonaResumen & { esTitular: boolean })[]
   equipo: MiembroEquipo[]
   historialEquipo: MiembroEquipo[]

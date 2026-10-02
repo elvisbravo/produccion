@@ -27,6 +27,7 @@ import { trabajoQuery } from '@/features/trabajos/api'
 import { DialogoAnularPago, DialogoEquipo, DialogoPago } from '@/features/trabajos/components/dialogos-trabajo'
 import { SeccionAdicionales } from '@/features/trabajos/components/adicionales'
 import { EtiquetasSeguimiento, InsigniaEstadoCuota } from '@/features/trabajos/components/insignias'
+import { AvisoFechasFijas, BotonFijarFechas, MarcaFechasFijas } from '@/features/trabajos/components/fechas-fijas'
 import { AvisoEnEspera, BotonPausar } from '@/features/trabajos/components/pausa'
 import { ApiError } from '@/lib/api'
 import { diasHasta, formatearFecha, formatearFechaHora, haceCuanto, nombreCompleto } from '@/lib/formato'
@@ -65,6 +66,7 @@ function DetalleTrabajo() {
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-sm text-muted-foreground">{t.codigo}</span>
               <EtiquetasSeguimiento seguimiento={t.seguimiento} />
+              {t.fechasFijas && <MarcaFechasFijas motivo={t.fechasFijas.motivo} />}
               <InsigniaPrioridad nombre={t.prioridad.nombre} color={t.prioridad.color} />
             </div>
             <h1 className="text-2xl font-semibold tracking-tight">
@@ -79,6 +81,7 @@ function DetalleTrabajo() {
           </div>
           <div className="flex flex-col items-end gap-1 text-right">
             <BotonPausar t={t} />
+            <BotonFijarFechas t={t} />
             <span className="mt-1 text-sm text-muted-foreground">Entrega final</span>
             <span className="font-semibold">{formatearFecha(t.fechaLimite)}</span>
             <span className={cn('text-xs', dias < 0 ? 'text-red-700 dark:text-red-400' : dias <= 7 ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground')}>
@@ -91,6 +94,7 @@ function DetalleTrabajo() {
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="flex flex-col gap-6">
           <AvisoEnEspera t={t} />
+          <AvisoFechasFijas t={t} />
           <UrgenciaDelTrabajo trabajoId={t.id} cerrado={['finalizado', 'cancelado'].includes(t.estado)} />
           <SeccionEntregables t={t} />
           {t.contrato && <Contrato contrato={t.contrato} trabajoId={t.id} />}

@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   horaEnLima,
   ROLES_BASE,
@@ -22,6 +22,7 @@ import { holgura, planificar, type PlanCola } from '../agenda/cola.js';
 import { AuditoriaService } from '../common/auditoria.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
+import { PermisosService } from '../permisos/permisos.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { type ActorProduccion } from './produccion.service.js';
 
@@ -92,6 +93,7 @@ export class ContingenciasService {
     private readonly agenda: AgendaService,
     private readonly auditoria: AuditoriaService,
     private readonly notificaciones: NotificacionesService,
+    private readonly permisos: PermisosService,
   ) {}
 
   // ─── Utilidades ──────────────────────────────────────────
@@ -597,6 +599,7 @@ export class ContingenciasService {
           titulo: t.titulo ?? t.actividad.nombre,
           trabajo: { id: t.trabajo!.id, codigo: t.trabajo!.codigo },
           esUrgente: true,
+          fija: false,
           antes: antes.has(t.id) ? resultado(antes.get(t.id), limite(t)) : null,
           despues: resultado(despues.get(t.id), limite(t)),
         })),
@@ -605,6 +608,7 @@ export class ContingenciasService {
           titulo: t.titulo ?? t.actividad.nombre,
           trabajo: { id: t.trabajo!.id, codigo: t.trabajo!.codigo },
           esUrgente: false,
+          fija: Boolean(t.trabajo?.fechasFijas),
           antes: resultado(antes.get(t.id), limiteDe(t)),
           despues: resultado(despues.get(t.id), limiteDe(t)),
         })),
@@ -627,8 +631,12 @@ export class ContingenciasService {
     const { filas, porUsuario, nombreBloque } = await this.resolverReparto(s.trabajoId, reparto);
     const personas = await this.impactoPorPersona(filas, porUsuario, nombreBloque);
     const fines = personas.flatMap((p) => p.items.filter((i) => i.esUrgente).map((i) => i.despues.fin));
+    // Tareas de trabajos con fechas fijas que dejarían de llegar a tiempo.
+    const fijasAtrasadas = personas.flatMap((p) => p.items.filter((i) => i.fija && !i.esUrgente && !enRiesgo(i.antes) && enRiesgo(i.despues)));
     return {
       personas,
+      pasanFijasARojo: fijasAtrasadas.length,
+      trabajosFijosAfectados: [...new Set(fijasAtrasadas.map((i) => i.trabajo.codigo))],
       terminaEl: fines.some((f) => f === null) ? null : (fines as string[]).sort().at(-1) ?? null,
       pasanARojo: personas.reduce((n, p) => n + p.pasanARojo, 0),
     };
@@ -646,6 +654,19 @@ export class ContingenciasService {
     const s = await this.pendiente(id);
     const reparto = datos.reparto ?? (await this.repartoUnico(s.trabajoId, datos.usuarioId!));
     const { porUsuario } = await this.resolverReparto(s.trabajoId, reparto);
+    // Un trabajo con fechas fijas debe entregarse sí o sí: la urgencia no lo atrasa salvo que quien puede fijarlas lo acepte de forma expresa.
+    const impacto = await this.simularReparto(id, reparto);
+    if (impacto.pasanFijasARojo > 0) {
+      const codigos = impacto.trabajosFijosAfectados.join(', ');
+      if (!datos.forzarFechasFijas) {
+        throw new BadRequestException(
+          `Esta urgencia dejaría fuera de fecha tareas de trabajos con fechas inamovibles (${codigos}). Cambia el reparto o, si de verdad debe hacerse, acéptalo de forma expresa.`,
+        );
+      }
+      if (!('trabajos.fijar_fechas' in (await this.permisos.efectivos(actor.usuarioId)))) {
+        throw new ForbiddenException('Solo quien puede fijar o liberar fechas puede atrasar un trabajo con fechas inamovibles');
+      }
+    }
     await this.prisma.$transaction(async (tx) => {
       // 1) Las tareas urgentes pasan a quien se asignó.
       for (const [usuarioId, g] of porUsuario) {
@@ -685,7 +706,7 @@ export class ContingenciasService {
       await tx.trabajoEvento.create({
         data: { trabajoId: s.trabajoId, tipo: 'estado', detalle: `Inserción urgente en ${porUsuario.size > 1 ? 'las colas de' : 'la cola de'} ${donde}${datos.observacion ? ` — ${datos.observacion}` : ''}`, usuarioId: actor.usuarioId },
       });
-      await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'ejecutar_urgente', entidad: 'solicitud_urgente', entidadId: id, despues: { reparto, observacion: datos.observacion }, ip: actor.ip }, tx);
+      await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'ejecutar_urgente', entidad: 'solicitud_urgente', entidadId: id, despues: { reparto, observacion: datos.observacion, atrasoDeFechasFijas: impacto.pasanFijasARojo > 0 ? impacto.trabajosFijosAfectados : undefined }, ip: actor.ip }, tx);
     });
     const trabajo = await this.prisma.trabajo.findUniqueOrThrow({
       where: { id: s.trabajoId },

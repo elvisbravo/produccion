@@ -22,6 +22,7 @@ import {
 import { AgendaService, type ColaDeUsuario } from '../agenda/agenda.service.js';
 import { holgura, type PlanCola } from '../agenda/cola.js';
 import { AuditoriaService } from '../common/auditoria.service.js';
+import { errorFechasFijas } from '../trabajos/fechas-fijas.error.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -262,6 +263,8 @@ export class ProduccionService {
     const e = await this.entregable(this.prisma, id);
     if (e.estado === 'cerrado') throw new BadRequestException('El entregable ya está cerrado');
     this.validarFecha(datos.fechaLimite, e.trabajo.fechaInicio, e.trabajo.fechaLimite);
+    // Con fechas fijas se puede cambiar el nombre, pero no la fecha.
+    if (e.trabajo.fechasFijas && soloFecha(e.fechaLimite) !== datos.fechaLimite) throw errorFechasFijas(e.trabajo);
     await this.prisma.$transaction(async (tx) => {
       await tx.entregable.update({ where: { id }, data: { nombre: datos.nombre, fechaLimite: aFecha(datos.fechaLimite), esFinal: datos.esFinal } });
       if (soloFecha(e.fechaLimite) !== datos.fechaLimite) {
@@ -622,7 +625,7 @@ export class ProduccionService {
           minutos: t.minutosEstimados,
           minutosReales: minutosReales(t.tiempos.filter((x) => x.fin)),
           enCursoDesde: t.tiempos.find((x) => !x.fin && x.usuarioId === u.id)?.inicio.toISOString() ?? null,
-          trabajo: { id: t.trabajo!.id, codigo: t.trabajo!.codigo, titulo: t.trabajo!.titulo, prioridad: { nombre: t.trabajo!.prioridad.nombre, color: t.trabajo!.prioridad.color } },
+          trabajo: { id: t.trabajo!.id, codigo: t.trabajo!.codigo, titulo: t.trabajo!.titulo, prioridad: { nombre: t.trabajo!.prioridad.nombre, color: t.trabajo!.prioridad.color }, fechasFijas: t.trabajo!.fechasFijas },
           entregable: t.entregable ? { id: t.entregable.id, nombre: t.entregable.nombre } : null,
           fechaLimite,
           noAntesDe: soloFecha(t.fecha),
@@ -644,19 +647,36 @@ export class ProduccionService {
   }
 
   /** Nuevo orden de la cola: deben venir exactamente las tareas que hoy están en ella. */
-  async reordenar(usuarioId: string, tareaIds: string[], actor: ActorProduccion): Promise<void> {
+  async reordenar(usuarioId: string, tareaIds: string[], actor: ActorProduccion, opciones: { sugerido?: boolean } = {}): Promise<void> {
     const actuales = await this.prisma.tareaResponsable.findMany({
       where: { usuarioId, ordenCola: { not: null }, tarea: { estado: { in: ['pendiente', 'en_proceso'] }, inicio: null } },
-      select: { id: true, tareaId: true },
+      select: { id: true, tareaId: true, ordenCola: true },
     });
     const porTarea = new Map(actuales.map((a) => [a.tareaId, a.id]));
     if (tareaIds.length !== actuales.length || new Set(tareaIds).size !== tareaIds.length || tareaIds.some((id) => !porTarea.has(id))) {
       throw new ConflictException('La cola cambió mientras la ordenabas: vuelve a cargarla');
     }
+    if (!opciones.sugerido) await this.verificarOrdenConFechasFijas(actuales, tareaIds);
     await this.prisma.$transaction(async (tx) => {
       for (const [i, tareaId] of tareaIds.entries()) await tx.tareaResponsable.update({ where: { id: porTarea.get(tareaId)! }, data: { ordenCola: i + 1 } });
       await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'ordenar_cola', entidad: 'usuario', entidadId: usuarioId, despues: { tareaIds }, ip: actor.ip }, tx);
     });
+  }
+
+  /** Las tareas de un trabajo con fechas fijas no se pueden dejar detrás de otras que antes iban después de ellas. */
+  private async verificarOrdenConFechasFijas(actuales: { tareaId: string; ordenCola: number | null }[], nuevoOrden: string[]) {
+    const fijas = await this.prisma.tarea.findMany({
+      where: { id: { in: nuevoOrden }, trabajo: { fechasFijas: true } },
+      select: { id: true, trabajo: { select: { codigo: true, fechasFijasMotivo: true } } },
+    });
+    if (fijas.length === 0) return;
+    const antes = new Map([...actuales].sort((a, b) => (a.ordenCola ?? 0) - (b.ordenCola ?? 0)).map((a, i) => [a.tareaId, i]));
+    const ahora = new Map(nuevoOrden.map((id, i) => [id, i]));
+    const esFija = new Set(fijas.map((f) => f.id));
+    for (const f of fijas) {
+      const atrasada = nuevoOrden.some((n) => !esFija.has(n) && antes.get(f.id)! < antes.get(n)! && ahora.get(f.id)! > ahora.get(n)!);
+      if (atrasada && f.trabajo) throw errorFechasFijas(f.trabajo);
+    }
   }
 
   /** Orden sugerido: lo que está en proceso primero; luego por prioridad del trabajo y fecha límite. */
@@ -668,10 +688,11 @@ export class ProduccionService {
     const ordenados = [...(cola?.items ?? [])].sort(
       (a, b) =>
         Number(b.estado === 'en_proceso') - Number(a.estado === 'en_proceso') ||
+        Number(b.trabajo.fechasFijas) - Number(a.trabajo.fechasFijas) ||
         (niveles.get(a.trabajo.prioridad.nombre) ?? 99) - (niveles.get(b.trabajo.prioridad.nombre) ?? 99) ||
         a.fechaLimite.localeCompare(b.fechaLimite) ||
         a.orden - b.orden,
     );
-    if (ordenados.length) await this.reordenar(usuarioId, ordenados.map((i) => i.tareaId), actor);
+    if (ordenados.length) await this.reordenar(usuarioId, ordenados.map((i) => i.tareaId), actor, { sugerido: true });
   }
 }

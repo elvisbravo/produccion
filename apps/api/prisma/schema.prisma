@@ -68,6 +68,7 @@ model Usuario {
   adicionalesRespondidos Adicional[]                  @relation("AdicionalRespondidoPor")
   urgenciasAsignadas     SolicitudUrgenteAsignacion[] @relation("UrgenteAsignacionDe")
   pausasCreadas          PausaTrabajo[]               @relation("PausaCreadaPor")
+  trabajosConFechasFijas Trabajo[]                    @relation("TrabajoFechasFijasPor")
   pausasReanudadas       PausaTrabajo[]               @relation("PausaReanudadaPor")
   horarios               HorarioUsuario[]             @relation("HorarioDelUsuario")
   revisiones             Revision[]                   @relation("RevisionRevisor")
@@ -827,21 +828,26 @@ enum EstadoTrabajo {
 }
 
 model Trabajo {
-  id               String        @id @default(uuid(7)) @db.Uuid
-  codigo           String        @unique @db.VarChar(20)
-  prospectoId      String        @unique @map("prospecto_id") @db.Uuid
-  tipoTrabajoId    String        @map("tipo_trabajo_id") @db.Uuid
-  titulo           String?       @db.VarChar(300)
-  prioridadId      String        @map("prioridad_id") @db.Uuid
-  universidadId    String?       @map("universidad_id") @db.Uuid
-  carreraId        String?       @map("carrera_id") @db.Uuid
-  nivelAcademicoId String?       @map("nivel_academico_id") @db.Uuid
-  linkDrive        String?       @map("link_drive") @db.VarChar(500)
-  observaciones    String?
-  detalles         String?
-  fechaInicio      DateTime      @map("fecha_inicio") @db.Date
-  fechaLimite      DateTime      @map("fecha_limite") @db.Date
-  estado           EstadoTrabajo @default(sin_asignar)
+  id                String        @id @default(uuid(7)) @db.Uuid
+  codigo            String        @unique @db.VarChar(20)
+  prospectoId       String        @unique @map("prospecto_id") @db.Uuid
+  tipoTrabajoId     String        @map("tipo_trabajo_id") @db.Uuid
+  titulo            String?       @db.VarChar(300)
+  prioridadId       String        @map("prioridad_id") @db.Uuid
+  universidadId     String?       @map("universidad_id") @db.Uuid
+  carreraId         String?       @map("carrera_id") @db.Uuid
+  nivelAcademicoId  String?       @map("nivel_academico_id") @db.Uuid
+  linkDrive         String?       @map("link_drive") @db.VarChar(500)
+  observaciones     String?
+  detalles          String?
+  fechaInicio       DateTime      @map("fecha_inicio") @db.Date
+  fechaLimite       DateTime      @map("fecha_limite") @db.Date
+  estado            EstadoTrabajo @default(sin_asignar)
+  /// Las fechas no se pueden mover (por prioridad): no se editan, no se reprograman ni se atrasan en la cola.
+  fechasFijas       Boolean       @default(false) @map("fechas_fijas")
+  fechasFijasMotivo String?       @map("fechas_fijas_motivo")
+  fechasFijasPorId  String?       @map("fechas_fijas_por_id") @db.Uuid
+  fechasFijasEn     DateTime?     @map("fechas_fijas_en") @db.Timestamptz(6)
 
   creadoEn       DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
   creadoPor      String?   @map("creado_por") @db.Uuid
@@ -850,6 +856,7 @@ model Trabajo {
   eliminadoEn    DateTime? @map("eliminado_en") @db.Timestamptz(6)
 
   prospecto      Prospecto        @relation(fields: [prospectoId], references: [id])
+  fechasFijasPor Usuario?         @relation("TrabajoFechasFijasPor", fields: [fechasFijasPorId], references: [id])
   tipoTrabajo    TipoTrabajo      @relation(fields: [tipoTrabajoId], references: [id])
   prioridad      PrioridadTrabajo @relation(fields: [prioridadId], references: [id])
   universidad    Universidad?     @relation(fields: [universidadId], references: [id])

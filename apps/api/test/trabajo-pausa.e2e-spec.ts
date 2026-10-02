@@ -119,7 +119,9 @@ describe('Trabajo en espera del cliente (e2e)', () => {
     const tareaId = await prisma.tarea.findFirstOrThrow({ where: { trabajoId: trabajo.id }, select: { id: true } });
     await http().post(`/api/tareas/${tareaId.id}/iniciar`).set(como('aux')).expect(400);
     const entregable = (await ficha()).entregables[0];
-    await http().post(`/api/entregables/${entregable.id}/tareas`).set(como('prod')).send({ actividadId: (await prisma.actividad.findFirstOrThrow()).id, titulo: 'Extra', minutos: 60 }).expect(400);
+    // Con un cuerpo válido: lo que lo rechaza es la espera, no la validación.
+    const nueva = await http().post(`/api/entregables/${entregable.id}/tareas`).set(como('prod')).send({ actividadId: (await prisma.actividad.findFirstOrThrow({ where: { nombre: 'Elaboración' } })).id, titulo: 'Extra', minutosEstimados: 60 }).expect(400);
+    expect(nueva.body.message).toContain('en espera del cliente');
 
     const lista = (await http().get(`/api/trabajos?q=${trabajo.codigo}&seguimiento=suspendido`).set(como('prod')).expect(200)).body as Paginado<TrabajoListadoItem>;
     expect(lista.datos.map((x) => x.id)).toEqual([trabajo.id]);

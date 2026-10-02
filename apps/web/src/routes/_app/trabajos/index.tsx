@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { InsigniaPrioridad } from '@/features/prospectos/components/insignias'
 import { trabajosQuery } from '@/features/trabajos/api'
+import { MarcaFechasFijas } from '@/features/trabajos/components/fechas-fijas'
 import { EtiquetasSeguimiento, LeyendaSeguimiento } from '@/features/trabajos/components/insignias'
 import { useDebounce } from '@/hooks/use-debounce'
 import { diasHasta, formatearFecha, nombreCompleto } from '@/lib/formato'
@@ -157,7 +158,10 @@ function ListadoTrabajos() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <EtiquetasSeguimiento seguimiento={t.seguimiento} />
+                          <div className="flex flex-col items-start gap-1">
+                            <EtiquetasSeguimiento seguimiento={t.seguimiento} />
+                            {t.fechasFijas && <MarcaFechasFijas />}
+                          </div>
                         </TableCell>
                         <TableCell className="hidden text-sm lg:table-cell">
                           {t.auxiliarPrincipal ? (
