@@ -83,8 +83,30 @@ export class RecordatoriosService {
     }
   }
 
+  /** Trabajos que siguen detenidos esperando información del cliente: se recuerda cada N días a quien sigue al cliente y a quien lo pausó. */
+  async pausasSinRespuesta(ahora = new Date()): Promise<void> {
+    const dias = await this.parametros.numero('pausas.dias_recordatorio');
+    const limite = new Date(ahora.getTime() - dias * 86_400_000);
+    const pausas = await this.prisma.pausaTrabajo.findMany({
+      where: { reanudadaEn: null, creadaEn: { lte: limite }, OR: [{ ultimoRecordatorioEn: null }, { ultimoRecordatorioEn: { lte: limite } }] },
+      include: { trabajo: { select: { id: true, codigo: true, prospecto: { select: { responsableId: true } } } } },
+    });
+    for (const p of pausas) {
+      const detenido = Math.max(1, Math.round((ahora.getTime() - p.creadaEn.getTime()) / 86_400_000));
+      await this.notificaciones.notificar([p.trabajo.prospecto.responsableId, p.creadaPorId], {
+        tipo: 'recordatorio.pausa',
+        titulo: `${p.trabajo.codigo} lleva ${detenido} días en espera del cliente`,
+        mensaje: `Falta: ${p.motivo}`,
+        enlace: `/trabajos/${p.trabajo.id}`,
+        clave: `pausa:${p.id}:${ahora.toISOString().slice(0, 10)}`,
+      });
+      await this.prisma.pausaTrabajo.update({ where: { id: p.id }, data: { ultimoRecordatorioEn: ahora } });
+    }
+  }
+
   /** Revisión de cada mañana: vencidas, por asignar, entregables, cuotas y colas en rojo. */
   async vencimientos(hoy = diaEnLima(), ahora = new Date()): Promise<void> {
+    await this.pausasSinRespuesta(ahora);
     const limite = aFecha(sumarDias(hoy, await this.parametros.numero('notificaciones.dias_aviso_vencimiento')));
 
     // Tareas vencidas (las de la cola se miden por su holgura, no por su día).

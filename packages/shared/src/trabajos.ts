@@ -157,6 +157,23 @@ export type ArmarEquipoDatos = z.output<typeof armarEquipoSchema>
 
 export const anularPagoSchema = z.object({ motivo: z.string().trim().min(3, 'Indica el motivo').max(300) })
 
+// ─── Trabajo en espera del cliente ──────────────────────────
+
+export const pausarTrabajoSchema = z.object({ motivo: z.string().trim().min(3, 'Indica qué información falta').max(500, 'Máximo 500 caracteres') })
+export const reanudarTrabajoSchema = z.object({ nota: texto(500) })
+
+export interface PausaItem {
+  id: string
+  /** Qué información falta. */
+  motivo: string
+  desde: string
+  /** Días que lleva detenido. */
+  dias: number
+  por: UsuarioResumen
+  /** Tareas que salieron de la cola. */
+  tareasPausadas: number
+}
+
 // ─── Adicionales del contrato ───────────────────────────────
 
 export const ESTADOS_ADICIONAL = ['propuesto', 'aceptado', 'rechazado', 'anulado'] as const
@@ -226,7 +243,7 @@ export const NOMBRE_SEGUIMIENTO: Record<Seguimiento, string> = {
   abordando: 'Se está abordando',
   programado: 'Programado',
   sin_asignar: 'Sin asignar',
-  suspendido: 'Suspendido',
+  suspendido: 'En espera del cliente',
   cancelado: 'Cancelado',
 }
 
@@ -237,7 +254,7 @@ export const DESCRIPCION_SEGUIMIENTO: Record<Seguimiento, string> = {
   abordando: 'Ya se empezó a trabajar en él.',
   programado: 'Tiene equipo asignado y tareas programadas, aún sin empezar.',
   sin_asignar: 'Todavía no tiene equipo de producción.',
-  suspendido: 'Está detenido.',
+  suspendido: 'Se detuvo porque falta información del cliente: sus tareas salen de la cola hasta reanudarlo.',
   cancelado: 'Se canceló.',
 }
 
@@ -365,7 +382,7 @@ export interface TrabajoListadoItem {
 
 export interface TrabajoEventoItem {
   id: string
-  tipo: 'creado' | 'editado' | 'equipo' | 'contrato' | 'pago' | 'estado' | 'entregable' | 'adicional'
+  tipo: 'creado' | 'editado' | 'equipo' | 'contrato' | 'pago' | 'estado' | 'entregable' | 'adicional' | 'pausa'
   detalle: string
   usuario: UsuarioResumen | null
   fecha: string
@@ -388,6 +405,8 @@ export interface TrabajoDetalle {
   fechaLimite: string
   estado: EstadoTrabajo
   seguimiento: SeguimientoTrabajo
+  /** Si está en espera del cliente. */
+  pausa: PausaItem | null
   integrantes: (PersonaResumen & { esTitular: boolean })[]
   equipo: MiembroEquipo[]
   historialEquipo: MiembroEquipo[]

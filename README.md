@@ -116,6 +116,7 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | GET/POST | `/api/cotizaciones`, `/api/cotizaciones/:id/anular` | Listado (búsqueda y estado: vigente, vencida, anulada) y anulación con motivo |
 | GET | `/api/documentos/cotizacion/:id`, `…/contrato/:trabajoId`, `…/recibo/:pagoId` | Datos para imprimir, con el texto de la plantilla ya rellenado y el monto en letras |
 | GET/PUT | `/api/documentos/configuracion` | Membrete de la empresa y plantillas de texto (con variables `{cliente}`, `{monto}`…) |
+| POST | `/api/trabajos/:id/pausar`, `…/reanudar` | Trabajo en espera del cliente (exige `trabajos.pausar`: el asistente de producción y el administrador): pide qué información falta, suspende el trabajo y saca sus tareas en cola de la planificación; reanudar las devuelve. Cada `pausas.dias_recordatorio` días (3 por defecto) se recuerda que sigue detenido |
 | POST | `/api/contratos/:id/adicionales` | Proponer un adicional (descripción, monto y cuotas que lo suman) |
 | POST | `/api/adicionales/:id/aceptar`, `…/rechazar`, `…/anular` | El cliente acepta (sus cuotas entran a la cuenta y se avisa a producción y al jefe), rechaza (con motivo); anular quita sus cuotas si aún no tienen pagos (`contratos.anular`) |
 | GET/POST | `/api/comentarios?entidad&entidadId`, `/api/comentarios` | Hilo de comentarios de un prospecto, trabajo, entregable o tarea; las menciones van como `@[Nombre](id)` y avisan a la persona |

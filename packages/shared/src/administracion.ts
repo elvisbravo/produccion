@@ -73,6 +73,15 @@ export const PARAMETROS = {
     min: 1,
     max: 30,
   },
+  'pausas.dias_recordatorio': {
+    grupo: 'Avisos',
+    nombre: 'Recordar un trabajo en espera',
+    descripcion: 'Cada cuántos días se recuerda que un trabajo sigue detenido porque falta información del cliente',
+    unidad: 'días',
+    porDefecto: 3,
+    min: 1,
+    max: 30,
+  },
   'horas_extra.recargo': {
     grupo: 'Horas extra',
     nombre: 'Recargo en el costo',

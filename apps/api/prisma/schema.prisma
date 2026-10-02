@@ -67,6 +67,8 @@ model Usuario {
   adicionalesPropuestos  Adicional[]                  @relation("AdicionalPropuestoPor")
   adicionalesRespondidos Adicional[]                  @relation("AdicionalRespondidoPor")
   urgenciasAsignadas     SolicitudUrgenteAsignacion[] @relation("UrgenteAsignacionDe")
+  pausasCreadas          PausaTrabajo[]               @relation("PausaCreadaPor")
+  pausasReanudadas       PausaTrabajo[]               @relation("PausaReanudadaPor")
   horarios               HorarioUsuario[]             @relation("HorarioDelUsuario")
   revisiones             Revision[]                   @relation("RevisionRevisor")
   urgentesPedidas        SolicitudUrgente[]           @relation("UrgenteSolicitadaPor")
@@ -709,6 +711,8 @@ enum EstadoTarea {
   completada
   cancelada
   no_asistio
+  /// El trabajo está en espera del cliente: sus tareas salen de la cola hasta reanudarlo.
+  en_pausa
 
   @@map("estado_tarea")
 }
@@ -856,6 +860,7 @@ model Trabajo {
   equipo      TrabajoEquipo[]
   eventos     TrabajoEvento[]
   contrato    Contrato?
+  pausas      PausaTrabajo[]
   entregables Entregable[]
   tareas      Tarea[]
   urgencias   SolicitudUrgente[]
@@ -918,6 +923,7 @@ enum TipoEventoTrabajo {
   estado
   entregable
   adicional
+  pausa
 
   @@map("tipo_evento_trabajo")
 }
@@ -1650,4 +1656,34 @@ model SolicitudUrgenteAsignacion {
 
   @@index([solicitudId])
   @@map("solicitud_urgente_asignacion")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Trabajo en espera del cliente
+// ─────────────────────────────────────────────────────────────
+
+/// Un trabajo detenido porque falta información del cliente. Mientras dura (reanudada_en vacío) el trabajo está
+/// suspendido y sus tareas en cola pasan a en_pausa; al reanudar vuelven a su lugar.
+model PausaTrabajo {
+  id                   String        @id @default(uuid(7)) @db.Uuid
+  trabajoId            String        @map("trabajo_id") @db.Uuid
+  /// Qué información falta.
+  motivo               String
+  estadoAnterior       EstadoTrabajo @map("estado_anterior")
+  /// Las tareas que se pausaron: [{ tareaId, estado }].
+  tareasPausadas       Json          @map("tareas_pausadas")
+  creadaPorId          String        @map("creada_por_id") @db.Uuid
+  creadaEn             DateTime      @default(now()) @map("creada_en") @db.Timestamptz(6)
+  reanudadaPorId       String?       @map("reanudada_por_id") @db.Uuid
+  reanudadaEn          DateTime?     @map("reanudada_en") @db.Timestamptz(6)
+  notaReanudacion      String?       @map("nota_reanudacion")
+  /// Última vez que se recordó que sigue detenido.
+  ultimoRecordatorioEn DateTime?     @map("ultimo_recordatorio_en") @db.Timestamptz(6)
+
+  trabajo      Trabajo  @relation(fields: [trabajoId], references: [id], onDelete: Cascade)
+  creadaPor    Usuario  @relation("PausaCreadaPor", fields: [creadaPorId], references: [id])
+  reanudadaPor Usuario? @relation("PausaReanudadaPor", fields: [reanudadaPorId], references: [id])
+
+  @@index([trabajoId])
+  @@map("pausa_trabajo")
 }

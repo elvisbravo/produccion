@@ -27,6 +27,7 @@ import { trabajoQuery } from '@/features/trabajos/api'
 import { DialogoAnularPago, DialogoEquipo, DialogoPago } from '@/features/trabajos/components/dialogos-trabajo'
 import { SeccionAdicionales } from '@/features/trabajos/components/adicionales'
 import { EtiquetasSeguimiento, InsigniaEstadoCuota } from '@/features/trabajos/components/insignias'
+import { AvisoEnEspera, BotonPausar } from '@/features/trabajos/components/pausa'
 import { ApiError } from '@/lib/api'
 import { diasHasta, formatearFecha, formatearFechaHora, haceCuanto, nombreCompleto } from '@/lib/formato'
 import { exigirPermiso } from '@/lib/guardas'
@@ -77,7 +78,8 @@ function DetalleTrabajo() {
             </p>
           </div>
           <div className="flex flex-col items-end gap-1 text-right">
-            <span className="text-sm text-muted-foreground">Entrega final</span>
+            <BotonPausar t={t} />
+            <span className="mt-1 text-sm text-muted-foreground">Entrega final</span>
             <span className="font-semibold">{formatearFecha(t.fechaLimite)}</span>
             <span className={cn('text-xs', dias < 0 ? 'text-red-700 dark:text-red-400' : dias <= 7 ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground')}>
               {dias < 0 ? `Venció hace ${-dias} días` : dias === 0 ? 'Vence hoy' : `Faltan ${dias} días`}
@@ -88,6 +90,7 @@ function DetalleTrabajo() {
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="flex flex-col gap-6">
+          <AvisoEnEspera t={t} />
           <UrgenciaDelTrabajo trabajoId={t.id} cerrado={['finalizado', 'cancelado'].includes(t.estado)} />
           <SeccionEntregables t={t} />
           {t.contrato && <Contrato contrato={t.contrato} trabajoId={t.id} />}

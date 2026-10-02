@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { Disponibilidad } from './agenda.js'
 import type { PersonaResumen, Temperatura, UsuarioResumen } from './prospectos.js'
 
-export const ESTADOS_TAREA = ['por_asignar', 'pendiente', 'en_proceso', 'completada', 'cancelada', 'no_asistio'] as const
+export const ESTADOS_TAREA = ['por_asignar', 'pendiente', 'en_proceso', 'completada', 'cancelada', 'no_asistio', 'en_pausa'] as const
 export type EstadoTarea = (typeof ESTADOS_TAREA)[number]
 export const ESTADOS_ACTIVOS: readonly EstadoTarea[] = ['por_asignar', 'pendiente', 'en_proceso']
 export const NOMBRE_ESTADO_TAREA: Record<EstadoTarea, string> = {
@@ -12,6 +12,7 @@ export const NOMBRE_ESTADO_TAREA: Record<EstadoTarea, string> = {
   completada: 'Completada',
   cancelada: 'Cancelada',
   no_asistio: 'No asistió',
+  en_pausa: 'En pausa',
 }
 
 export const MODALIDADES = ['presencial', 'virtual'] as const

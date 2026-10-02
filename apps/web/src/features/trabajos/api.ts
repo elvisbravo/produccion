@@ -120,3 +120,37 @@ export function useResponderAdicional() {
     onSuccess: guardar,
   })
 }
+
+// ─── Trabajo en espera del cliente ──────────────────────────
+
+/** Pausar o reanudar cambia la cola de producción, la agenda y las tareas de quienes lo siguen. */
+function useRefrescarCola() {
+  const queryClient = useQueryClient()
+  return () => {
+    for (const queryKey of [['produccion'], ['agenda'], ['tareas'], ['urgentes']]) void queryClient.invalidateQueries({ queryKey })
+  }
+}
+
+export function usePausarTrabajo(trabajoId: string) {
+  const guardar = useGuardarDetalle()
+  const refrescar = useRefrescarCola()
+  return useMutation({
+    mutationFn: (motivo: string) => api<TrabajoDetalle>(`/trabajos/${trabajoId}/pausar`, { method: 'POST', body: { motivo } }),
+    onSuccess: (trabajo) => {
+      guardar(trabajo)
+      refrescar()
+    },
+  })
+}
+
+export function useReanudarTrabajo(trabajoId: string) {
+  const guardar = useGuardarDetalle()
+  const refrescar = useRefrescarCola()
+  return useMutation({
+    mutationFn: (nota?: string) => api<TrabajoDetalle>(`/trabajos/${trabajoId}/reanudar`, { method: 'POST', body: { nota } }),
+    onSuccess: (trabajo) => {
+      guardar(trabajo)
+      refrescar()
+    },
+  })
+}

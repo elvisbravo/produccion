@@ -66,7 +66,7 @@ export function EtiquetasSeguimiento({ seguimiento }: { seguimiento: Seguimiento
 
 /** Qué significa cada color (los que aplican hoy). */
 export function LeyendaSeguimiento() {
-  const mostrar = SEGUIMIENTOS.filter((x) => x !== 'suspendido' && x !== 'cancelado')
+  const mostrar = SEGUIMIENTOS.filter((x) => x !== 'cancelado')
   return (
     <ul className="flex flex-col gap-2.5 text-sm">
       {mostrar.map((x) => (

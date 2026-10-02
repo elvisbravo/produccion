@@ -32,6 +32,7 @@ const ESTILO_ESTADO: Record<EstadoTarea, string> = {
   completada: 'border-green-300 bg-green-50 text-green-900 dark:border-green-800 dark:bg-green-950 dark:text-green-200',
   cancelada: 'text-muted-foreground line-through',
   no_asistio: 'border-zinc-300 text-muted-foreground',
+  en_pausa: 'border-orange-300 bg-orange-50 text-orange-900 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-200',
 }
 
 export function InsigniaEstadoTarea({ tarea }: { tarea: Pick<TareaItem, 'estado' | 'vencida'> }) {

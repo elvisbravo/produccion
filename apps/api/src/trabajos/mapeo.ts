@@ -1,4 +1,4 @@
-import { seguimientoDe } from '@grupoes/shared';
+import { diaEnLima, seguimientoDe } from '@grupoes/shared';
 import type { AdicionalItem, ContratoDetalle, MiembroEquipo, PagoDetalle, TrabajoDetalle, TrabajoListadoItem } from '@grupoes/shared';
 import type { Prisma } from '../generated/prisma/client.js';
 import { CAMPOS_PERSONA } from '../personas/personas.service.js';
@@ -34,6 +34,7 @@ export const INCLUIR_DETALLE = {
   equipo: { orderBy: { desde: 'desc' }, include: { usuario: { select: CAMPOS_USUARIO }, asignadoPor: { select: CAMPOS_USUARIO } } },
   // Los ids (uuid v7) desempatan eventos del mismo instante en el orden en que se crearon.
   eventos: { orderBy: [{ fecha: 'desc' }, { id: 'desc' }], take: 100, include: { usuario: { select: CAMPOS_USUARIO } } },
+  pausas: { where: { reanudadaEn: null }, take: 1, include: { creadaPor: { select: CAMPOS_USUARIO } } },
   contrato: {
     include: {
       cuotas: INCLUIR_CUOTAS,
@@ -188,6 +189,16 @@ export function aDetalle(
       urgente: t.prioridad.permiteInsercionUrgente,
       pendientePago: permisos.verMontos && t.contrato?.estado === 'vigente' && resumenCuenta(t.contrato.cuotas.map(aCalculo), hoy).vencido > 0,
     }),
+    pausa: t.pausas[0]
+      ? {
+          id: t.pausas[0].id,
+          motivo: t.pausas[0].motivo,
+          desde: t.pausas[0].creadaEn.toISOString(),
+          dias: Math.max(0, Math.round((Date.parse(`${hoy}T12:00:00Z`) - Date.parse(`${diaEnLima(t.pausas[0].creadaEn)}T12:00:00Z`)) / 86_400_000)),
+          por: t.pausas[0].creadaPor,
+          tareasPausadas: Array.isArray(t.pausas[0].tareasPausadas) ? t.pausas[0].tareasPausadas.length : 0,
+        }
+      : null,
     integrantes: t.integrantes.map((i) => ({ ...i.persona, esTitular: i.esTitular })),
     equipo: t.equipo.filter((e) => !e.hasta).map(aMiembro),
     historialEquipo: t.equipo.filter((e) => e.hasta).map(aMiembro),

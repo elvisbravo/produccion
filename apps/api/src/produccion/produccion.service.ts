@@ -163,6 +163,7 @@ export class ProduccionService {
     });
     if (!trabajo) throw new NotFoundException('Trabajo no encontrado');
     if (['finalizado', 'cancelado'].includes(trabajo.estado)) throw new BadRequestException('El trabajo ya está cerrado');
+    if (trabajo.estado === 'suspendido') throw new BadRequestException('El trabajo está en espera del cliente: reanúdalo para programar tareas');
     return trabajo;
   }
 
@@ -349,6 +350,7 @@ export class ProduccionService {
     await this.prisma.$transaction(async (tx) => {
       const e = await this.entregable(tx, entregableId);
       if (['cerrado'].includes(e.estado) || ['finalizado', 'cancelado'].includes(e.trabajo.estado)) throw new BadRequestException('El entregable ya está cerrado');
+      if (e.trabajo.estado === 'suspendido') throw new BadRequestException('El trabajo está en espera del cliente: reanúdalo para programar tareas');
       if (datos.noAntesDe && datos.noAntesDe < diaEnLima()) throw errorCampo('noAntesDe', 'No puede ser un día pasado');
       await this.crearTareaTx(
         tx,
@@ -379,7 +381,8 @@ export class ProduccionService {
   /** Si cambia el equipo, las tareas pendientes de quien sale pasan a quien entra en su función. */
   async transferirTareas(tx: Tx, trabajoId: string, deUsuarioId: string, aUsuarioId: string, actor: ActorProduccion): Promise<number> {
     const filas = await tx.tareaResponsable.findMany({
-      where: { usuarioId: deUsuarioId, tarea: { trabajoId, estado: { in: ['pendiente', 'en_proceso'] } } },
+      // También las que están en pausa: al reanudar el trabajo vuelven a quien las tiene.
+      where: { usuarioId: deUsuarioId, tarea: { trabajoId, estado: { in: ['pendiente', 'en_proceso', 'en_pausa'] } } },
       orderBy: { ordenCola: 'asc' },
     });
     for (const f of filas) {
