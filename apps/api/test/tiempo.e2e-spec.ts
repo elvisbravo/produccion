@@ -9,6 +9,7 @@ import { AppModule } from '../src/app.module.js';
 import { configurarApp } from '../src/app.setup.js';
 import { hashPassword } from '../src/auth/password.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { datosAcademicos } from './datos-academicos.js';
 import { RecordatoriosService } from '../src/recordatorios/recordatorios.service.js';
 
 const sufijo = Date.now().toString().slice(-6);
@@ -72,7 +73,7 @@ describe('Cronómetro y tiempo real (e2e)', () => {
         .set(como('ana'))
         .send({
           integrantes: [{ personaId: p.contactos[0].id, nombres: 'Cliente', apellidos: 'Tiempo', email: `t.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `5${sufijo}1`, esTitular: true }],
-          trabajo: { fechaInicio: hoy, fechaLimite: sumarDias(hoy, 60) },
+          trabajo: { ...(await datosAcademicos(prisma)), fechaInicio: hoy, fechaLimite: sumarDias(hoy, 60) },
           contrato: { fechaFirma: hoy, montoTotal: 900, formaPago: 'contado', cuotas: [{ monto: 900, vencimiento: hoy }] },
         })
         .expect(201)

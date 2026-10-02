@@ -69,7 +69,7 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | GET | `/api/tareas/mias`, `/api/tareas/por-asignar` | Mis tareas y bandeja del coordinador |
 | GET/POST | `/api/tareas/:id/candidatos`, `/api/tareas/:id/asignar` | Candidatos por prioridad y disponibilidad; asignación (con motivo si hay choque) |
 | POST | `/api/tareas/:id/completar`, `…/reprogramar`, `…/cancelar` | Cierre con resultado y siguiente paso; reprogramación; cancelación |
-| POST | `/api/prospectos/:id/convertir` | Convierte en cliente: trabajo, integrantes, contrato con cuotas y pago inicial opcional |
+| POST | `/api/prospectos/:id/convertir` | Convierte en cliente: trabajo, integrantes, contrato con cuotas y pago inicial opcional. Exige de cada integrante documento, nombres y apellidos; de todos, al menos un correo; y del trabajo nivel académico, universidad, carrera, fecha límite y enlace de Drive (se copian del prospecto y también lo actualizan) |
 | GET | `/api/trabajos`, `/api/trabajos/:id` | Listado y detalle (según el alcance: propios, equipo o todos; montos solo con permiso) |
 | GET/PUT | `/api/trabajos/candidatos-equipo`, `/api/trabajos/:id/equipo` | Candidatos y armado/cambio del equipo (queda el historial) |
 | POST | `/api/contratos/:id/pagos`, `/api/pagos/:id/anular` | Registrar un pago (se reparte a las cuotas más antiguas, emite recibo R-) y anularlo con motivo |

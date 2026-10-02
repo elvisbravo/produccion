@@ -9,6 +9,7 @@ import { AppModule } from '../src/app.module.js';
 import { configurarApp } from '../src/app.setup.js';
 import { hashPassword } from '../src/auth/password.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { datosAcademicos } from './datos-academicos.js';
 import { proximoDiaHabil } from './dias.js';
 
 const sufijo = Date.now().toString().slice(-6);
@@ -27,6 +28,7 @@ describe('Trabajos, contratos y pagos (e2e)', () => {
   const ids = {} as Record<Quien, string>;
   let prospecto: ProspectoDetalle;
   let trabajo: TrabajoDetalle;
+  let academicos: Awaited<ReturnType<typeof datosAcademicos>>;
 
   const http = () => request(app.getHttpServer());
   const como = (q: Quien) => ({ Authorization: `Bearer ${tokens[q]}` });
@@ -37,10 +39,11 @@ describe('Trabajos, contratos y pagos (e2e)', () => {
       nombres: i === 0 ? 'Lucía' : 'Diego',
       apellidos: i === 0 ? 'Mendoza' : 'Salazar',
       email: i === 0 ? `lucia.${sufijo}@correo.com` : `diego.${sufijo}@correo.com`,
-      ...(i === 0 && { tipoDocumento: 'DNI', numeroDocumento: `4${sufijo}1` }),
+      tipoDocumento: 'DNI',
+      numeroDocumento: `${i === 0 ? 4 : 5}${sufijo}1`,
       esTitular: i === 0,
     })),
-    trabajo: { fechaInicio: hoy, fechaLimite: sumarDias(hoy, 120) },
+    trabajo: { ...academicos, fechaInicio: hoy, fechaLimite: sumarDias(hoy, 120) },
     contrato: {
       fechaFirma: hoy,
       montoTotal: 3000,
@@ -59,6 +62,7 @@ describe('Trabajos, contratos y pagos (e2e)', () => {
     configurarApp(app);
     await app.init();
     prisma = app.get(PrismaService);
+    academicos = await datosAcademicos(prisma);
 
     for (const q of Object.keys(ROL) as Quien[]) {
       const email = `e2e.w.${q}.${sufijo}@grupoes.local`;
@@ -115,6 +119,24 @@ describe('Trabajos, contratos y pagos (e2e)', () => {
       .expect(400);
     const campos = sinDatos.body.errores.map((e: { campo: string }) => e.campo);
     expect(campos).toEqual(expect.arrayContaining(['integrantes.0.nombres', 'integrantes.0.email']));
+
+    // Documento, nombre y apellidos por integrante; al menos un correo; y los datos académicos del trabajo.
+    const convertir = () => http().post(`/api/prospectos/${prospecto.id}/convertir`).set(como('ana'));
+    const campos400 = (res: { body: { errores: { campo: string }[] } }) => res.body.errores.map((e) => e.campo);
+    const titular = { personaId: prospecto.contactos[0].id, nombres: 'Lucía', apellidos: 'Mendoza', esTitular: true };
+
+    const sinDocumento = await convertir().send(conversion({ integrantes: [{ ...titular, email: 'a@correo.com' }] })).expect(400);
+    expect(campos400(sinDocumento)).toEqual(expect.arrayContaining(['integrantes.0.tipoDocumento', 'integrantes.0.numeroDocumento']));
+
+    const sinCorreo = await convertir()
+      .send(conversion({ integrantes: [{ ...titular, tipoDocumento: 'DNI', numeroDocumento: `4${sufijo}1` }] }))
+      .expect(400);
+    expect(sinCorreo.body.errores[0].mensaje).toContain('un correo');
+
+    const sinAcademicos = await convertir().send(conversion({ trabajo: { fechaInicio: hoy, fechaLimite: sumarDias(hoy, 120) } })).expect(400);
+    expect(campos400(sinAcademicos)).toEqual(expect.arrayContaining(['trabajo.nivelAcademicoId', 'trabajo.universidadId', 'trabajo.carreraId', 'trabajo.linkDrive']));
+    await convertir().send(conversion({ trabajo: { ...academicos, linkDrive: 'drive', fechaInicio: hoy, fechaLimite: sumarDias(hoy, 120) } })).expect(400);
+
 
     const cuotasMal = await http()
       .post(`/api/prospectos/${prospecto.id}/convertir`)

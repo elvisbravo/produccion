@@ -9,6 +9,7 @@ import { AppModule } from '../src/app.module.js';
 import { configurarApp } from '../src/app.setup.js';
 import { hashPassword } from '../src/auth/password.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { datosAcademicos } from './datos-academicos.js';
 
 const sufijo = Date.now().toString().slice(-6);
 const celular = (n: number) => `9${sufijo}${String(n).padStart(2, '0')}`;
@@ -70,7 +71,7 @@ describe('Valoración del trabajo (e2e)', () => {
         .set(como('ana'))
         .send({
           integrantes: [{ personaId: p.contactos[0].id, nombres: 'Cliente', apellidos: 'Valorado', email: `val.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `1${sufijo}1`, esTitular: true }],
-          trabajo: { fechaInicio: hoy, fechaLimite: sumarDias(hoy, 20) },
+          trabajo: { ...(await datosAcademicos(prisma)), fechaInicio: hoy, fechaLimite: sumarDias(hoy, 20) },
           contrato: { fechaFirma: hoy, montoTotal: 1000, formaPago: 'contado', cuotas: [{ monto: 1000, vencimiento: hoy }] },
         })
         .expect(201)

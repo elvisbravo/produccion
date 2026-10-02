@@ -9,6 +9,7 @@ import { AppModule } from '../src/app.module.js';
 import { configurarApp } from '../src/app.setup.js';
 import { hashPassword } from '../src/auth/password.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { datosAcademicos } from './datos-academicos.js';
 
 const sufijo = Date.now().toString().slice(-6);
 const celular = (n: number) => `9${sufijo}${String(n).padStart(2, '0')}`;
@@ -68,7 +69,7 @@ describe('Producción: entregables, cola y revisión (e2e)', () => {
         .set(como('ana'))
         .send({
           integrantes: [{ personaId: prospecto.contactos[0].id, nombres: 'Rocío', apellidos: 'Paredes', email: `rocio.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `7${sufijo}1`, esTitular: true }],
-          trabajo: { fechaInicio: hoy, fechaLimite: sumarDias(hoy, 120) },
+          trabajo: { ...(await datosAcademicos(prisma)), fechaInicio: hoy, fechaLimite: sumarDias(hoy, 120) },
           contrato: { fechaFirma: hoy, montoTotal: 2000, formaPago: 'contado', cuotas: [{ monto: 2000, vencimiento: hoy }] },
         })
         .expect(201)

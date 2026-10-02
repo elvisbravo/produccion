@@ -70,6 +70,7 @@ function Convertir() {
       </div>
       <FormularioConversion
         prospecto={p}
+        niveles={catalogos.nivelesAcademicos}
         maxIntegrantes={tipo?.maxIntegrantes ?? p.contactos.length}
         onConvertido={(t) => void navigate({ to: '/trabajos/$id', params: { id: t.id } })}
         onCancelar={() => void navigate({ to: '/prospectos/$id', params: { id } })}

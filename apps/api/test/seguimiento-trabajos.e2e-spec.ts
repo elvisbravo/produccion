@@ -9,6 +9,7 @@ import { AppModule } from '../src/app.module.js';
 import { configurarApp } from '../src/app.setup.js';
 import { hashPassword } from '../src/auth/password.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { datosAcademicos } from './datos-academicos.js';
 
 const sufijo = Date.now().toString().slice(-6);
 const celular = (n: number) => `9${sufijo}${String(n).padStart(2, '0')}`;
@@ -66,7 +67,7 @@ describe('Seguimiento de los trabajos (e2e)', () => {
         .set(como('ana'))
         .send({
           integrantes: [{ personaId: p.contactos[0].id, nombres: 'Cliente', apellidos: 'Seguimiento', email: `sg.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `2${sufijo}1`, esTitular: true }],
-          trabajo: { fechaInicio: sumarDias(hoy, -45), fechaLimite: sumarDias(hoy, 60) },
+          trabajo: { ...(await datosAcademicos(prisma)), fechaInicio: sumarDias(hoy, -45), fechaLimite: sumarDias(hoy, 60) },
           contrato: {
             fechaFirma: sumarDias(hoy, -45),
             montoTotal: 1000,

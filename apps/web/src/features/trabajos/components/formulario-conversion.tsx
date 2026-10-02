@@ -33,7 +33,9 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { SelectorRemoto } from '@/components/selector-remoto'
 import { BotonBuscarDni } from '@/features/consultas/components/boton-buscar-dni'
+import { buscarCatalogo, crearEnCatalogo } from '@/features/prospectos/api'
 import { nombreCompleto, sumarMeses } from '@/lib/formato'
 import { aplicarErroresApi } from '@/lib/formularios'
 import { usePermiso } from '@/lib/permisos'
@@ -47,7 +49,7 @@ const integranteDesde = (c: Contacto, esTitular: boolean) => ({
   nombres: c.nombres ?? '',
   apellidos: c.apellidos ?? '',
   email: c.email ?? '',
-  tipoDocumento: c.tipoDocumento ?? '',
+  tipoDocumento: c.tipoDocumento ?? 'DNI',
   numeroDocumento: c.numeroDocumento ?? '',
   esTitular,
 })
@@ -60,12 +62,14 @@ const numero = (v: unknown) => {
 
 interface Props {
   prospecto: ProspectoDetalle
+  /** Niveles académicos del catálogo. */
+  niveles: { id: string; nombre: string }[]
   maxIntegrantes: number
   onConvertido: (trabajo: TrabajoDetalle) => void
   onCancelar: () => void
 }
 
-export function FormularioConversion({ prospecto, maxIntegrantes, onConvertido, onCancelar }: Props) {
+export function FormularioConversion({ prospecto, niveles, maxIntegrantes, onConvertido, onCancelar }: Props) {
   const convertir = useConvertir(prospecto.id)
   const puedePagar = usePermiso('contratos.registrar_pago')
   const [error, setError] = useState<string | null>(null)
@@ -76,7 +80,15 @@ export function FormularioConversion({ prospecto, maxIntegrantes, onConvertido, 
     resolver: zodResolver(convertirProspectoSchema),
     defaultValues: {
       integrantes: ordenados.slice(0, maxIntegrantes).map((c, i) => integranteDesde(c, i === 0)),
-      trabajo: { titulo: prospecto.titulo ?? '', fechaInicio: hoy, fechaLimite: prospecto.fechaEntregaTentativa ?? '' },
+      trabajo: {
+        titulo: prospecto.titulo ?? '',
+        fechaInicio: hoy,
+        fechaLimite: prospecto.fechaEntregaTentativa ?? '',
+        nivelAcademicoId: prospecto.nivelAcademico?.id ?? '',
+        universidadId: prospecto.universidad?.id ?? '',
+        carreraId: prospecto.carrera?.id ?? '',
+        linkDrive: prospecto.linkDrive ?? '',
+      },
       contrato: { fechaFirma: hoy, montoTotal: '' as unknown as number, formaPago: 'cuotas', cuotas: [], observaciones: '' },
     },
   })
@@ -84,6 +96,7 @@ export function FormularioConversion({ prospecto, maxIntegrantes, onConvertido, 
   const integrantes = useFieldArray({ control, name: 'integrantes' })
   const cuotas = useFieldArray({ control, name: 'contrato.cuotas' })
   const [conPago, setConPago] = useState(false)
+  const [etiquetas, setEtiquetas] = useState({ universidad: prospecto.universidad?.nombre, carrera: prospecto.carrera?.nombre })
   const e = formState.errors
 
   const formaPago = useWatch({ control, name: 'contrato.formaPago' })
@@ -148,7 +161,7 @@ export function FormularioConversion({ prospecto, maxIntegrantes, onConvertido, 
             <CardHeader>
               <CardTitle>Integrantes</CardTitle>
               <CardDescription>
-                Cada integrante necesita nombres, apellidos y correo; al menos uno, su documento. Máximo {maxIntegrantes}.
+                Cada integrante necesita documento, nombres y apellidos; y al menos uno de ellos, un correo. Máximo {maxIntegrantes}.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
@@ -180,7 +193,7 @@ export function FormularioConversion({ prospecto, maxIntegrantes, onConvertido, 
           <Card>
             <CardHeader>
               <CardTitle>Trabajo</CardTitle>
-              <CardDescription>Se copian los datos del prospecto (tipo, universidad, carrera, Drive, detalles).</CardDescription>
+              <CardDescription>Se completan con los datos del prospecto; todos son obligatorios para convertirlo y quedan guardados también en el prospecto.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <Field className="sm:col-span-2" data-invalid={Boolean(e.trabajo?.titulo)}>
@@ -205,6 +218,95 @@ export function FormularioConversion({ prospecto, maxIntegrantes, onConvertido, 
                 </FieldLabel>
                 <Input id="t-limite" type="date" aria-invalid={Boolean(e.trabajo?.fechaLimite)} {...form.register('trabajo.fechaLimite')} />
                 <FieldError errors={[e.trabajo?.fechaLimite]} />
+              </Field>
+              <Field data-invalid={Boolean(e.trabajo?.nivelAcademicoId)}>
+                <FieldLabel htmlFor="t-nivel">
+                  <span>
+                    Nivel académico <Requerido />
+                  </span>
+                </FieldLabel>
+                <Controller
+                  control={control}
+                  name="trabajo.nivelAcademicoId"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger id="t-nivel" className="w-full" aria-invalid={Boolean(e.trabajo?.nivelAcademicoId)}>
+                        <SelectValue placeholder="Seleccionar…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {niveles.map((n) => (
+                          <SelectItem key={n.id} value={n.id}>
+                            {n.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <FieldError errors={[e.trabajo?.nivelAcademicoId]} />
+              </Field>
+              <Field data-invalid={Boolean(e.trabajo?.universidadId)}>
+                <FieldLabel htmlFor="t-universidad">
+                  <span>
+                    Universidad <Requerido />
+                  </span>
+                </FieldLabel>
+                <Controller
+                  control={control}
+                  name="trabajo.universidadId"
+                  render={({ field }) => (
+                    <SelectorRemoto
+                      id="t-universidad"
+                      clave="universidades"
+                      valor={field.value}
+                      etiqueta={etiquetas.universidad}
+                      onCambio={(o) => {
+                        field.onChange(o?.id ?? '')
+                        setEtiquetas((x) => ({ ...x, universidad: o?.nombre }))
+                      }}
+                      buscar={(q, signal) => buscarCatalogo('universidades', q, signal)}
+                      crear={(nombre) => crearEnCatalogo('universidades', nombre)}
+                      placeholder="Buscar universidad…"
+                    />
+                  )}
+                />
+                <FieldError errors={[e.trabajo?.universidadId]} />
+              </Field>
+              <Field data-invalid={Boolean(e.trabajo?.carreraId)}>
+                <FieldLabel htmlFor="t-carrera">
+                  <span>
+                    Carrera <Requerido />
+                  </span>
+                </FieldLabel>
+                <Controller
+                  control={control}
+                  name="trabajo.carreraId"
+                  render={({ field }) => (
+                    <SelectorRemoto
+                      id="t-carrera"
+                      clave="carreras"
+                      valor={field.value}
+                      etiqueta={etiquetas.carrera}
+                      onCambio={(o) => {
+                        field.onChange(o?.id ?? '')
+                        setEtiquetas((x) => ({ ...x, carrera: o?.nombre }))
+                      }}
+                      buscar={(q, signal) => buscarCatalogo('carreras', q, signal)}
+                      crear={(nombre) => crearEnCatalogo('carreras', nombre)}
+                      placeholder="Buscar carrera…"
+                    />
+                  )}
+                />
+                <FieldError errors={[e.trabajo?.carreraId]} />
+              </Field>
+              <Field data-invalid={Boolean(e.trabajo?.linkDrive)}>
+                <FieldLabel htmlFor="t-drive">
+                  <span>
+                    Enlace de Drive <Requerido />
+                  </span>
+                </FieldLabel>
+                <Input id="t-drive" type="url" placeholder="https://drive.google.com/…" aria-invalid={Boolean(e.trabajo?.linkDrive)} {...form.register('trabajo.linkDrive')} />
+                <FieldError errors={[e.trabajo?.linkDrive]} />
               </Field>
             </CardContent>
           </Card>
@@ -409,26 +511,25 @@ function FilaIntegrante({ indice, celular }: { indice: number; celular: string }
           <FieldError errors={[errores?.apellidos]} />
         </Field>
         <Field data-invalid={Boolean(errores?.email)}>
-          <FieldLabel htmlFor={id('email')}>
-            <span>
-              Correo <Requerido />
-            </span>
-          </FieldLabel>
+          <FieldLabel htmlFor={id('email')}>Correo</FieldLabel>
           <Input id={id('email')} type="email" aria-invalid={Boolean(errores?.email)} {...register(`integrantes.${indice}.email`)} />
           <FieldError errors={[errores?.email]} />
         </Field>
         <Field data-invalid={Boolean(errores?.tipoDocumento)}>
-          <FieldLabel htmlFor={id('tipo-doc')}>Tipo de documento</FieldLabel>
+          <FieldLabel htmlFor={id('tipo-doc')}>
+            <span>
+              Tipo de documento <Requerido />
+            </span>
+          </FieldLabel>
           <Controller
             control={control}
             name={`integrantes.${indice}.tipoDocumento`}
             render={({ field }) => (
-              <Select value={(field.value as string) || 'ninguno'} onValueChange={(v) => field.onChange(v === 'ninguno' ? '' : v)}>
+              <Select value={(field.value as string) || undefined} onValueChange={field.onChange}>
                 <SelectTrigger id={id('tipo-doc')} className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ninguno">Sin documento</SelectItem>
                   {TIPOS_DOCUMENTO.map((t) => (
                     <SelectItem key={t} value={t}>
                       {NOMBRE_TIPO_DOCUMENTO[t]}
@@ -441,7 +542,11 @@ function FilaIntegrante({ indice, celular }: { indice: number; celular: string }
           <FieldError errors={[errores?.tipoDocumento]} />
         </Field>
         <Field data-invalid={Boolean(errores?.numeroDocumento)}>
-          <FieldLabel htmlFor={id('num-doc')}>N.º de documento</FieldLabel>
+          <FieldLabel htmlFor={id('num-doc')}>
+            <span>
+              N.º de documento <Requerido />
+            </span>
+          </FieldLabel>
           <Input id={id('num-doc')} className="font-mono uppercase" aria-invalid={Boolean(errores?.numeroDocumento)} {...register(`integrantes.${indice}.numeroDocumento`)} />
           <FieldError errors={[errores?.numeroDocumento]} />
         </Field>

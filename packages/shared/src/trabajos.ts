@@ -78,9 +78,10 @@ export const integranteConversionSchema = z
     personaId: z.uuid(),
     nombres: z.string().trim().min(1, 'Ingresa los nombres').max(100),
     apellidos: z.string().trim().min(1, 'Ingresa los apellidos').max(100),
-    email: z.string().trim().toLowerCase().min(1, 'Ingresa el correo').pipe(z.email('Correo no válido').max(150)),
-    tipoDocumento: opcional(z.enum(TIPOS_DOCUMENTO)),
-    numeroDocumento: opcional(z.string().trim().toUpperCase().max(20)),
+    /** Opcional por integrante: basta con que uno de ellos tenga correo (se valida en el conjunto). */
+    email: opcional(z.string().trim().toLowerCase().pipe(z.email('Correo no válido').max(150))),
+    tipoDocumento: z.enum(TIPOS_DOCUMENTO, { error: 'Elige el tipo de documento' }),
+    numeroDocumento: z.string({ error: 'Ingresa el número de documento' }).trim().toUpperCase().min(1, 'Ingresa el número de documento').max(20),
     esTitular: z.boolean().default(false),
   })
   .superRefine(validarDocumento)
@@ -92,6 +93,15 @@ export const convertirProspectoSchema = z
       titulo: texto(300),
       fechaInicio: z.string().min(1, 'Elige la fecha de inicio').pipe(dia),
       fechaLimite: z.string().min(1, 'Elige la fecha límite de entrega').pipe(dia),
+      /** Se copian del prospecto, pero deben estar completos para convertirlo. */
+      nivelAcademicoId: z.string({ error: 'Elige el nivel académico' }).min(1, 'Elige el nivel académico').pipe(z.uuid('Elige el nivel académico')),
+      universidadId: z.string({ error: 'Elige la universidad' }).min(1, 'Elige la universidad').pipe(z.uuid('Elige la universidad')),
+      carreraId: z.string({ error: 'Elige la carrera' }).min(1, 'Elige la carrera').pipe(z.uuid('Elige la carrera')),
+      linkDrive: z
+        .string({ error: 'Ingresa el enlace de Drive' })
+        .trim()
+        .min(1, 'Ingresa el enlace de Drive')
+        .pipe(z.url({ protocol: /^https?$/, error: 'Enlace no válido (debe empezar con https://)' }).max(500)),
     }),
     contrato: z.object({
       fechaFirma: z.string().min(1, 'Elige la fecha de firma').pipe(dia),
@@ -106,8 +116,8 @@ export const convertirProspectoSchema = z
   .superRefine((d, ctx) => {
     const titulares = d.integrantes.filter((i) => i.esTitular).length
     if (titulares !== 1) ctx.addIssue({ code: 'custom', path: ['integrantes'], message: 'Marca a un integrante como titular' })
-    if (!d.integrantes.some((i) => i.tipoDocumento && i.numeroDocumento)) {
-      ctx.addIssue({ code: 'custom', path: ['integrantes'], message: 'Al menos un integrante debe tener documento de identidad' })
+    if (!d.integrantes.some((i) => i.email)) {
+      ctx.addIssue({ code: 'custom', path: ['integrantes'], message: 'Al menos uno de los integrantes debe tener un correo' })
     }
     if (d.trabajo.fechaLimite < d.trabajo.fechaInicio) {
       ctx.addIssue({ code: 'custom', path: ['trabajo', 'fechaLimite'], message: 'Debe ser posterior a la fecha de inicio' })

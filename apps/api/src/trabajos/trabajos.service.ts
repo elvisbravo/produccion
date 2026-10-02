@@ -105,7 +105,19 @@ export class TrabajosService {
     const ganada = await this.prisma.etapaProspecto.findFirst({ where: { clase: 'ganada', activa: true } });
     if (!ganada) throw new BadRequestException('No hay una etapa "Convertido" configurada en el embudo');
 
+    const { nivelAcademicoId, universidadId, carreraId, linkDrive } = datos.trabajo;
+    const [nivel, universidad, carrera] = await Promise.all([
+      this.prisma.nivelAcademico.count({ where: { id: nivelAcademicoId } }),
+      this.prisma.universidad.count({ where: { id: universidadId } }),
+      this.prisma.carrera.count({ where: { id: carreraId } }),
+    ]);
+    if (!nivel) throw errorCampo('trabajo.nivelAcademicoId', 'Nivel académico no válido');
+    if (!universidad) throw errorCampo('trabajo.universidadId', 'Universidad no válida');
+    if (!carrera) throw errorCampo('trabajo.carreraId', 'Carrera no válida');
+
     const id = await this.prisma.$transaction(async (tx) => {
+      // Lo que se completó al convertir también queda en el prospecto.
+      await tx.prospecto.update({ where: { id: prospectoId }, data: { nivelAcademicoId, universidadId, carreraId, linkDrive, actualizadoPor: actor.usuarioId } });
       // Los datos completos de cada integrante actualizan su ficha de persona.
       for (const i of datos.integrantes) {
         await this.personas.resolver(
@@ -131,10 +143,10 @@ export class TrabajosService {
           tipoTrabajoId: prospecto.tipoTrabajoId,
           titulo: datos.trabajo.titulo ?? prospecto.titulo,
           prioridadId: prospecto.prioridadId,
-          universidadId: prospecto.universidadId,
-          carreraId: prospecto.carreraId,
-          nivelAcademicoId: prospecto.nivelAcademicoId,
-          linkDrive: prospecto.linkDrive,
+          universidadId: datos.trabajo.universidadId,
+          carreraId: datos.trabajo.carreraId,
+          nivelAcademicoId: datos.trabajo.nivelAcademicoId,
+          linkDrive: datos.trabajo.linkDrive,
           observaciones: prospecto.observaciones,
           detalles: prospecto.detalles,
           fechaInicio: dia(datos.trabajo.fechaInicio),
