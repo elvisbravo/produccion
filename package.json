@@ -21,6 +21,7 @@
     "lint": "pnpm --filter @grupoes/api lint && pnpm --filter @grupoes/web lint",
     "test": "pnpm --filter @grupoes/shared test && pnpm --filter @grupoes/api test",
     "test:e2e": "pnpm --filter @grupoes/api test:e2e",
-    "postinstall": "pnpm --filter @grupoes/shared build && pnpm --filter @grupoes/api db:generate"
+    "postinstall": "pnpm --filter @grupoes/shared build && pnpm --filter @grupoes/api db:generate",
+    "docs:html": "node scripts/modelo-datos-html.mjs"
   }
 }
