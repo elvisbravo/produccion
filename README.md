@@ -53,6 +53,10 @@ El usuario administrador inicial es el de `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSW
 | `pnpm test:e2e` | Pruebas e2e contra la base `produccion_test` (se crea, migra y carga sola; nunca toca la de desarrollo) |
 | `pnpm dev:shared` | Recompila `packages/shared` al guardar |
 
+## Despliegue
+
+Para publicarlo en un VPS con Ubuntu (Nginx, HTTPS, systemd, respaldos y actualizaciones) sigue [docs/despliegue.md](docs/despliegue.md); los archivos de configuración están en [`deploy/`](deploy).
+
 ## Endpoints disponibles
 
 | Método | Ruta | Descripción |

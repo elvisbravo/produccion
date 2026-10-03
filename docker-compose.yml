@@ -11,7 +11,8 @@ services:
       TZ: America/Lima
       PGTZ: America/Lima
     ports:
-      - "${POSTGRES_PORT:-5433}:5432"
+      # Solo escucha en el propio equipo: la base nunca debe quedar expuesta a internet.
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
