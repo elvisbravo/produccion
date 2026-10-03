@@ -1,45 +1,57 @@
-# Despliegue en un VPS con Ubuntu
+# Despliegue en un VPS con Ubuntu (con Docker)
 
-Guía para publicar el sistema en un servidor Ubuntu 22.04 o 24.04. La web y la API quedan detrás de Nginx, con HTTPS, y la base de datos (PostgreSQL) corre en Docker solo para el propio servidor.
+Guía para publicar el sistema en un servidor Ubuntu **sin instalar Node ni PostgreSQL en el servidor**: la base de datos, la API y la web corren en contenedores de Docker. Sirve incluso en Ubuntu 18.04, cuyo sistema es demasiado antiguo para Node 22.
 
-Los archivos listos para copiar están en la carpeta [`deploy/`](../deploy):
+```
+Internet ──► Caddy (HTTPS automático, puertos 80/443)
+                └─► web (Nginx: archivos de la web y reenvía /api) ──► api (Node 22) ──► db (PostgreSQL 16)
+```
+
+Los archivos están en la raíz y en [`deploy/`](../deploy):
 
 | Archivo | Para qué sirve |
 |---|---|
-| `grupoes-api.service` | Servicio de systemd que mantiene la API encendida y la reinicia si falla |
-| `nginx-grupoes.conf` | Sitio de Nginx: sirve la web, reenvía `/api` (con WebSocket) a la API |
-| `actualizar.sh` | Actualiza el sistema (respaldo, código, construcción, migraciones, reinicio) |
-| `respaldo.sh` | Respaldo de la base de datos |
+| `docker-compose.prod.yml` | Define los contenedores: `db`, `api`, `web` y `caddy` |
+| `deploy/Dockerfile` | Construye la API y la web con Node 22 (dentro de Docker) |
+| `deploy/nginx-web.conf` | Nginx de la web: archivos estáticos y reenvío de `/api` (con WebSocket) |
+| `deploy/Caddyfile` | HTTPS automático para tu dominio |
+| `deploy/env.produccion.example` | Plantilla del archivo `.env` con tus datos |
+| `deploy/actualizar.sh` | Actualiza el sistema (respaldo, código, construcción, migraciones, reinicio) |
+| `deploy/respaldo.sh` | Respaldo de la base de datos |
 
 ## 0. Antes de empezar
 
-- **Servidor:** 2 GB de RAM o más. Con 1 GB, crea memoria de intercambio (paso 1) o la construcción de la web puede fallar.
 - **Dominio o subdominio** (por ejemplo `produccion.tudominio.com`) con un registro **A** que apunte a la IP del VPS. Es obligatorio: en producción la cookie de sesión solo viaja por HTTPS, así que sin dominio y certificado **no se podrá iniciar sesión**.
 - **El código en un repositorio privado** (GitHub o GitLab). Hoy el proyecto no tiene repositorio remoto: créalo y súbelo desde tu PC con `git remote add origin <url>` y `git push -u origin main`.
+- **Memoria:** 2 GB de RAM o más. Con menos, crea memoria de intercambio (paso 1): construir la web usa bastante memoria.
+- **Puertos 80 y 443 libres.** Si el VPS ya tiene otro sitio en esos puertos (otro Nginx o Apache), mira la sección «Si ya tienes un Nginx en el servidor» al final.
+
+> **Sobre Ubuntu 18.04:** terminó su soporte en 2023, así que ya no recibe actualizaciones de seguridad. Con Docker puedes publicar el sistema hoy, pero a mediano plazo conviene pasar a Ubuntu 22.04 o 24.04 (idealmente creando un servidor nuevo y moviendo el respaldo).
 
 ## 1. Preparar el servidor
 
-Entra por SSH y actualiza:
+Entra por SSH y comprueba qué tienes (anota lo que salga):
 
 ```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y git curl ufw nginx certbot python3-certbot-nginx
+docker --version
+docker compose version        # si da error, prueba:  docker-compose --version
+git --version
 ```
 
-Crea un usuario para la aplicación (no uses `root`) y dale acceso a sudo:
-
-```bash
-sudo adduser grupoes
-sudo usermod -aG sudo grupoes
-```
+- Si **`docker compose version` funciona**, todo lo de esta guía va tal cual.
+- Si solo funciona **`docker-compose`** (con guion), reemplaza `docker compose` por `docker-compose` en los comandos. Los scripts de `deploy/` ya detectan cuál tienes. Aun así, en Ubuntu 18.04 conviene instalar el complemento moderno: `sudo apt install docker-compose-plugin` (si no existe, `docker-compose` v1 también sirve).
+- Si no tienes `git`: `sudo apt install -y git`.
 
 Firewall: solo SSH y web.
 
 ```bash
 sudo ufw allow OpenSSH
-sudo ufw allow 'Nginx Full'
+sudo ufw allow 80
+sudo ufw allow 443
 sudo ufw enable
 ```
+
+(Ojo: Docker publica puertos saltándose `ufw`. Por eso en este proyecto la base de datos y la API **no** publican puertos: solo `caddy` abre el 80 y el 443.)
 
 Si el servidor tiene 1 GB de RAM, agrega 2 GB de intercambio:
 
@@ -49,116 +61,65 @@ sudo mkswap /swapfile && sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 ```
 
-## 2. Instalar Node 22, pnpm y Docker
+## 2. Bajar el código
 
 ```bash
-# Node 22
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt install -y nodejs
-
-# pnpm (la versión que usa el proyecto)
-sudo corepack enable
-corepack prepare pnpm@10.15.1 --activate
-
-# Docker (para PostgreSQL)
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker grupoes
-```
-
-Cierra la sesión y vuelve a entrar como `grupoes` para que el grupo `docker` surta efecto.
-
-## 3. Bajar el código
-
-```bash
-sudo mkdir -p /srv/grupoes && sudo chown grupoes:grupoes /srv/grupoes
+sudo mkdir -p /srv/grupoes && sudo chown $USER:$USER /srv/grupoes
 cd /srv/grupoes
 git clone <URL-de-tu-repositorio-privado> produccion
 cd produccion
 ```
 
-(Para clonar un repositorio privado por HTTPS, usa un *token de acceso personal* de GitHub como contraseña, o configura una *deploy key* por SSH.)
+(Para un repositorio privado por HTTPS, usa un *token de acceso personal* de GitHub como contraseña, o configura una *deploy key* por SSH.)
 
-## 4. Configurar las variables
+## 3. Configurar las variables
 
-**Base de datos** — crea el archivo `.env` en la raíz del proyecto (lo lee Docker Compose):
-
-```bash
-cat > .env <<EOF
-POSTGRES_PASSWORD=$(openssl rand -hex 24)
-EOF
-cat .env
-```
-
-Anota esa contraseña: la necesitas en el siguiente archivo.
-
-**API** — crea `apps/api/.env` con tus valores reales:
+Copia la plantilla y complétala:
 
 ```bash
-cat > apps/api/.env <<'EOF'
-NODE_ENV=production
-PORT=3000
-DATABASE_URL="postgresql://produccion:LA_CONTRASEÑA_DE_ARRIBA@127.0.0.1:5433/produccion?schema=public"
-WEB_ORIGIN=https://produccion.tudominio.com
-JWT_ACCESS_SECRET=PEGA_AQUI_UN_VALOR_LARGO
-SEED_ADMIN_EMAIL=tu-correo@tudominio.com
-SEED_ADMIN_PASSWORD=UNA_CLAVE_TEMPORAL_FUERTE
-EOF
-# Genera el secreto del JWT y pégalo en JWT_ACCESS_SECRET:
-openssl rand -hex 48
-chmod 600 apps/api/.env .env
+cp deploy/env.produccion.example .env
+nano .env
 ```
 
-Notas:
-- `SEED_ADMIN_PASSWORD` es temporal: el sistema obliga a cambiarla en el primer ingreso.
-- **No ejecutes** `pnpm db:demo` en producción: crea usuarios de demostración.
-- Los archivos `.env` no se suben a git y no deben compartirse.
-
-## 5. Levantar la base, construir y migrar
+- `DOMINIO`: tu dominio, **sin** `https://`.
+- `POSTGRES_PASSWORD`: genera una con `openssl rand -hex 24` (usa ese formato, sin símbolos raros).
+- `JWT_ACCESS_SECRET`: genera uno con `openssl rand -hex 48`.
+- `SEED_ADMIN_EMAIL` y `SEED_ADMIN_PASSWORD`: tu correo y una clave temporal fuerte. El sistema obliga a cambiarla en el primer ingreso.
+- `COMPOSE_PROFILES=https`: activa el HTTPS automático con Caddy.
 
 ```bash
-docker compose up -d db          # PostgreSQL; escucha solo en 127.0.0.1
-pnpm install --frozen-lockfile   # instala y genera el cliente de la base
-pnpm build                       # compila shared, API y web
-pnpm db:deploy                   # crea las tablas (migraciones)
-pnpm db:seed                     # roles, permisos, catálogos y el usuario administrador
+chmod 600 .env
 ```
 
-`db:seed` se puede repetir sin problema: solo agrega lo que falta.
+El archivo `.env` no se sube a git y no debe compartirse.
 
-## 6. Dejar la API corriendo (systemd)
-
-Copia el servicio (revisa que el usuario y la ruta coincidan) y actívalo:
+## 4. Construir y arrancar
 
 ```bash
-sudo cp deploy/grupoes-api.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now grupoes-api
-sudo systemctl status grupoes-api      # debe decir "active (running)"
-curl http://127.0.0.1:3000/api/salud   # responde si la API y la base están bien
+docker compose -f docker-compose.prod.yml build      # tarda varios minutos la primera vez
+docker compose -f docker-compose.prod.yml up -d db   # la base
+docker compose -f docker-compose.prod.yml run --rm api sh -c "pnpm exec prisma migrate deploy && pnpm exec prisma db seed"
+docker compose -f docker-compose.prod.yml up -d      # todo lo demás
 ```
 
-Para ver los registros: `journalctl -u grupoes-api -f`.
+El tercer comando crea las tablas y deja listos los roles, los permisos, los catálogos y el usuario administrador. Se puede repetir sin problema: solo agrega lo que falta.
 
-> Importante: ejecuta **una sola instancia** de la API. Los recordatorios y avisos automáticos corren dentro de ella; con dos instancias se enviarían duplicados.
+Para no repetir `-f docker-compose.prod.yml` en cada comando, puedes definir en el servidor: `echo 'export COMPOSE_FILE=docker-compose.prod.yml' >> ~/.bashrc` y volver a entrar.
 
-## 7. Nginx y HTTPS
+Comprueba:
 
 ```bash
-sudo cp deploy/nginx-grupoes.conf /etc/nginx/sites-available/grupoes
-sudo nano /etc/nginx/sites-available/grupoes     # cambia produccion.tudominio.com por tu dominio
-sudo ln -s /etc/nginx/sites-available/grupoes /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/default
-sudo nginx -t && sudo systemctl reload nginx
-
-# Certificado gratuito de Let's Encrypt (renovación automática)
-sudo certbot --nginx -d produccion.tudominio.com
+docker compose -f docker-compose.prod.yml ps                # api, web, db y caddy en "running"/"healthy"
+docker compose -f docker-compose.prod.yml logs -f api       # registros de la API (Ctrl+C para salir)
 ```
 
-Nginx debe poder leer la carpeta de la web. Si da "403", da permiso de paso a las carpetas: `chmod o+x /srv /srv/grupoes /srv/grupoes/produccion`.
+Abre `https://produccion.tudominio.com` (Caddy obtiene el certificado solo; la primera vez puede tardar un minuto) e ingresa con el correo y la clave temporal del paso 3.
 
-Abre `https://produccion.tudominio.com` e ingresa con el correo y la clave temporal del paso 4.
+> Ejecuta **una sola instancia** de la API. Los recordatorios y avisos automáticos corren dentro de ella; con dos se enviarían duplicados.
+>
+> **No ejecutes** el comando `db:demo` en producción: crea usuarios de demostración.
 
-## 8. Primer ingreso: qué configurar
+## 5. Primer ingreso: qué configurar
 
 1. Cambia la contraseña del administrador (te lo exige).
 2. **Configuración → Parámetros**: revisa los valores (garantía, recargo de horas extra, límites de Turnitin, avisos).
@@ -166,7 +127,7 @@ Abre `https://produccion.tudominio.com` e ingresa con el correo y la clave tempo
 4. **Configuración → Catálogos → Actividades**: ajusta tiempos, roles y prioridades.
 5. **Usuarios**: crea al equipo y asígnales sus roles.
 
-## 9. Respaldos (imprescindible)
+## 6. Respaldos (imprescindible)
 
 La base de datos es lo más valioso. Prueba el respaldo a mano:
 
@@ -174,7 +135,7 @@ La base de datos es lo más valioso. Prueba el respaldo a mano:
 bash deploy/respaldo.sh      # guarda un .sql.gz en ~/respaldos y conserva los últimos 14
 ```
 
-Prográmalo cada noche con cron (`crontab -e`, como el usuario `grupoes`):
+Prográmalo cada noche con cron (`crontab -e`):
 
 ```
 0 2 * * * cd /srv/grupoes/produccion && bash deploy/respaldo.sh >> ~/respaldo.log 2>&1
@@ -185,10 +146,10 @@ Prográmalo cada noche con cron (`crontab -e`, como el usuario `grupoes`):
 Para restaurar en una base vacía:
 
 ```bash
-gunzip -c ~/respaldos/produccion-FECHA.sql.gz | docker compose exec -T db psql -U produccion produccion
+gunzip -c ~/respaldos/produccion-FECHA.sql.gz | docker compose -f docker-compose.prod.yml exec -T db psql -U produccion produccion
 ```
 
-## 10. Actualizar el sistema cuando haya cambios
+## 7. Actualizar el sistema cuando haya cambios
 
 Desde tu PC: `git push`. En el servidor:
 
@@ -197,25 +158,46 @@ cd /srv/grupoes/produccion
 bash deploy/actualizar.sh
 ```
 
-El script hace un respaldo, trae el código, instala, construye, migra la base, sincroniza permisos y reinicia la API. Si algo falla, se detiene antes de reiniciar.
+El script hace un respaldo, trae el código, construye las imágenes, migra la base, sincroniza los permisos y reinicia. Si algo falla, se detiene antes de reiniciar.
 
-> Si el script dice que `sudo systemctl` pide contraseña, ejecútalo desde una sesión con sudo o agrega una regla en `/etc/sudoers.d/` solo para ese comando.
-
-## 11. Seguridad básica
+## 8. Seguridad básica
 
 - Inicia sesión por **clave SSH** y desactiva la contraseña (`PasswordAuthentication no` en `/etc/ssh/sshd_config`).
 - Instala `fail2ban` (`sudo apt install fail2ban`) para frenar intentos de acceso por fuerza bruta.
-- PostgreSQL **no está expuesto**: el puerto 5433 escucha solo en `127.0.0.1` y el firewall solo abre 22, 80 y 443. No lo cambies.
-- Activa las actualizaciones de seguridad automáticas: `sudo apt install unattended-upgrades`.
+- La base de datos y la API **no están expuestas**: solo `caddy` publica los puertos 80 y 443. No agregues `ports:` a esos contenedores.
 - Usa contraseñas largas y distintas para el servidor, la base y el administrador.
+- Mantén Docker y el sistema al día (`sudo apt update && sudo apt upgrade`).
+
+## Si ya tienes un Nginx en el servidor
+
+Si los puertos 80 y 443 ya los usa otro sitio, **no actives Caddy**: quita (o comenta) la línea `COMPOSE_PROFILES=https` de `.env` y define `WEB_PORT=8080`. La web quedará disponible solo en `127.0.0.1:8080`. Luego haz que tu Nginx la use:
+
+```nginx
+server {
+    server_name produccion.tudominio.com;
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+y obtén el certificado con `sudo certbot --nginx -d produccion.tudominio.com`. Tras cambiar `.env`, aplica con `docker compose -f docker-compose.prod.yml up -d`.
 
 ## Problemas frecuentes
 
 | Síntoma | Causa probable |
 |---|---|
 | Se inicia sesión pero se cierra al recargar | Se entra por `http://` o por IP: en producción la cookie exige HTTPS con el dominio |
-| «Variables de entorno inválidas» al iniciar la API | Falta o es corta alguna variable de `apps/api/.env` (el secreto JWT necesita 32 caracteres o más) |
-| Las notificaciones no llegan en vivo | Falta `Upgrade`/`Connection` en el bloque `/api/` de Nginx (ya está en el archivo de ejemplo) |
-| 502 Bad Gateway | La API no está corriendo: `sudo systemctl status grupoes-api` y `journalctl -u grupoes-api` |
-| La construcción de la web se queda sin memoria | Agrega intercambio (paso 1) |
-| `permission denied` al usar Docker | Cierra sesión y vuelve a entrar tras agregar el usuario al grupo `docker` |
+| Caddy no obtiene el certificado | El dominio no apunta a la IP del servidor, o los puertos 80/443 están cerrados u ocupados. Mira `docker compose -f docker-compose.prod.yml logs caddy` |
+| «Falta DOMINIO / POSTGRES_PASSWORD / JWT_ACCESS_SECRET en .env» | El archivo `.env` está en otra carpeta o le falta esa variable |
+| «Variables de entorno inválidas» en los registros de la API | Variable faltante o corta (el secreto JWT necesita 32 caracteres o más) |
+| 502 Bad Gateway | La API no arrancó: `docker compose -f docker-compose.prod.yml logs api` |
+| La construcción se queda sin memoria o muere con «Killed» | Agrega intercambio (paso 1) |
+| `permission denied` al usar Docker | Agrega tu usuario al grupo: `sudo usermod -aG docker $USER` y vuelve a entrar |
+| Las notificaciones no llegan en vivo | Revisa que ningún proxy intermedio bloquee WebSocket (el de esta guía ya lo permite) |

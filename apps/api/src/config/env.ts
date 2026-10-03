@@ -9,6 +9,8 @@ export const envSchema = z.object({
   JWT_ACCESS_TTL_SEGUNDOS: z.coerce.number().int().positive().default(900),
   /** Servicio de consulta de DNI (sin token); se le agrega /<dni>. */
   DNI_API_URL: z.string().url().default('https://esconsultoresyasesores.com:9300/api/dni-ruc/dni'),
+  /** Cuántos intermediarios (Nginx, Caddy…) hay delante de la API, para leer la IP real del cliente. */
+  TRUST_PROXY: z.coerce.number().int().min(0).default(1),
   REFRESH_TTL_DIAS: z.coerce.number().int().positive().default(7),
 });
 

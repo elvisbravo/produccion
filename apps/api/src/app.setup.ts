@@ -9,8 +9,8 @@ export function configurarApp(app: NestExpressApplication): void {
 
   app.setGlobalPrefix('api');
   app.use(cookieParser());
-  // Detrás de un proxy (Nginx) para que req.ip sea la IP real del cliente.
-  app.set('trust proxy', 1);
+  // Detrás de uno o más proxies (Nginx, Caddy) para que req.ip sea la IP real del cliente.
+  app.set('trust proxy', config.get('TRUST_PROXY', { infer: true }));
 
   if (config.get('NODE_ENV', { infer: true }) === 'production') {
     app.enableCors({ origin: config.get('WEB_ORIGIN', { infer: true }), credentials: true });

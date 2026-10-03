@@ -1,0 +1,77 @@
+# Producción: base de datos, API y web en contenedores. Se usa con:
+#   docker compose -f docker-compose.prod.yml up -d
+# Las variables salen del archivo .env de esta carpeta (plantilla: deploy/env.produccion.example).
+name: grupoes
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: produccion
+      POSTGRES_USER: produccion
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}
+      TZ: America/Lima
+      PGTZ: America/Lima
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U produccion -d produccion"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+      target: api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      TZ: America/Lima
+      # Dos intermediarios delante de la API (Caddy o el Nginx del servidor, y el Nginx de la web).
+      TRUST_PROXY: 2
+      DATABASE_URL: postgresql://produccion:${POSTGRES_PASSWORD}@db:5432/produccion?schema=public
+      WEB_ORIGIN: https://${DOMINIO:?Falta DOMINIO en .env}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Falta JWT_ACCESS_SECRET en .env}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+      target: web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      # Solo local: si ya tienes un Nginx en el servidor, apúntalo a este puerto.
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
+
+  # HTTPS automático. Se activa con COMPOSE_PROFILES=https en .env (usa los puertos 80 y 443).
+  caddy:
+    profiles: ["https"]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+    environment:
+      DOMINIO: ${DOMINIO}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  db_data:
+  caddy_data:
+  caddy_config:
