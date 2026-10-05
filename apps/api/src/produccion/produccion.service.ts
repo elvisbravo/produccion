@@ -211,14 +211,21 @@ export class ProduccionService {
       if (!principal) throw new BadRequestException('Primero arma el equipo: las tareas van a la cola del auxiliar principal');
       // Trabajo de proveedor: un entregable con su fecha de entrega y una sola tarea (la actividad y el tiempo del registro).
       if (trabajo.actividadPlanId && trabajo.minutosPlan) {
-        const entregable = await tx.entregable.create({ data: { trabajoId, nombre: 'Entrega final', orden: 1, esFinal: true, fechaLimite: trabajo.fechaLimite } });
+        // Si la actividad es una revisión, el trabajo ya llegó para revisarse: el entregable nace "en revisión" (la tarea de revisión
+        // no se completa a mano, la cierra quien revisa). En otro caso se elabora primero y luego se envía a revisión.
+        const plan = await tx.actividad.findUnique({ where: { id: trabajo.actividadPlanId }, select: { tipo: { select: { comportamiento: true } } } });
+        const paraRevisar = plan?.tipo.comportamiento === 'revision';
+        const entregable = await tx.entregable.create({
+          data: { trabajoId, nombre: 'Entrega final', orden: 1, esFinal: true, fechaLimite: trabajo.fechaLimite, estado: paraRevisar ? 'en_revision' : 'pendiente' },
+        });
         await this.crearTareaTx(
           tx,
           { trabajoId, entregableId: entregable.id, actividadId: trabajo.actividadPlanId, titulo: trabajo.titulo ?? 'Trabajo de proveedor', minutos: trabajo.minutosPlan },
           undefined,
           actor,
+          paraRevisar,
         );
-        await this.evento(tx, trabajoId, 'Plan generado: 1 entregable y 1 tarea', actor);
+        await this.evento(tx, trabajoId, paraRevisar ? 'Plan generado: 1 entregable, ya en revisión' : 'Plan generado: 1 entregable y 1 tarea', actor);
         await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'generar_plan', entidad: 'trabajo', entidadId: trabajoId, ip: actor.ip }, tx);
         return;
       }

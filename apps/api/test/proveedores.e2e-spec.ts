@@ -135,9 +135,32 @@ describe('Proveedores y sus trabajos (e2e)', () => {
     expect(trabajo.entregables[0]).toMatchObject({ nombre: 'Entrega final', esFinal: true, fechaLimite: cuerpo.fechaLimite });
     expect(trabajo.entregables[0].tareas).toHaveLength(1);
     expect(trabajo.entregables[0].tareas[0]).toMatchObject({ minutos: 120, actividad: { nombre: 'Revisión interna' } });
+    // Con una actividad de revisión el trabajo ya llegó para revisarse: el entregable nace en revisión.
+    expect(trabajo.entregables[0].estado).toBe('en_revision');
     // La revisión va a la cola del jefe responsable.
     const cola = (await http().get('/api/produccion/colas/mia').set(como('jefe')).expect(200)).body as ColaPersona;
     expect(cola.items.some((i) => i.trabajo.id === trabajo.id && i.minutos === 120)).toBe(true);
+    // Quien lo revisa (el jefe) lo aprueba y el entregable sigue el flujo normal.
+    trabajo = (await http().post(`/api/entregables/${trabajo.entregables[0].id}/revisar`).set(como('jefe')).send({ resultado: 'aprobado' }).expect(201)).body;
+    expect(trabajo.entregables[0].estado).toBe('aprobado');
+  });
+
+  it('con una actividad de elaboración: se elabora, se envía a revisión y sigue el flujo normal', async () => {
+    const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body as CatalogoActividades;
+    const elaboracion = actividades.actividades.find((a) => a.nombre === 'Elaboración')!;
+    const otro = (await http().post('/api/trabajos/de-proveedor').set(como('prod')).send({ proveedorId: proveedor.id, ...cuerpo, titulo: 'Segundo trabajo', actividadId: elaboracion.id, minutosEstimados: 240 }).expect(201)).body as TrabajoDetalle;
+    expect(otro.codigo).not.toBe(trabajo.codigo);
+    await http().put(`/api/trabajos/${otro.id}/equipo`).set(como('prod')).send({ auxiliarPrincipalId: ids.aux, auxiliaresApoyo: [], jefeResponsableId: ids.jefe }).expect(200);
+    const conPlan = (await http().post(`/api/trabajos/${otro.id}/plan`).set(como('prod')).expect(201)).body as TrabajoDetalle;
+    expect(conPlan.entregables[0].estado).toBe('pendiente');
+    const tarea = conPlan.entregables[0].tareas[0];
+    expect(tarea).toMatchObject({ minutos: 240, actividad: { nombre: 'Elaboración' } });
+    await http().post(`/api/entregables/${conPlan.entregables[0].id}/enviar-revision`).set(como('aux')).expect(400); // aún hay una tarea pendiente
+    await http().post(`/api/tareas/${tarea.id}/completar`).set(como('aux')).send({ resultado: 'Hecho' }).expect(201);
+    const enRevision = (await http().post(`/api/entregables/${conPlan.entregables[0].id}/enviar-revision`).set(como('aux')).expect(201)).body as TrabajoDetalle;
+    expect(enRevision.entregables[0].estado).toBe('en_revision');
+    // Se muestran los dos trabajos del proveedor
+    expect((await http().get(`/api/proveedores/${proveedor.id}`).set(como('prod')).expect(200)).body.trabajos).toBe(2);
   });
 
   it('el cobro lo paga el proveedor: se registra después, con sus pagos y su recibo', async () => {
