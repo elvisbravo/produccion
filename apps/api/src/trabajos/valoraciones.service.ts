@@ -25,7 +25,7 @@ export class ValoracionesService {
     await this.trabajos.verificarVisible(trabajoId, actor.usuarioId);
     const t = await this.prisma.trabajo.findFirst({
       where: { id: trabajoId, eliminadoEn: null },
-      select: { codigo: true, estado: true, prospecto: { select: { responsableId: true } } },
+      select: { codigo: true, estado: true, creadoPor: true, prospecto: { select: { responsableId: true } } },
     });
     if (!t) throw new NotFoundException('Trabajo no encontrado');
     if (t.estado === 'finalizado' || t.estado === 'cancelado') throw new BadRequestException('El trabajo ya está cerrado');
@@ -39,7 +39,7 @@ export class ValoracionesService {
       await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'valorar', entidad: 'trabajo', entidadId: trabajoId, despues: datos, ip: actor.ip }, tx);
     });
     await this.notificaciones.notificar(
-      [t.prospecto.responsableId],
+      [t.prospecto?.responsableId ?? t.creadoPor].filter((id): id is string => Boolean(id)),
       { tipo: 'trabajo.valorado', titulo: `${t.codigo} valorado: ${dias(datos.diasEstimados)}`, mensaje: datos.nota ?? null, enlace: `/trabajos/${trabajoId}` },
       actor.usuarioId,
     );

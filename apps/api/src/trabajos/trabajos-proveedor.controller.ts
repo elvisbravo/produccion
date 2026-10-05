@@ -1,0 +1,28 @@
+import { Body, Controller, HttpCode, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
+import { cobroSchema, trabajoProveedorSchema, type CobroDatos, type TrabajoDetalle, type TrabajoProveedorDatos } from '@grupoes/shared';
+import type { SolicitudAutenticada } from '../auth/tipos.js';
+import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
+import { RequierePermiso } from '../permisos/requiere-permiso.decorator.js';
+import { TrabajosProveedorService } from './trabajos-proveedor.service.js';
+import type { ActorTrabajo } from './trabajos.service.js';
+
+const actor = (req: SolicitudAutenticada): ActorTrabajo => ({ usuarioId: req.usuario!.id, ip: req.ip ?? null });
+
+/** Trabajos que entrega un proveedor y su cobro. */
+@Controller('trabajos')
+export class TrabajosProveedorController {
+  constructor(private readonly servicio: TrabajosProveedorService) {}
+
+  @RequierePermiso('trabajos.registrar_de_proveedor')
+  @Post('de-proveedor')
+  registrar(@Body(new ZodValidationPipe(trabajoProveedorSchema)) datos: TrabajoProveedorDatos, @Req() req: SolicitudAutenticada): Promise<TrabajoDetalle> {
+    return this.servicio.registrar(datos, actor(req));
+  }
+
+  @RequierePermiso('contratos.crear')
+  @Post(':id/cobro')
+  @HttpCode(200)
+  cobro(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(cobroSchema)) datos: CobroDatos, @Req() req: SolicitudAutenticada): Promise<TrabajoDetalle> {
+    return this.servicio.registrarCobro(id, datos, actor(req));
+  }
+}

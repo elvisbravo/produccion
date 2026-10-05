@@ -13,6 +13,7 @@ const INCLUIR_CUOTAS = {
 } as const satisfies Prisma.Contrato$cuotasArgs;
 
 export const INCLUIR_LISTADO = {
+  proveedor: { select: { id: true, nombres: true, apellidos: true } },
   tipoTrabajo: { select: { nombre: true } },
   nivelAcademico: { select: { nombre: true } },
   universidad: { select: { nombre: true, siglas: true } },
@@ -26,6 +27,8 @@ export const INCLUIR_LISTADO = {
 
 export const INCLUIR_DETALLE = {
   prospecto: { select: { id: true, codigo: true } },
+  proveedor: { select: { id: true, nombres: true, apellidos: true } },
+  actividadPlan: { select: { nombre: true } },
   tipoTrabajo: { select: { id: true, nombre: true } },
   prioridad: { select: { id: true, nombre: true, color: true, permiteInsercionUrgente: true } },
   nivelAcademico: { select: { id: true, nombre: true } },
@@ -94,6 +97,7 @@ export function aListado(t: TrabajoListado, verMontos: boolean, hoy: string): Tr
     seguimiento: seguimientoDe({ estado: t.estado, urgente: t.prioridad.permiteInsercionUrgente, pendientePago: (cuenta?.vencido ?? 0) > 0 && t.contrato?.estado === 'vigente', enTurnitin: t._count.entregables > 0, valorado: t._count.valoraciones > 0 }),
     fechasFijas: t.fechasFijas,
     fechaLimite: soloFecha(t.fechaLimite),
+    proveedor: t.proveedor,
     titular: t.integrantes[0]?.persona ?? null,
     totalIntegrantes: t.integrantes.length,
     auxiliarPrincipal: vigente('auxiliar_principal'),
@@ -176,6 +180,8 @@ export function aDetalle(
     id: t.id,
     codigo: t.codigo,
     prospecto: t.prospecto,
+    proveedor: t.proveedor,
+    planProveedor: t.actividadPlan && t.minutosPlan ? { actividad: t.actividadPlan.nombre, minutos: t.minutosPlan } : null,
     titulo: t.titulo,
     tipoTrabajo: t.tipoTrabajo,
     prioridad: { id: t.prioridad.id, nombre: t.prioridad.nombre, color: t.prioridad.color },

@@ -22,9 +22,9 @@ export class FechasFijasService {
   private async interesados(trabajoId: string): Promise<string[]> {
     const t = await this.prisma.trabajo.findUniqueOrThrow({
       where: { id: trabajoId },
-      select: { prospecto: { select: { responsableId: true } }, equipo: { where: { hasta: null }, select: { usuarioId: true } } },
+      select: { creadoPor: true, prospecto: { select: { responsableId: true } }, equipo: { where: { hasta: null }, select: { usuarioId: true } } },
     });
-    return [t.prospecto.responsableId, ...t.equipo.map((e) => e.usuarioId)];
+    return [t.prospecto?.responsableId ?? t.creadoPor, ...t.equipo.map((e) => e.usuarioId)].filter((id): id is string => Boolean(id));
   }
 
   private async trabajo(trabajoId: string, usuarioId: string) {

@@ -209,6 +209,19 @@ export class ProduccionService {
       if (trabajo.entregables.length > 0) throw new ConflictException('El trabajo ya tiene entregables: agrégalos uno por uno');
       const principal = trabajo.equipo.find((e) => e.funcion === 'auxiliar_principal');
       if (!principal) throw new BadRequestException('Primero arma el equipo: las tareas van a la cola del auxiliar principal');
+      // Trabajo de proveedor: un entregable con su fecha de entrega y una sola tarea (la actividad y el tiempo del registro).
+      if (trabajo.actividadPlanId && trabajo.minutosPlan) {
+        const entregable = await tx.entregable.create({ data: { trabajoId, nombre: 'Entrega final', orden: 1, esFinal: true, fechaLimite: trabajo.fechaLimite } });
+        await this.crearTareaTx(
+          tx,
+          { trabajoId, entregableId: entregable.id, actividadId: trabajo.actividadPlanId, titulo: trabajo.titulo ?? 'Trabajo de proveedor', minutos: trabajo.minutosPlan },
+          undefined,
+          actor,
+        );
+        await this.evento(tx, trabajoId, 'Plan generado: 1 entregable y 1 tarea', actor);
+        await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'generar_plan', entidad: 'trabajo', entidadId: trabajoId, ip: actor.ip }, tx);
+        return;
+      }
       const plantilla = await tx.plantillaTrabajo.findUnique({
         where: { tipoTrabajoId: trabajo.tipoTrabajoId },
         include: { entregables: { orderBy: { orden: 'asc' }, include: { tareas: { orderBy: { orden: 'asc' } } } } },

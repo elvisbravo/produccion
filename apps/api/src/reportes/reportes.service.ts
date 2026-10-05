@@ -262,7 +262,11 @@ export class ReportesService {
       ['Más de 90 días', (d) => d > 90],
     ];
     const pagos = await this.prisma.pago.findMany({ where: { anuladoEn: null, fecha: { gte: aFecha(p.desde), lte: corte } }, select: { monto: true, metodo: true, fecha: true } });
-    const porResponsable = agrupar(vencidas, (x) => x.c.contrato.trabajo.prospecto.responsable.id);
+    // Los trabajos de proveedor no tienen un asistente que capte al cliente: no entran en este desglose.
+    const porResponsable = agrupar(
+      vencidas.filter((x) => x.c.contrato.trabajo.prospecto),
+      (x) => x.c.contrato.trabajo.prospecto!.responsable.id,
+    );
     return {
       ...p,
       porCobrar,
@@ -278,7 +282,7 @@ export class ReportesService {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([mes, lista]) => ({ mes, monto: redondear(lista.reduce((s, x) => s + Number(x.monto), 0)) })),
       vencidoPorResponsable: [...porResponsable]
-        .map(([, lista]) => ({ usuario: lista[0].c.contrato.trabajo.prospecto.responsable, monto: redondear(lista.reduce((s, x) => s + x.saldo, 0)), cuotas: lista.length }))
+        .map(([, lista]) => ({ usuario: lista[0].c.contrato.trabajo.prospecto!.responsable, monto: redondear(lista.reduce((s, x) => s + x.saldo, 0)), cuotas: lista.length }))
         .sort((a, b) => b.monto - a.monto),
     };
   }

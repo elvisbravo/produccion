@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   EMPRESA_POR_DEFECTO,
   empresaSchema,
@@ -177,6 +177,7 @@ export class DocumentosService {
         contrato: { include: { cuotas: { where: { adicionalId: null }, orderBy: { numero: 'asc' } } } },
       },
     });
+    if (t.proveedorId) throw new BadRequestException('Los trabajos de proveedores no llevan contrato impreso');
     if (!t.contrato) throw new NotFoundException('El trabajo no tiene contrato');
     const c = t.contrato;
     const empresa = await this.empresa();
@@ -243,7 +244,7 @@ export class DocumentosService {
           include: {
             cuotas: { select: { id: true, monto: true } },
             pagos: { where: { anuladoEn: null }, select: { id: true, monto: true, registradoEn: true } },
-            trabajo: { include: { tipoTrabajo: true, integrantes: { orderBy: [{ esTitular: 'desc' }, { orden: 'asc' }], take: 1, include: { persona: true } } } },
+            trabajo: { include: { tipoTrabajo: true, proveedor: true, integrantes: { orderBy: [{ esTitular: 'desc' }, { orden: 'asc' }], take: 1, include: { persona: true } } } },
           },
         },
       },
@@ -254,6 +255,8 @@ export class DocumentosService {
 
     const empresa = await this.empresa();
     const titular = t.integrantes[0]?.persona;
+    // En un trabajo de proveedor, quien paga es el proveedor.
+    const nombrePagador = titular ? nombrePersona(titular) : t.proveedor ? `${t.proveedor.nombres} ${t.proveedor.apellidos}` : '';
     const monto = Number(pago.monto);
     // Total de la cuenta: el contrato más los adicionales aceptados (sus cuotas).
     const totalCentimos = pago.contrato.cuotas.reduce((s, q) => s + centimos(q.monto), 0);
@@ -273,7 +276,7 @@ export class DocumentosService {
       ...this.comunes(empresa),
       numero: pago.numeroRecibo,
       fecha: fechaLarga(soloFecha(pago.fecha)),
-      cliente: titular ? nombrePersona(titular) : '',
+      cliente: nombrePagador,
       documento_cliente: (titular && documentoPersona(titular)) ?? VACIO,
       monto: formatearSoles(monto),
       monto_letras: montoEnLetras(monto),
@@ -292,7 +295,7 @@ export class DocumentosService {
       montoLetras: montoEnLetras(monto),
       metodo: NOMBRE_METODO_PAGO[pago.metodo],
       numeroOperacion: pago.numeroOperacion,
-      cliente: { nombre: titular ? nombrePersona(titular) : '—', documento: titular ? documentoPersona(titular) : null },
+      cliente: { nombre: nombrePagador || '—', documento: titular ? documentoPersona(titular) : null },
       trabajo: { id: t.id, codigo: t.codigo, tipo: t.tipoTrabajo.nombre, titulo: t.titulo },
       cuotas,
       totalContrato: total,

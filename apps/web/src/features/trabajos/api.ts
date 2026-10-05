@@ -183,3 +183,13 @@ export function useValorarTrabajo(trabajoId: string) {
     onSuccess: guardar,
   })
 }
+
+// ─── Cobro de un trabajo de proveedor ───────────────────────
+
+export function useRegistrarCobro(trabajoId: string) {
+  const guardar = useGuardarDetalle()
+  return useMutation({
+    mutationFn: (datos: unknown) => api<TrabajoDetalle>(`/trabajos/${trabajoId}/cobro`, { method: 'POST', body: datos }),
+    onSuccess: guardar,
+  })
+}

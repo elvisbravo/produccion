@@ -78,6 +78,7 @@ export const MODULOS = [
   {
     codigo: 'trabajos', nombre: 'Trabajos', padre: 'produccion', ruta: '/trabajos', icono: 'BriefcaseBusiness', orden: 22,
     acciones: [ver(true), crear, editar(true), exportar, { codigo: 'armar_equipo', nombre: 'Armar equipo' }, { codigo: 'pausar', nombre: 'Pausar o reanudar (falta información del cliente)' }, { codigo: 'valorar', nombre: 'Valorar el trabajo (tiempo estimado en una reunión)' },
+      { codigo: 'registrar_de_proveedor', nombre: 'Registrar trabajos de proveedores' },
       { codigo: 'fijar_fechas', nombre: 'Fijar o liberar fechas inamovibles' }],
   },
   {
@@ -92,6 +93,10 @@ export const MODULOS = [
       { codigo: 'registrar_entrega', nombre: 'Registrar entrega al cliente' },
       { codigo: 'liberar_candado', nombre: 'Entregar con deuda (liberar candado)' },
     ],
+  },
+  {
+    codigo: 'proveedores', nombre: 'Proveedores', padre: 'produccion', ruta: '/proveedores', icono: 'Handshake', orden: 26,
+    acciones: [ver(), crear, editar(), desactivar],
   },
   {
     codigo: 'tareas', nombre: 'Mis tareas', padre: 'produccion', ruta: '/tareas', icono: 'Clock', orden: 24,

@@ -73,6 +73,53 @@ export const pagoSchema = z.object({
 export type PagoFormulario = z.input<typeof pagoSchema>
 export type PagoDatos = z.output<typeof pagoSchema>
 
+/** Cobro de un trabajo de proveedor: lo paga el proveedor, en uno o varios pagos. */
+export const cobroSchema = z
+  .object({
+    montoTotal: monto('Ingresa el monto total'),
+    formaPago: z.enum(FORMAS_PAGO),
+    cuotas: z.array(z.object({ monto: monto(), vencimiento: z.string().min(1, 'Elige la fecha').pipe(dia) })).min(1, 'Agrega al menos un pago'),
+  })
+  .superRefine((c, ctx) => {
+    if (c.formaPago === 'contado' && c.cuotas.length !== 1) ctx.addIssue({ code: 'custom', path: ['cuotas'], message: 'Al contado es un solo pago' })
+    const suma = c.cuotas.reduce((s, x) => s + aCentimos(x.monto), 0)
+    if (suma !== aCentimos(c.montoTotal)) {
+      ctx.addIssue({ code: 'custom', path: ['cuotas'], message: `Los pagos suman ${formatearSoles(deCentimos(suma))} y el total es ${formatearSoles(c.montoTotal)}` })
+    }
+    c.cuotas.forEach((x, i) => {
+      if (i > 0 && x.vencimiento < c.cuotas[i - 1].vencimiento) ctx.addIssue({ code: 'custom', path: ['cuotas', i, 'vencimiento'], message: 'Debe ser igual o posterior al pago anterior' })
+    })
+  })
+export type CobroFormulario = z.input<typeof cobroSchema>
+export type CobroDatos = z.output<typeof cobroSchema>
+
+const idRequerido = (mensaje: string) => z.string({ error: mensaje }).min(1, mensaje).pipe(z.uuid(mensaje))
+
+/** Registro de un trabajo que entrega un proveedor (sin prospecto ni contrato). */
+export const trabajoProveedorSchema = z.object({
+  proveedorId: idRequerido('Elige al proveedor'),
+  tipoTrabajoId: idRequerido('Elige el tipo de trabajo'),
+  titulo: z.string({ error: 'Ingresa el título' }).trim().min(3, 'Ingresa el título del trabajo').max(300, 'Máximo 300 caracteres'),
+  prioridadId: idRequerido('Elige la prioridad'),
+  nivelAcademicoId: idRequerido('Elige el nivel académico'),
+  universidadId: idRequerido('Elige la universidad'),
+  carreraId: idRequerido('Elige la carrera'),
+  fechaLimite: z.string().min(1, 'Elige la fecha de entrega').pipe(dia),
+  linkDrive: z
+    .string({ error: 'Ingresa el enlace de Drive' })
+    .trim()
+    .min(1, 'Ingresa el enlace de Drive')
+    .pipe(z.url({ protocol: /^https?$/, error: 'Enlace no válido (debe empezar con https://)' }).max(500)),
+  observaciones: texto(5000),
+  /** La única actividad del trabajo y su tiempo estimado. */
+  actividadId: idRequerido('Elige la actividad'),
+  minutosEstimados: z.coerce.number('Indica el tiempo estimado').int('Número entero').min(15, 'Mínimo 15 minutos').max(60 * 200, 'Máximo 200 horas'),
+  /** Opcional: lo que se le cobra al proveedor. También se puede registrar después. */
+  cobro: cobroSchema.optional(),
+})
+export type TrabajoProveedorFormulario = z.input<typeof trabajoProveedorSchema>
+export type TrabajoProveedorDatos = z.output<typeof trabajoProveedorSchema>
+
 export const integranteConversionSchema = z
   .object({
     personaId: z.uuid(),
@@ -336,6 +383,9 @@ export const listarTrabajosSchema = z.object({
   estado: z.enum(ESTADOS_TRABAJO).optional(),
   /** Trabajos que están en esa situación (puede cumplir varias a la vez). */
   seguimiento: z.enum(SEGUIMIENTOS).optional(),
+  /** De un proveedor en particular, o solo de clientes / solo de proveedores. */
+  proveedorId: z.uuid().optional(),
+  origen: z.enum(['cliente', 'proveedor']).optional(),
   pagina: z.coerce.number().int().min(1).default(1),
   porPagina: z.coerce.number().int().min(5).max(100).default(20),
 })
@@ -421,6 +471,8 @@ export interface TrabajoListadoItem {
   /** Las fechas no se pueden mover. */
   fechasFijas: boolean
   fechaLimite: string
+  /** Si lo entregó un proveedor (no tiene titular). */
+  proveedor: { id: string; nombres: string; apellidos: string } | null
   titular: PersonaResumen | null
   totalIntegrantes: number
   auxiliarPrincipal: UsuarioResumen | null
@@ -441,7 +493,11 @@ export interface TrabajoEventoItem {
 export interface TrabajoDetalle {
   id: string
   codigo: string
-  prospecto: { id: string; codigo: string }
+  /** De un prospecto convertido; nulo si lo entregó un proveedor. */
+  prospecto: { id: string; codigo: string } | null
+  proveedor: { id: string; nombres: string; apellidos: string } | null
+  /** Trabajos de proveedor: la actividad y el tiempo con que se armará su tarea al generar el plan. */
+  planProveedor: { actividad: string; minutos: number } | null
   titulo: string | null
   tipoTrabajo: Opcion
   prioridad: Opcion & { color: string }

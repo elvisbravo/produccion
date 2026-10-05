@@ -30,8 +30,9 @@ import { EtiquetasSeguimiento, InsigniaEstadoCuota } from '@/features/trabajos/c
 import { AvisoFechasFijas, BotonFijarFechas, MarcaFechasFijas } from '@/features/trabajos/components/fechas-fijas'
 import { AvisoEnEspera, BotonPausar } from '@/features/trabajos/components/pausa'
 import { AvisoValoracion, BotonValorar } from '@/features/trabajos/components/valoracion'
+import { CobroPendiente } from '@/features/trabajos/components/cobro'
 import { ApiError } from '@/lib/api'
-import { diasHasta, formatearFecha, formatearFechaHora, haceCuanto, nombreCompleto } from '@/lib/formato'
+import { diasHasta, duracion, formatearFecha, formatearFechaHora, haceCuanto, nombreCompleto } from '@/lib/formato'
 import { exigirPermiso } from '@/lib/guardas'
 import { cn } from '@/lib/utils'
 
@@ -51,7 +52,7 @@ export const Route = createFileRoute('/_app/trabajos/$id')({
 function DetalleTrabajo() {
   const { id } = Route.useParams()
   const { data: t } = useSuspenseQuery(trabajoQuery(id))
-  const titular = t.integrantes.find((i) => i.esTitular) ?? t.integrantes[0]
+  const titular = t.integrantes.find((i) => i.esTitular) ?? t.integrantes[0] ?? null
   const hoy = diaEnLima()
   const dias = diasHasta(t.fechaLimite, hoy)
 
@@ -70,10 +71,23 @@ function DetalleTrabajo() {
               {t.fechasFijas && <MarcaFechasFijas motivo={t.fechasFijas.motivo} />}
               <InsigniaPrioridad nombre={t.prioridad.nombre} color={t.prioridad.color} />
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {nombreCompleto(titular) ?? formatearCelular(titular.celular)}
-              {t.integrantes.length > 1 && <span className="text-muted-foreground"> y {t.integrantes.length - 1} más</span>}
-            </h1>
+            {t.proveedor ? (
+              <h1 className="text-2xl font-semibold tracking-tight">
+                <Badge variant="outline" className="mr-2 align-middle">
+                  Proveedor
+                </Badge>
+                <Link to="/proveedores/$id" params={{ id: t.proveedor.id }} className="underline-offset-4 hover:underline">
+                  {t.proveedor.nombres} {t.proveedor.apellidos}
+                </Link>
+              </h1>
+            ) : (
+              titular && (
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  {nombreCompleto(titular) ?? formatearCelular(titular.celular)}
+                  {t.integrantes.length > 1 && <span className="text-muted-foreground"> y {t.integrantes.length - 1} más</span>}
+                </h1>
+              )
+            )}
             <p className="text-sm text-muted-foreground">
               {t.tipoTrabajo.nombre}
               {t.nivelAcademico && ` · ${t.nivelAcademico.nombre}`}
@@ -100,7 +114,8 @@ function DetalleTrabajo() {
           <AvisoValoracion t={t} />
           <UrgenciaDelTrabajo trabajoId={t.id} cerrado={['finalizado', 'cancelado'].includes(t.estado)} />
           <SeccionEntregables t={t} />
-          {t.contrato && <Contrato contrato={t.contrato} trabajoId={t.id} />}
+          {t.contrato && <Contrato contrato={t.contrato} trabajoId={t.id} deProveedor={Boolean(t.proveedor)} />}
+          <CobroPendiente t={t} />
           <Card>
             <CardHeader>
               <CardTitle>Comentarios</CardTitle>
@@ -109,6 +124,7 @@ function DetalleTrabajo() {
               <HiloComentarios entidad="trabajo" entidadId={t.id} />
             </CardContent>
           </Card>
+          {t.integrantes.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle>Integrantes</CardTitle>
@@ -144,6 +160,7 @@ function DetalleTrabajo() {
               ))}
             </CardContent>
           </Card>
+          )}
           <DatosTrabajo t={t} />
         </div>
 
@@ -241,7 +258,7 @@ function Equipo({ t }: { t: TrabajoDetalle }) {
   )
 }
 
-function Contrato({ contrato: c, trabajoId }: { contrato: ContratoDetalle; trabajoId: string }) {
+function Contrato({ contrato: c, trabajoId, deProveedor }: { contrato: ContratoDetalle; trabajoId: string; deProveedor: boolean }) {
   const [pagando, setPagando] = useState(false)
   const [anulando, setAnulando] = useState<PagoDetalle | null>(null)
 
@@ -249,15 +266,16 @@ function Contrato({ contrato: c, trabajoId }: { contrato: ContratoDetalle; traba
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-4">
         <div className="space-y-1.5">
-          <CardTitle>Contrato y pagos</CardTitle>
+          <CardTitle>{deProveedor ? 'Cobro al proveedor' : 'Contrato y pagos'}</CardTitle>
           <CardDescription>
-            Firmado el {formatearFecha(c.fechaFirma)}
+            {deProveedor ? 'Registrado' : 'Firmado'} el {formatearFecha(c.fechaFirma)}
             {c.montoContrato !== null && ` por ${formatearSoles(c.montoContrato)}`} ·{' '}
-            {c.formaPago === 'contado' ? 'al contado' : `${c.cuotas?.filter((q) => !q.adicional).length ?? ''} cuotas`} · garantía de {c.diasGarantia} días
+            {c.formaPago === 'contado' ? 'al contado' : `${c.cuotas?.filter((q) => !q.adicional).length ?? ''} ${deProveedor ? 'pagos' : 'cuotas'}`}
+            {!deProveedor && ` · garantía de ${c.diasGarantia} días`}
           </CardDescription>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          {c.cuenta && (
+          {c.cuenta && !deProveedor && (
             <Can permiso="contratos.imprimir">
               <Button size="sm" variant="outline" asChild>
                 <Link to="/imprimir/contrato/$id" params={{ id: trabajoId }} target="_blank">
@@ -322,7 +340,7 @@ function Contrato({ contrato: c, trabajoId }: { contrato: ContratoDetalle; traba
               </Table>
             </div>
 
-            <SeccionAdicionales contrato={c} />
+            {!deProveedor && <SeccionAdicionales contrato={c} />}
 
             {c.pagos && c.pagos.length > 0 && (
               <div className="flex flex-col gap-2">
@@ -394,11 +412,25 @@ function DatosTrabajo({ t }: { t: TrabajoDetalle }) {
           <Dato etiqueta="Universidad">{t.universidad?.nombre}</Dato>
           <Dato etiqueta="Carrera">{t.carrera?.nombre}</Dato>
           <Dato etiqueta="Inicio">{formatearFecha(t.fechaInicio)}</Dato>
-          <Dato etiqueta="Prospecto de origen">
-            <Link to="/prospectos/$id" params={{ id: t.prospecto.id }} className="font-mono underline underline-offset-2">
-              {t.prospecto.codigo}
-            </Link>
-          </Dato>
+          {t.prospecto && (
+            <Dato etiqueta="Prospecto de origen">
+              <Link to="/prospectos/$id" params={{ id: t.prospecto.id }} className="font-mono underline underline-offset-2">
+                {t.prospecto.codigo}
+              </Link>
+            </Dato>
+          )}
+          {t.proveedor && (
+            <Dato etiqueta="Proveedor">
+              <Link to="/proveedores/$id" params={{ id: t.proveedor.id }} className="underline underline-offset-2">
+                {t.proveedor.nombres} {t.proveedor.apellidos}
+              </Link>
+            </Dato>
+          )}
+          {t.planProveedor && (
+            <Dato etiqueta="Actividad del plan">
+              {t.planProveedor.actividad} · {duracion(t.planProveedor.minutos)}
+            </Dato>
+          )}
           <Dato etiqueta="Drive">
             {t.linkDrive && (
               <a href={t.linkDrive} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline underline-offset-2">

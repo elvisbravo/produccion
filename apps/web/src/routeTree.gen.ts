@@ -30,6 +30,8 @@ import { Route as AppParametrosIndexRouteImport } from './routes/_app/parametros
 import { Route as AppProgramacionIndexRouteImport } from './routes/_app/programacion/index'
 import { Route as AppProspectosIndexRouteImport } from './routes/_app/prospectos/index'
 import { Route as AppProspectosNuevoRouteImport } from './routes/_app/prospectos/nuevo'
+import { Route as AppProveedoresIndexRouteImport } from './routes/_app/proveedores/index'
+import { Route as AppProveedoresIdRouteImport } from './routes/_app/proveedores/$id'
 import { Route as AppReportesIndexRouteImport } from './routes/_app/reportes/index'
 import { Route as AppRolesIndexRouteImport } from './routes/_app/roles/index'
 import { Route as AppRolesIdRouteImport } from './routes/_app/roles/$id'
@@ -37,6 +39,7 @@ import { Route as AppSeguimientoIndexRouteImport } from './routes/_app/seguimien
 import { Route as AppTareasIndexRouteImport } from './routes/_app/tareas/index'
 import { Route as AppTrabajosIndexRouteImport } from './routes/_app/trabajos/index'
 import { Route as AppTrabajosIdRouteImport } from './routes/_app/trabajos/$id'
+import { Route as AppTrabajosDeProveedorRouteImport } from './routes/_app/trabajos/de-proveedor'
 import { Route as AppUsuariosIndexRouteImport } from './routes/_app/usuarios/index'
 import { Route as AppUsuariosIdRouteImport } from './routes/_app/usuarios/$id'
 import { Route as ImprimirContratoIdRouteImport } from './routes/imprimir/contrato/$id'
@@ -150,6 +153,16 @@ const AppProspectosNuevoRoute = AppProspectosNuevoRouteImport.update({
   path: '/prospectos/nuevo',
   getParentRoute: () => AppRoute,
 } as any)
+const AppProveedoresIndexRoute = AppProveedoresIndexRouteImport.update({
+  id: '/proveedores/',
+  path: '/proveedores/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppProveedoresIdRoute = AppProveedoresIdRouteImport.update({
+  id: '/proveedores/$id',
+  path: '/proveedores/$id',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppReportesIndexRoute = AppReportesIndexRouteImport.update({
   id: '/reportes/',
   path: '/reportes/',
@@ -183,6 +196,11 @@ const AppTrabajosIndexRoute = AppTrabajosIndexRouteImport.update({
 const AppTrabajosIdRoute = AppTrabajosIdRouteImport.update({
   id: '/trabajos/$id',
   path: '/trabajos/$id',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTrabajosDeProveedorRoute = AppTrabajosDeProveedorRouteImport.update({
+  id: '/trabajos/de-proveedor',
+  path: '/trabajos/de-proveedor',
   getParentRoute: () => AppRoute,
 } as any)
 const AppUsuariosIndexRoute = AppUsuariosIndexRouteImport.update({
@@ -234,8 +252,10 @@ export interface FileRoutesByFullPath {
   '/$': typeof AppSplatRoute
   '/cuenta': typeof AppCuentaRoute
   '/prospectos/nuevo': typeof AppProspectosNuevoRoute
+  '/proveedores/$id': typeof AppProveedoresIdRoute
   '/roles/$id': typeof AppRolesIdRoute
   '/trabajos/$id': typeof AppTrabajosIdRoute
+  '/trabajos/de-proveedor': typeof AppTrabajosDeProveedorRoute
   '/usuarios/$id': typeof AppUsuariosIdRoute
   '/imprimir/contrato/$id': typeof ImprimirContratoIdRoute
   '/imprimir/cotizacion/$id': typeof ImprimirCotizacionIdRoute
@@ -254,6 +274,7 @@ export interface FileRoutesByFullPath {
   '/parametros/': typeof AppParametrosIndexRoute
   '/programacion/': typeof AppProgramacionIndexRoute
   '/prospectos/': typeof AppProspectosIndexRoute
+  '/proveedores/': typeof AppProveedoresIndexRoute
   '/reportes/': typeof AppReportesIndexRoute
   '/roles/': typeof AppRolesIndexRoute
   '/seguimiento/': typeof AppSeguimientoIndexRoute
@@ -271,8 +292,10 @@ export interface FileRoutesByTo {
   '/cuenta': typeof AppCuentaRoute
   '/': typeof AppIndexRoute
   '/prospectos/nuevo': typeof AppProspectosNuevoRoute
+  '/proveedores/$id': typeof AppProveedoresIdRoute
   '/roles/$id': typeof AppRolesIdRoute
   '/trabajos/$id': typeof AppTrabajosIdRoute
+  '/trabajos/de-proveedor': typeof AppTrabajosDeProveedorRoute
   '/usuarios/$id': typeof AppUsuariosIdRoute
   '/imprimir/contrato/$id': typeof ImprimirContratoIdRoute
   '/imprimir/cotizacion/$id': typeof ImprimirCotizacionIdRoute
@@ -291,6 +314,7 @@ export interface FileRoutesByTo {
   '/parametros': typeof AppParametrosIndexRoute
   '/programacion': typeof AppProgramacionIndexRoute
   '/prospectos': typeof AppProspectosIndexRoute
+  '/proveedores': typeof AppProveedoresIndexRoute
   '/reportes': typeof AppReportesIndexRoute
   '/roles': typeof AppRolesIndexRoute
   '/seguimiento': typeof AppSeguimientoIndexRoute
@@ -310,8 +334,10 @@ export interface FileRoutesById {
   '/_app/cuenta': typeof AppCuentaRoute
   '/_app/': typeof AppIndexRoute
   '/_app/prospectos/nuevo': typeof AppProspectosNuevoRoute
+  '/_app/proveedores/$id': typeof AppProveedoresIdRoute
   '/_app/roles/$id': typeof AppRolesIdRoute
   '/_app/trabajos/$id': typeof AppTrabajosIdRoute
+  '/_app/trabajos/de-proveedor': typeof AppTrabajosDeProveedorRoute
   '/_app/usuarios/$id': typeof AppUsuariosIdRoute
   '/imprimir/contrato/$id': typeof ImprimirContratoIdRoute
   '/imprimir/cotizacion/$id': typeof ImprimirCotizacionIdRoute
@@ -330,6 +356,7 @@ export interface FileRoutesById {
   '/_app/parametros/': typeof AppParametrosIndexRoute
   '/_app/programacion/': typeof AppProgramacionIndexRoute
   '/_app/prospectos/': typeof AppProspectosIndexRoute
+  '/_app/proveedores/': typeof AppProveedoresIndexRoute
   '/_app/reportes/': typeof AppReportesIndexRoute
   '/_app/roles/': typeof AppRolesIndexRoute
   '/_app/seguimiento/': typeof AppSeguimientoIndexRoute
@@ -349,8 +376,10 @@ export interface FileRouteTypes {
     | '/$'
     | '/cuenta'
     | '/prospectos/nuevo'
+    | '/proveedores/$id'
     | '/roles/$id'
     | '/trabajos/$id'
+    | '/trabajos/de-proveedor'
     | '/usuarios/$id'
     | '/imprimir/contrato/$id'
     | '/imprimir/cotizacion/$id'
@@ -369,6 +398,7 @@ export interface FileRouteTypes {
     | '/parametros/'
     | '/programacion/'
     | '/prospectos/'
+    | '/proveedores/'
     | '/reportes/'
     | '/roles/'
     | '/seguimiento/'
@@ -386,8 +416,10 @@ export interface FileRouteTypes {
     | '/cuenta'
     | '/'
     | '/prospectos/nuevo'
+    | '/proveedores/$id'
     | '/roles/$id'
     | '/trabajos/$id'
+    | '/trabajos/de-proveedor'
     | '/usuarios/$id'
     | '/imprimir/contrato/$id'
     | '/imprimir/cotizacion/$id'
@@ -406,6 +438,7 @@ export interface FileRouteTypes {
     | '/parametros'
     | '/programacion'
     | '/prospectos'
+    | '/proveedores'
     | '/reportes'
     | '/roles'
     | '/seguimiento'
@@ -424,8 +457,10 @@ export interface FileRouteTypes {
     | '/_app/cuenta'
     | '/_app/'
     | '/_app/prospectos/nuevo'
+    | '/_app/proveedores/$id'
     | '/_app/roles/$id'
     | '/_app/trabajos/$id'
+    | '/_app/trabajos/de-proveedor'
     | '/_app/usuarios/$id'
     | '/imprimir/contrato/$id'
     | '/imprimir/cotizacion/$id'
@@ -444,6 +479,7 @@ export interface FileRouteTypes {
     | '/_app/parametros/'
     | '/_app/programacion/'
     | '/_app/prospectos/'
+    | '/_app/proveedores/'
     | '/_app/reportes/'
     | '/_app/roles/'
     | '/_app/seguimiento/'
@@ -610,6 +646,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProspectosNuevoRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/proveedores/': {
+      id: '/_app/proveedores/'
+      path: '/proveedores'
+      fullPath: '/proveedores/'
+      preLoaderRoute: typeof AppProveedoresIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/proveedores/$id': {
+      id: '/_app/proveedores/$id'
+      path: '/proveedores/$id'
+      fullPath: '/proveedores/$id'
+      preLoaderRoute: typeof AppProveedoresIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/reportes/': {
       id: '/_app/reportes/'
       path: '/reportes'
@@ -657,6 +707,13 @@ declare module '@tanstack/react-router' {
       path: '/trabajos/$id'
       fullPath: '/trabajos/$id'
       preLoaderRoute: typeof AppTrabajosIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/trabajos/de-proveedor': {
+      id: '/_app/trabajos/de-proveedor'
+      path: '/trabajos/de-proveedor'
+      fullPath: '/trabajos/de-proveedor'
+      preLoaderRoute: typeof AppTrabajosDeProveedorRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/usuarios/': {
@@ -723,8 +780,10 @@ interface AppRouteChildren {
   AppCuentaRoute: typeof AppCuentaRoute
   AppIndexRoute: typeof AppIndexRoute
   AppProspectosNuevoRoute: typeof AppProspectosNuevoRoute
+  AppProveedoresIdRoute: typeof AppProveedoresIdRoute
   AppRolesIdRoute: typeof AppRolesIdRoute
   AppTrabajosIdRoute: typeof AppTrabajosIdRoute
+  AppTrabajosDeProveedorRoute: typeof AppTrabajosDeProveedorRoute
   AppUsuariosIdRoute: typeof AppUsuariosIdRoute
   AppAgendaIndexRoute: typeof AppAgendaIndexRoute
   AppAuditoriaIndexRoute: typeof AppAuditoriaIndexRoute
@@ -740,6 +799,7 @@ interface AppRouteChildren {
   AppParametrosIndexRoute: typeof AppParametrosIndexRoute
   AppProgramacionIndexRoute: typeof AppProgramacionIndexRoute
   AppProspectosIndexRoute: typeof AppProspectosIndexRoute
+  AppProveedoresIndexRoute: typeof AppProveedoresIndexRoute
   AppReportesIndexRoute: typeof AppReportesIndexRoute
   AppRolesIndexRoute: typeof AppRolesIndexRoute
   AppSeguimientoIndexRoute: typeof AppSeguimientoIndexRoute
@@ -756,8 +816,10 @@ const AppRouteChildren: AppRouteChildren = {
   AppCuentaRoute: AppCuentaRoute,
   AppIndexRoute: AppIndexRoute,
   AppProspectosNuevoRoute: AppProspectosNuevoRoute,
+  AppProveedoresIdRoute: AppProveedoresIdRoute,
   AppRolesIdRoute: AppRolesIdRoute,
   AppTrabajosIdRoute: AppTrabajosIdRoute,
+  AppTrabajosDeProveedorRoute: AppTrabajosDeProveedorRoute,
   AppUsuariosIdRoute: AppUsuariosIdRoute,
   AppAgendaIndexRoute: AppAgendaIndexRoute,
   AppAuditoriaIndexRoute: AppAuditoriaIndexRoute,
@@ -773,6 +835,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppParametrosIndexRoute: AppParametrosIndexRoute,
   AppProgramacionIndexRoute: AppProgramacionIndexRoute,
   AppProspectosIndexRoute: AppProspectosIndexRoute,
+  AppProveedoresIndexRoute: AppProveedoresIndexRoute,
   AppReportesIndexRoute: AppReportesIndexRoute,
   AppRolesIndexRoute: AppRolesIndexRoute,
   AppSeguimientoIndexRoute: AppSeguimientoIndexRoute,

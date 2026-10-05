@@ -65,7 +65,7 @@ export class TrabajosService {
     const alcance = (await this.permisos.efectivos(usuarioId))['trabajos.ver'];
     if (alcance === 'todos') return {};
     const enEquipo: Prisma.TrabajoWhereInput = { equipo: { some: { usuarioId, hasta: null } } };
-    return alcance === 'propios' ? { OR: [enEquipo, { prospecto: { responsableId: usuarioId } }] } : enEquipo;
+    return alcance === 'propios' ? { OR: [enEquipo, { prospecto: { responsableId: usuarioId } }, { creadoPor: usuarioId, proveedorId: { not: null } }] } : enEquipo;
   }
 
   /** 404 si el trabajo no existe o el usuario no lo puede ver. */
@@ -220,7 +220,7 @@ export class TrabajosService {
   // ─── Consultas ───────────────────────────────────────────
 
   async listar(filtros: ListarTrabajosConsulta, usuarioId: string): Promise<Paginado<TrabajoListadoItem>> {
-    const { q, estado, seguimiento, pagina, porPagina } = filtros;
+    const { q, estado, seguimiento, proveedorId, origen, pagina, porPagina } = filtros;
     const permisosMontos = await this.permisosDeMontos(usuarioId);
     const where: Prisma.TrabajoWhereInput = {
       eliminadoEn: null,
@@ -229,6 +229,8 @@ export class TrabajosService {
       // Cada filtro va en su propio AND: así no se pisan entre sí (varios usan "id" o "estado").
       AND: [
         ...(seguimiento ? [await this.filtroSeguimiento(seguimiento, permisosMontos.verMontos)] : []),
+        ...(proveedorId ? [{ proveedorId }] : []),
+        ...(origen ? [origen === 'proveedor' ? { proveedorId: { not: null } } : { prospectoId: { not: null } }] : []),
         ...(q ? [{ id: { in: await this.idsQueCoinciden(q) } }] : []),
       ],
     };
@@ -302,6 +304,9 @@ export class TrabajosService {
       WHERE t.eliminado_en IS NULL AND (
         ${contieneTodas([Prisma.sql`t.codigo`, Prisma.sql`t.titulo`], palabras)}
         OR EXISTS (
+          SELECT 1 FROM proveedor pv WHERE pv.id = t.proveedor_id AND (${contieneTodas([Prisma.sql`pv.nombres`, Prisma.sql`pv.apellidos`], palabras)})
+        )
+        OR EXISTS (
           SELECT 1 FROM trabajo_integrante ti JOIN persona pe ON pe.id = ti.persona_id
           WHERE ti.trabajo_id = t.id AND (
             ${contieneTodas([Prisma.sql`pe.nombres`, Prisma.sql`pe.apellidos`], palabras)}
@@ -322,9 +327,9 @@ export class TrabajosService {
     if (!trabajo) throw new NotFoundException('Trabajo no encontrado');
     const [permisos, dioElEnfoque, entregables, hayPlantilla, turnitin, valoracion] = await Promise.all([
       this.permisosDeMontos(usuarioId),
-      this.dioElEnfoque(trabajo.prospectoId),
+      trabajo.prospectoId ? this.dioElEnfoque(trabajo.prospectoId) : Promise.resolve(null),
       this.produccion.deTrabajo(id),
-      this.produccion.hayPlantilla(trabajo.tipoTrabajoId),
+      trabajo.actividadPlanId ? Promise.resolve(true) : this.produccion.hayPlantilla(trabajo.tipoTrabajoId),
       this.produccion.configTurnitin(),
       this.valoracionVigente(trabajo),
     ]);

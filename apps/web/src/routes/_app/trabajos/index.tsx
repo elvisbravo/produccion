@@ -25,6 +25,8 @@ export const Route = createFileRoute('/_app/trabajos/')({
   validateSearch: z.object({
     q: z.string().optional(),
     seguimiento: z.enum(SEGUIMIENTOS).optional().catch(undefined),
+    origen: z.enum(['cliente', 'proveedor']).optional().catch(undefined),
+    proveedorId: z.uuid().optional().catch(undefined),
     pagina: z.coerce.number().int().min(1).optional().catch(undefined),
   }),
   beforeLoad: () => exigirPermiso('trabajos.ver'),
@@ -79,6 +81,19 @@ function ListadoTrabajos() {
                 {NOMBRE_SEGUIMIENTO[e]}
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={filtros.origen ?? TODOS}
+          onValueChange={(v) => void navigate({ search: (s) => ({ ...s, origen: v === TODOS ? undefined : (v as 'cliente' | 'proveedor'), proveedorId: undefined, pagina: undefined }), replace: true })}
+        >
+          <SelectTrigger aria-label="Origen" className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODOS}>Clientes y proveedores</SelectItem>
+            <SelectItem value="cliente">Solo clientes</SelectItem>
+            <SelectItem value="proveedor">Solo proveedores</SelectItem>
           </SelectContent>
         </Select>
         <Popover>
@@ -138,11 +153,22 @@ function ListadoTrabajos() {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col">
-                            <span className="font-medium">
-                              {nombreCompleto(t.titular) ?? '—'}
-                              {t.totalIntegrantes > 1 && <span className="text-muted-foreground"> +{t.totalIntegrantes - 1}</span>}
-                            </span>
-                            {t.titular && <span className="font-mono text-xs text-muted-foreground">{formatearCelular(t.titular.celular)}</span>}
+                            {t.proveedor ? (
+                              <>
+                                <span className="font-medium">
+                                  {t.proveedor.nombres} {t.proveedor.apellidos}
+                                </span>
+                                <span className="text-xs text-muted-foreground">Proveedor</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="font-medium">
+                                  {nombreCompleto(t.titular) ?? '—'}
+                                  {t.totalIntegrantes > 1 && <span className="text-muted-foreground"> +{t.totalIntegrantes - 1}</span>}
+                                </span>
+                                {t.titular && <span className="font-mono text-xs text-muted-foreground">{formatearCelular(t.titular.celular)}</span>}
+                              </>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="hidden md:table-cell">

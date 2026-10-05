@@ -13,6 +13,7 @@ import {
   ListChecks,
   ShieldCheck,
   Blocks,
+  Handshake,
   SlidersHorizontal,
   SquareCheckBig,
   SquareKanban,
@@ -29,6 +30,7 @@ import {
  */
 const ICONOS: Record<string, LucideIcon> = {
   Blocks,
+  Handshake,
   BriefcaseBusiness,
   CalendarClock,
   CalendarCog,

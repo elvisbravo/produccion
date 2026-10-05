@@ -1,3 +1,4 @@
+export * from './proveedores.js';
 export * from './inicio.js';
 export * from './actividades.js';
 export * from './permisos.js';

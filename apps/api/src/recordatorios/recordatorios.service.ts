@@ -89,11 +89,11 @@ export class RecordatoriosService {
     const limite = new Date(ahora.getTime() - dias * 86_400_000);
     const pausas = await this.prisma.pausaTrabajo.findMany({
       where: { reanudadaEn: null, creadaEn: { lte: limite }, OR: [{ ultimoRecordatorioEn: null }, { ultimoRecordatorioEn: { lte: limite } }] },
-      include: { trabajo: { select: { id: true, codigo: true, prospecto: { select: { responsableId: true } } } } },
+      include: { trabajo: { select: { id: true, codigo: true, creadoPor: true, prospecto: { select: { responsableId: true } } } } },
     });
     for (const p of pausas) {
       const detenido = Math.max(1, Math.round((ahora.getTime() - p.creadaEn.getTime()) / 86_400_000));
-      await this.notificaciones.notificar([p.trabajo.prospecto.responsableId, p.creadaPorId], {
+      await this.notificaciones.notificar([p.trabajo.prospecto?.responsableId ?? p.trabajo.creadoPor, p.creadaPorId].filter((id): id is string => Boolean(id)), {
         tipo: 'recordatorio.pausa',
         titulo: `${p.trabajo.codigo} lleva ${detenido} días en espera del cliente`,
         mensaje: `Falta: ${p.motivo}`,
@@ -167,7 +167,7 @@ export class RecordatoriosService {
       where: { vencimiento: { lte: limite }, contrato: { estado: { not: 'anulado' }, trabajo: { estado: { not: 'cancelado' } } } },
       include: {
         aplicaciones: { where: { pago: { anuladoEn: null } }, select: { montoAplicado: true } },
-        contrato: { select: { trabajo: { select: { id: true, codigo: true, prospecto: { select: { responsableId: true } } } } } },
+        contrato: { select: { trabajo: { select: { id: true, codigo: true, creadoPor: true, prospecto: { select: { responsableId: true } } } } } },
       },
     });
     for (const c of cuotas) {
@@ -176,7 +176,9 @@ export class RecordatoriosService {
       if (saldo <= 0.005) continue;
       const vencida = soloFecha(c.vencimiento) < hoy;
       const t = c.contrato.trabajo;
-      await this.notificaciones.notificar([t.prospecto.responsableId], {
+      const seguidor = t.prospecto?.responsableId ?? t.creadoPor;
+      if (!seguidor) continue;
+      await this.notificaciones.notificar([seguidor], {
         tipo: vencida ? 'cuota.vencida' : 'cuota.por_vencer',
         titulo: vencida ? `Cuota ${c.numero} vencida: ${t.codigo}` : `La cuota ${c.numero} de ${t.codigo} vence el ${dia(c.vencimiento)}`,
         mensaje: `Saldo S/ ${saldo.toFixed(2)}`,
