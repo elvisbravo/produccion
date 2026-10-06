@@ -7,6 +7,7 @@ import {
   CalendarOff,
   CalendarRange,
   ChartColumn,
+  ClipboardList,
   Clock,
   FileCog,
   FileText,
@@ -33,6 +34,7 @@ import {
 const ICONOS: Record<string, LucideIcon> = {
   CalendarCheck2,
   CalendarRange,
+  ClipboardList,
   Blocks,
   Handshake,
   BriefcaseBusiness,

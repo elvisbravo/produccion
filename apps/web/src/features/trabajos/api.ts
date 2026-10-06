@@ -1,11 +1,14 @@
 import type {
   AdicionalDatos,
   ArmarEquipoDatos,
+  ConsultaEntregasFiltros,
   ConvertirProspectoDatos,
   ListarTrabajosFiltros,
+  NotaEntregaDatos,
   Paginado,
   PagoDatos,
   ResumenCobranza,
+  TableroEntregas,
   TrabajoDetalle,
   TrabajoListadoItem,
   UsuarioResumen,
@@ -237,5 +240,25 @@ export function useEditarTrabajo(trabajoId: string) {
   return useMutation({
     mutationFn: (datos: unknown) => api<TrabajoDetalle>(`/trabajos/${trabajoId}/datos`, { method: 'PUT', body: datos }),
     onSuccess: guardar,
+  })
+}
+
+/** Tablero de entregas por día (la hoja de control del equipo). */
+export const entregasQuery = (filtros: ConsultaEntregasFiltros) => {
+  const params = new URLSearchParams()
+  for (const [clave, valor] of Object.entries(filtros)) if (valor) params.set(clave, String(valor))
+  return queryOptions({
+    queryKey: ['trabajos', 'entregas', filtros] as const,
+    queryFn: ({ signal }) => api<TableroEntregas>(`/entregas?${params.toString()}`, { signal }),
+    placeholderData: keepPreviousData,
+    refetchInterval: 60_000,
+  })
+}
+
+export function useGuardarNotaEntrega(trabajoId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (datos: NotaEntregaDatos) => api<void>(`/trabajos/${trabajoId}/nota-entrega`, { method: 'PUT', body: datos }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['trabajos'] }),
   })
 }

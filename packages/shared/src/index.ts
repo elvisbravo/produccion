@@ -8,6 +8,7 @@ export * from './prospectos.js';
 export * from './fechas.js';
 export * from './tareas.js';
 export * from './trabajos.js';
+export * from './entregas.js';
 export * from './agenda.js';
 export * from './produccion.js';
 export * from './contingencias.js';

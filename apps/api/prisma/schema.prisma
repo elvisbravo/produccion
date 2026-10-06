@@ -851,6 +851,8 @@ model Trabajo {
   nivelAcademicoId  String?       @map("nivel_academico_id") @db.Uuid
   linkDrive         String?       @map("link_drive") @db.VarChar(500)
   observaciones     String?
+  /// Nota corta del tablero de entregas ("para el lunes", "esperar al cliente"…).
+  notaEntrega       String?       @map("nota_entrega") @db.VarChar(300)
   detalles          String?
   /// Trabajos de proveedor: la actividad y el tiempo con que se arma su única tarea al generar el plan.
   actividadPlanId   String?       @map("actividad_plan_id") @db.Uuid

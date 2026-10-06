@@ -7,6 +7,8 @@ import { ContingenciasController } from './contingencias.controller.js';
 import { EdicionTrabajoController } from './edicion-trabajo.controller.js';
 import { EdicionTrabajoService } from './edicion-trabajo.service.js';
 import { EntregablesController } from './entregables.controller.js';
+import { EntregasController } from './entregas.controller.js';
+import { EntregasService } from './entregas.service.js';
 import { FechasFijasController } from './fechas-fijas.controller.js';
 import { FechasFijasService } from './fechas-fijas.service.js';
 import { PausasController } from './pausas.controller.js';
@@ -21,8 +23,8 @@ import { ValoracionesService } from './valoraciones.service.js';
 
 @Module({
   imports: [PersonasModule, ProduccionModule],
-  controllers: [EdicionTrabajoController, TrabajosProveedorController, TrabajosController, AdicionalesController, PausasController, FechasFijasController, ValoracionesController, EntregablesController, ContingenciasController],
-  providers: [TrabajosService, AdicionalesService, PausasService, FechasFijasService, ValoracionesService, TrabajosProveedorService, ClientesDirectosService, EdicionTrabajoService],
+  controllers: [EdicionTrabajoController, TrabajosProveedorController, TrabajosController, AdicionalesController, PausasController, FechasFijasController, ValoracionesController, EntregablesController, ContingenciasController, EntregasController],
+  providers: [TrabajosService, AdicionalesService, PausasService, FechasFijasService, ValoracionesService, TrabajosProveedorService, ClientesDirectosService, EdicionTrabajoService, EntregasService],
   exports: [TrabajosService],
 })
 export class TrabajosModule {}

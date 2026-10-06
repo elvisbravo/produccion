@@ -214,6 +214,40 @@ describe('Cliente directo (e2e)', () => {
     await prisma.proveedor.deleteMany({ where: { id: proveedor.id } });
   });
 
+  it('el tablero de entregas muestra la actividad, el equipo y las fechas; se filtra y guarda la nota', async () => {
+    const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string }[];
+    const integrantes = [{ celular: `9${sufijo}81`, nombres: 'Con', apellidos: 'Tablero', email: `con.tablero.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `4${sufijo}2`, esTitular: true }];
+    const limite = sumarDias(hoy, 10);
+    const programacion = { actividadId: actividades.find((a) => a.nombre === 'Elaboración')!.id, minutosEstimados: 180, hora: '10:00', auxiliarPrincipalId: ids.aux, jefeResponsableId: ids.jefe };
+    const creado = (await enviar('prod', { integrantes, pagos: [], contrato: undefined, trabajo: { ...(cuerpo.trabajo as object), fechaInicio: hoy, fechaLimite: limite }, programacion }).expect(201)).body as TrabajoDetalle;
+    const tablero = async (q: Quien, consulta = '') => (await http().get(`/api/entregas?desde=${limite}&hasta=${limite}${consulta}`).set(como(q)).expect(200)).body as { dias: { fecha: string; filas: { trabajo: { id: string; jefeResponsable: { id: string } | null }; actividad: { nombre: string; minutosEstimados: number } | null; auxiliares: { id: string }[]; asistente: { id: string } | null; entregaCliente: string; entregaInterna: string; semaforo: string | null; nota: string | null }[] }[] };
+    const fila = async (q: Quien, consulta = '') => (await tablero(q, consulta)).dias.flatMap((d) => d.filas).find((f) => f.trabajo.id === creado.id);
+    const f = (await fila('prod'))!;
+    expect(f).toBeDefined();
+    expect(f.actividad).toMatchObject({ nombre: 'Elaboración', minutosEstimados: 180 });
+    expect(f.auxiliares.map((x) => x.id)).toEqual([ids.aux]);
+    expect(f.trabajo.jefeResponsable?.id).toBe(ids.jefe);
+    expect(f.asistente?.id).toBe(ids.ana);
+    expect(f.entregaCliente).toBe(limite);
+    expect(f.entregaInterna).toBe(limite);
+    expect(f.semaforo).not.toBeNull();
+    // Filtros
+    expect(await fila('prod', `&auxiliarId=${ids.aux}`)).toBeDefined();
+    expect(await fila('prod', `&auxiliarId=${ids.jefe}`)).toBeUndefined();
+    expect(await fila('prod', `&jefeId=${ids.jefe}`)).toBeDefined();
+    expect(await fila('prod', `&asistenteId=${ids.aux}`)).toBeUndefined();
+    expect(await fila('prod', '&seguimiento=sin_asignar')).toBeUndefined();
+    // Otro día no aparece; el auxiliar puede ver el tablero pero no editar la nota
+    expect((await http().get(`/api/entregas?desde=${sumarDias(limite, 1)}&hasta=${sumarDias(limite, 1)}`).set(como('prod')).expect(200)).body.dias.flatMap((d: { filas: unknown[] }) => d.filas)).toHaveLength(0);
+    await http().put(`/api/trabajos/${creado.id}/nota-entrega`).set(como('aux')).send({ nota: 'x' }).expect(403);
+    await http().put(`/api/trabajos/${creado.id}/nota-entrega`).set(como('admin')).send({ nota: 'Para el lunes' }).expect(204);
+    expect((await fila('prod'))!.nota).toBe('Para el lunes');
+    await http().put(`/api/trabajos/${creado.id}/nota-entrega`).set(como('admin')).send({ nota: '' }).expect(204);
+    expect((await fila('prod'))!.nota).toBeNull();
+    await prisma.trabajo.deleteMany({ where: { id: creado.id } });
+    await prisma.prospecto.deleteMany({ where: { creadoPor: ids.prod, trabajo: null } });
+  });
+
   it('el listado de trabajos se filtra por asistente administrativa', async () => {
     const integrantes = [{ celular: `9${sufijo}79`, nombres: 'Con', apellidos: 'Filtro', email: `con.filtro.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `9${sufijo}1`, esTitular: true }];
     const creado = (await enviar('prod', { integrantes, pagos: [] }).expect(201)).body as TrabajoDetalle;

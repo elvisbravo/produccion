@@ -25,6 +25,7 @@ import { Route as AppContratosIndexRouteImport } from './routes/_app/contratos/i
 import { Route as AppCotizacionesIndexRouteImport } from './routes/_app/cotizaciones/index'
 import { Route as AppDocumentosIndexRouteImport } from './routes/_app/documentos/index'
 import { Route as AppEntregablesIndexRouteImport } from './routes/_app/entregables/index'
+import { Route as AppEntregasIndexRouteImport } from './routes/_app/entregas/index'
 import { Route as AppHorasExtraIndexRouteImport } from './routes/_app/horas-extra/index'
 import { Route as AppModulosIndexRouteImport } from './routes/_app/modulos/index'
 import { Route as AppParametrosIndexRouteImport } from './routes/_app/parametros/index'
@@ -130,6 +131,11 @@ const AppDocumentosIndexRoute = AppDocumentosIndexRouteImport.update({
 const AppEntregablesIndexRoute = AppEntregablesIndexRouteImport.update({
   id: '/entregables/',
   path: '/entregables/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEntregasIndexRoute = AppEntregasIndexRouteImport.update({
+  id: '/entregas/',
+  path: '/entregas/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppHorasExtraIndexRoute = AppHorasExtraIndexRouteImport.update({
@@ -297,6 +303,7 @@ export interface FileRoutesByFullPath {
   '/cotizaciones/': typeof AppCotizacionesIndexRoute
   '/documentos/': typeof AppDocumentosIndexRoute
   '/entregables/': typeof AppEntregablesIndexRoute
+  '/entregas/': typeof AppEntregasIndexRoute
   '/horas-extra/': typeof AppHorasExtraIndexRoute
   '/modulos/': typeof AppModulosIndexRoute
   '/parametros/': typeof AppParametrosIndexRoute
@@ -341,6 +348,7 @@ export interface FileRoutesByTo {
   '/cotizaciones': typeof AppCotizacionesIndexRoute
   '/documentos': typeof AppDocumentosIndexRoute
   '/entregables': typeof AppEntregablesIndexRoute
+  '/entregas': typeof AppEntregasIndexRoute
   '/horas-extra': typeof AppHorasExtraIndexRoute
   '/modulos': typeof AppModulosIndexRoute
   '/parametros': typeof AppParametrosIndexRoute
@@ -387,6 +395,7 @@ export interface FileRoutesById {
   '/_app/cotizaciones/': typeof AppCotizacionesIndexRoute
   '/_app/documentos/': typeof AppDocumentosIndexRoute
   '/_app/entregables/': typeof AppEntregablesIndexRoute
+  '/_app/entregas/': typeof AppEntregasIndexRoute
   '/_app/horas-extra/': typeof AppHorasExtraIndexRoute
   '/_app/modulos/': typeof AppModulosIndexRoute
   '/_app/parametros/': typeof AppParametrosIndexRoute
@@ -433,6 +442,7 @@ export interface FileRouteTypes {
     | '/cotizaciones/'
     | '/documentos/'
     | '/entregables/'
+    | '/entregas/'
     | '/horas-extra/'
     | '/modulos/'
     | '/parametros/'
@@ -477,6 +487,7 @@ export interface FileRouteTypes {
     | '/cotizaciones'
     | '/documentos'
     | '/entregables'
+    | '/entregas'
     | '/horas-extra'
     | '/modulos'
     | '/parametros'
@@ -522,6 +533,7 @@ export interface FileRouteTypes {
     | '/_app/cotizaciones/'
     | '/_app/documentos/'
     | '/_app/entregables/'
+    | '/_app/entregas/'
     | '/_app/horas-extra/'
     | '/_app/modulos/'
     | '/_app/parametros/'
@@ -658,6 +670,13 @@ declare module '@tanstack/react-router' {
       path: '/entregables'
       fullPath: '/entregables/'
       preLoaderRoute: typeof AppEntregablesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/entregas/': {
+      id: '/_app/entregas/'
+      path: '/entregas'
+      fullPath: '/entregas/'
+      preLoaderRoute: typeof AppEntregasIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/horas-extra/': {
@@ -874,6 +893,7 @@ interface AppRouteChildren {
   AppCotizacionesIndexRoute: typeof AppCotizacionesIndexRoute
   AppDocumentosIndexRoute: typeof AppDocumentosIndexRoute
   AppEntregablesIndexRoute: typeof AppEntregablesIndexRoute
+  AppEntregasIndexRoute: typeof AppEntregasIndexRoute
   AppHorasExtraIndexRoute: typeof AppHorasExtraIndexRoute
   AppModulosIndexRoute: typeof AppModulosIndexRoute
   AppParametrosIndexRoute: typeof AppParametrosIndexRoute
@@ -914,6 +934,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppCotizacionesIndexRoute: AppCotizacionesIndexRoute,
   AppDocumentosIndexRoute: AppDocumentosIndexRoute,
   AppEntregablesIndexRoute: AppEntregablesIndexRoute,
+  AppEntregasIndexRoute: AppEntregasIndexRoute,
   AppHorasExtraIndexRoute: AppHorasExtraIndexRoute,
   AppModulosIndexRoute: AppModulosIndexRoute,
   AppParametrosIndexRoute: AppParametrosIndexRoute,

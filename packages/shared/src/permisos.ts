@@ -97,6 +97,10 @@ export const MODULOS = [
     ],
   },
   {
+    codigo: 'entregas', nombre: 'Entregas', padre: 'produccion', ruta: '/entregas', icono: 'ClipboardList', orden: 23,
+    acciones: [ver(), exportar],
+  },
+  {
     codigo: 'agenda_reuniones', nombre: 'Agenda de reuniones', padre: 'comercial', ruta: '/reuniones/agenda', icono: 'CalendarRange', orden: 14,
     acciones: [ver(true)],
   },
