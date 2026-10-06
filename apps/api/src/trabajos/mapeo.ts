@@ -26,7 +26,7 @@ export const INCLUIR_LISTADO = {
 } as const satisfies Prisma.TrabajoInclude;
 
 export const INCLUIR_DETALLE = {
-  prospecto: { select: { id: true, codigo: true } },
+  prospecto: { select: { id: true, codigo: true, clienteDirecto: true } },
   proveedor: { select: { id: true, nombres: true, apellidos: true } },
   actividadPlan: { select: { nombre: true } },
   tipoTrabajo: { select: { id: true, nombre: true } },
@@ -179,7 +179,8 @@ export function aDetalle(
   return {
     id: t.id,
     codigo: t.codigo,
-    prospecto: t.prospecto,
+    prospecto: t.prospecto ? { id: t.prospecto.id, codigo: t.prospecto.codigo } : null,
+    clienteDirecto: Boolean(t.prospecto?.clienteDirecto),
     proveedor: t.proveedor,
     planProveedor: t.actividadPlan && t.minutosPlan ? { actividad: t.actividadPlan.nombre, minutos: t.minutosPlan } : null,
     titulo: t.titulo,

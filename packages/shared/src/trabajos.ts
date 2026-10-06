@@ -137,7 +137,8 @@ export const integranteConversionSchema = z
 interface ConversionBase {
   integrantes: { esTitular: boolean; email?: string }[]
   trabajo: { fechaInicio: string; fechaLimite: string }
-  contrato: { montoTotal: number; formaPago: string; cuotas: { monto: number; vencimiento: string }[] }
+  /** Sin contrato (cliente directo sin monto) solo se validan los integrantes y las fechas del trabajo. */
+  contrato?: { montoTotal: number; formaPago: string; cuotas: { monto: number; vencimiento: string }[] }
   pagoInicial?: { monto: number }
 }
 
@@ -151,6 +152,7 @@ function validarConversion(d: ConversionBase, ctx: z.RefinementCtx) {
   if (d.trabajo.fechaLimite < d.trabajo.fechaInicio) {
     ctx.addIssue({ code: 'custom', path: ['trabajo', 'fechaLimite'], message: 'Debe ser posterior a la fecha de inicio' })
   }
+  if (!d.contrato) return
   const { montoTotal, cuotas, formaPago } = d.contrato
   if (formaPago === 'contado' && cuotas.length !== 1) {
     ctx.addIssue({ code: 'custom', path: ['contrato', 'cuotas'], message: 'Al contado es un solo pago' })
@@ -509,6 +511,8 @@ export interface TrabajoDetalle {
   codigo: string
   /** De un prospecto convertido; nulo si lo entregó un proveedor. */
   prospecto: { id: string; codigo: string } | null
+  /** Cliente registrado directo (sin seguimiento comercial): su contrato puede registrarse después. */
+  clienteDirecto: boolean
   proveedor: { id: string; nombres: string; apellidos: string } | null
   /** Trabajos de proveedor: la actividad y el tiempo con que se armará su tarea al generar el plan. */
   planProveedor: { actividad: string; minutos: number } | null
@@ -598,19 +602,21 @@ export const clienteDirectoSchema = z
     /** Quien sigue al cliente: la asistente administrativa que lo captó, el jefe de producción, etc. */
     responsableId: z.string({ error: 'Elige al responsable' }).min(1, 'Elige al responsable').pipe(z.uuid('Elige al responsable')),
     trabajo: trabajoConversionSchema,
-    contrato: contratoConversionSchema,
+    /** Opcional: si no se conoce el monto total, se registra después. */
+    contrato: contratoConversionSchema.optional(),
     observaciones: texto(5000),
     /** Pagos que el cliente ya hizo (con su fecha real). */
     pagos: z.array(pagoSchema).default([]),
   })
   .superRefine((d, ctx) => {
     validarConversion({ ...d, pagoInicial: undefined }, ctx)
+    if (!d.contrato && d.pagos.length > 0) ctx.addIssue({ code: 'custom', path: ['pagos'], message: 'Para registrar pagos indica el contrato (monto total)' })
     const pagado = d.pagos.reduce((s, p) => s + aCentimos(p.monto), 0)
-    if (pagado > aCentimos(d.contrato.montoTotal)) {
+    if (d.contrato && pagado > aCentimos(d.contrato.montoTotal)) {
       ctx.addIssue({ code: 'custom', path: ['pagos'], message: `Los pagos (${formatearSoles(deCentimos(pagado))}) superan el total del contrato` })
     }
     d.pagos.forEach((p, i) => {
-      if (p.fecha < d.contrato.fechaFirma) ctx.addIssue({ code: 'custom', path: ['pagos', i, 'fecha'], message: 'No puede ser anterior a la firma del contrato' })
+      if (d.contrato && p.fecha < d.contrato.fechaFirma) ctx.addIssue({ code: 'custom', path: ['pagos', i, 'fecha'], message: 'No puede ser anterior a la firma del contrato' })
     })
     const documentos = d.integrantes.map((i) => `${i.tipoDocumento}${i.numeroDocumento}`)
     if (new Set(documentos).size !== documentos.length) ctx.addIssue({ code: 'custom', path: ['integrantes'], message: 'Hay dos integrantes con el mismo documento' })

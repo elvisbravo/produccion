@@ -78,7 +78,7 @@ describe('Cliente directo (e2e)', () => {
 
   it('exige los datos completos', async () => {
     const vacio = await http().post('/api/trabajos/cliente-directo').set(como('prod')).send({}).expect(400);
-    expect(vacio.body.errores.map((e: { campo: string }) => e.campo)).toEqual(expect.arrayContaining(['integrantes', 'tipoTrabajoId', 'prioridadId', 'responsableId', 'trabajo', 'contrato']));
+    expect(vacio.body.errores.map((e: { campo: string }) => e.campo)).toEqual(expect.arrayContaining(['integrantes', 'tipoTrabajoId', 'prioridadId', 'responsableId', 'trabajo']));
     const sinDoc = await enviar('prod', { integrantes: [{ celular: `9${sufijo}71`, nombres: 'A', apellidos: 'B', email: 'a@b.com', esTitular: true }] }).expect(400);
     expect(sinDoc.body.errores.map((e: { campo: string }) => e.campo)).toEqual(expect.arrayContaining(['integrantes.0.tipoDocumento', 'integrantes.0.numeroDocumento']));
     const sinCorreo = await enviar('prod', { integrantes: [{ celular: `9${sufijo}71`, nombres: 'A', apellidos: 'B', tipoDocumento: 'DNI', numeroDocumento: `7${sufijo}1`, esTitular: true }] }).expect(400);
@@ -126,6 +126,28 @@ describe('Cliente directo (e2e)', () => {
     expect(otro.codigo).not.toBe(trabajo.codigo);
     expect(otro.integrantes[0].id).toBe(trabajo.integrantes[0].id);
     expect(otro.contrato!.pagos).toHaveLength(0);
+  });
+
+  it('el contrato y el monto total no son obligatorios: sin monto no hay contrato y se registra después', async () => {
+    const { contrato: _c, pagos: _p, ...sinMonto } = cuerpo as Record<string, unknown>;
+    const celular = `9${sufijo}72`;
+    const integrantes = [{ celular, nombres: 'Sin', apellidos: 'Monto', email: `sin.monto.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `6${sufijo}1`, esTitular: true }];
+    // Pagos sin contrato no tienen sentido
+    await http().post('/api/trabajos/cliente-directo').set(como('prod')).send({ ...sinMonto, integrantes, pagos: [{ monto: 50, fecha: hoy, metodo: 'yape' }] }).expect(400);
+    const creado = (await http().post('/api/trabajos/cliente-directo').set(como('prod')).send({ ...sinMonto, integrantes }).expect(201)).body as TrabajoDetalle;
+    const t = (await http().get(`/api/trabajos/${creado.id}`).set(como('admin')).expect(200)).body as TrabajoDetalle;
+    expect(t.contrato).toBeNull();
+    expect(t.clienteDirecto).toBe(true);
+    expect(t.eventos.map((e) => e.tipo)).not.toContain('contrato');
+    // Después se registra el cobro (con la garantía del tipo de trabajo) y no se puede repetir
+    const cobro = { montoTotal: 500, formaPago: 'contado', cuotas: [{ monto: 500, vencimiento: hoy }] };
+    await http().post(`/api/trabajos/${t.id}/cobro`).set(como('aux')).send(cobro).expect(403);
+    const conCobro = (await http().post(`/api/trabajos/${t.id}/cobro`).set(como('admin')).send(cobro).expect(200)).body as TrabajoDetalle;
+    expect(conCobro.contrato).toMatchObject({ montoContrato: 500 });
+    expect(conCobro.contrato!.diasGarantia).toBeGreaterThan(0);
+    await http().post(`/api/trabajos/${t.id}/cobro`).set(como('admin')).send(cobro).expect(409);
+    // Un trabajo de cliente que sí nació con contrato no se cobra por esta vía
+    await http().post(`/api/trabajos/${trabajo.id}/cobro`).set(como('admin')).send(cobro).expect(409);
   });
 
   it('desde ahí sigue el flujo normal: armar equipo y el trabajo se ve con su cuenta', async () => {

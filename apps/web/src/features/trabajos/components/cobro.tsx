@@ -139,14 +139,14 @@ export function CamposCobro({ prefijo = '' }: { prefijo?: string }) {
 /** Cuadro de la ficha de un trabajo de proveedor que aún no tiene cobro. */
 export function CobroPendiente({ t }: { t: TrabajoDetalle }) {
   const [abierto, setAbierto] = useState(false)
-  if (!t.proveedor || t.contrato || ['cancelado'].includes(t.estado)) return null
+  if ((!t.proveedor && !t.clienteDirecto) || t.contrato || ['cancelado'].includes(t.estado)) return null
   return (
     <Can permiso="contratos.crear">
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div className="space-y-1.5">
             <CardTitle>Cobro</CardTitle>
-            <CardDescription>Todavía no se registró lo que paga el proveedor por este trabajo.</CardDescription>
+            <CardDescription>{t.proveedor ? 'Todavía no se registró lo que paga el proveedor por este trabajo.' : 'Todavía no se registró el contrato ni lo que paga el cliente.'}</CardDescription>
           </div>
           <Button size="sm" onClick={() => setAbierto(true)}>
             <HandCoins />

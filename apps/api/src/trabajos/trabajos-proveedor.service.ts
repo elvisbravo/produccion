@@ -24,14 +24,14 @@ export class TrabajosProveedorService {
   ) {}
 
   /** El cobro se guarda como el contrato del trabajo (cuotas y pagos), sin documento ni garantía. */
-  private async crearCobro(tx: Prisma.TransactionClient, trabajoId: string, cobro: CobroDatos, hoy: string, actor: ActorTrabajo, codigo: string) {
+  private async crearCobro(tx: Prisma.TransactionClient, trabajoId: string, cobro: CobroDatos, hoy: string, actor: ActorTrabajo, codigo: string, diasGarantia = 0) {
     await tx.contrato.create({
       data: {
         trabajoId,
         fechaFirma: dia(hoy),
         montoTotal: cobro.montoTotal,
         formaPago: cobro.formaPago,
-        diasGarantia: 0,
+        diasGarantia,
         creadoPor: actor.usuarioId,
         cuotas: { create: cobro.cuotas.map((c, i) => ({ numero: i + 1, monto: c.monto, vencimiento: dia(c.vencimiento) })) },
       },
@@ -100,12 +100,13 @@ export class TrabajosProveedorService {
   /** Registra el cobro de un trabajo de proveedor que aún no lo tiene. */
   async registrarCobro(trabajoId: string, cobro: CobroDatos, actor: ActorTrabajo): Promise<TrabajoDetalle> {
     await this.trabajos.verificarVisible(trabajoId, actor.usuarioId);
-    const t = await this.prisma.trabajo.findFirst({ where: { id: trabajoId, eliminadoEn: null }, select: { codigo: true, proveedorId: true, estado: true, contrato: { select: { id: true } } } });
+    const t = await this.prisma.trabajo.findFirst({ where: { id: trabajoId, eliminadoEn: null }, select: { codigo: true, proveedorId: true, estado: true, contrato: { select: { id: true } }, prospecto: { select: { clienteDirecto: true } }, tipoTrabajo: { select: { diasGarantia: true } } } });
     if (!t) throw new NotFoundException('Trabajo no encontrado');
-    if (!t.proveedorId) throw new BadRequestException('Solo los trabajos de proveedores se cobran así: los de clientes llevan contrato');
+    // Solo los trabajos de proveedor y los de clientes registrados directo sin monto se cobran así: los demás nacen con contrato.
+    if (!t.proveedorId && !t.prospecto?.clienteDirecto) throw new BadRequestException('Solo los trabajos de proveedores o de clientes registrados directo se cobran así: los demás llevan contrato');
     if (t.estado === 'cancelado') throw new BadRequestException('El trabajo está cancelado');
     if (t.contrato) throw new ConflictException('Este trabajo ya tiene un cobro registrado');
-    await this.prisma.$transaction((tx) => this.crearCobro(tx, trabajoId, cobro, diaEnLima(), actor, t.codigo));
+    await this.prisma.$transaction((tx) => this.crearCobro(tx, trabajoId, cobro, diaEnLima(), actor, t.codigo, t.proveedorId ? 0 : t.tipoTrabajo.diasGarantia));
     return this.trabajos.obtener(trabajoId, actor.usuarioId);
   }
 }

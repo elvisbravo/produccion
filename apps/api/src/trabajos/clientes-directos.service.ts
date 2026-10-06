@@ -96,7 +96,7 @@ export class ClientesDirectosService {
         select: { id: true, codigo: true, etapaId: true, tipoTrabajoId: true, titulo: true, prioridadId: true, observaciones: true, detalles: true },
       });
 
-      const conversion: ConvertirProspectoDatos = {
+      const conversion: Omit<ConvertirProspectoDatos, 'contrato'> & { contrato?: ConvertirProspectoDatos['contrato'] } = {
         integrantes: datos.integrantes.map((i, n) => ({ personaId: personas[n].personaId, nombres: i.nombres, apellidos: i.apellidos, email: i.email, tipoDocumento: i.tipoDocumento, numeroDocumento: i.numeroDocumento, esTitular: i.esTitular })),
         trabajo: datos.trabajo,
         contrato: datos.contrato,

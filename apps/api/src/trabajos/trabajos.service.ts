@@ -135,7 +135,7 @@ export class TrabajosService {
       prospecto: { codigo: string; etapaId: string; tipoTrabajoId: string; titulo: string | null; prioridadId: string; observaciones: string | null; detalles: string | null; tipoTrabajo: { diasGarantia: number } };
       celulares: Map<string, string>;
       ganadaId: string;
-      datos: ConvertirProspectoDatos;
+      datos: Omit<ConvertirProspectoDatos, 'contrato'> & { contrato?: ConvertirProspectoDatos['contrato'] };
       pagos: PagoDatos[];
       /** Cliente registrado directo (no viene de un seguimiento comercial). */
       directo?: boolean;
@@ -180,32 +180,39 @@ export class TrabajosService {
         fechaLimite: dia(datos.trabajo.fechaLimite),
         creadoPor: actor.usuarioId,
         integrantes: { create: datos.integrantes.map((i, orden) => ({ personaId: i.personaId, esTitular: i.esTitular, orden })) },
-        contrato: {
-          create: {
-            fechaFirma: dia(datos.contrato.fechaFirma),
-            montoTotal: datos.contrato.montoTotal,
-            formaPago: datos.contrato.formaPago,
-            diasGarantia: prospecto.tipoTrabajo.diasGarantia,
-            observaciones: datos.contrato.observaciones ?? null,
-            creadoPor: actor.usuarioId,
-            cuotas: { create: datos.contrato.cuotas.map((c, i) => ({ numero: i + 1, monto: c.monto, vencimiento: dia(c.vencimiento) })) },
+        // Un cliente directo puede registrarse sin contrato (aún sin monto): se registra después.
+        ...(datos.contrato && {
+          contrato: {
+            create: {
+              fechaFirma: dia(datos.contrato.fechaFirma),
+              montoTotal: datos.contrato.montoTotal,
+              formaPago: datos.contrato.formaPago,
+              diasGarantia: prospecto.tipoTrabajo.diasGarantia,
+              observaciones: datos.contrato.observaciones ?? null,
+              creadoPor: actor.usuarioId,
+              cuotas: { create: datos.contrato.cuotas.map((c, i) => ({ numero: i + 1, monto: c.monto, vencimiento: dia(c.vencimiento) })) },
+            },
           },
-        },
+        }),
         eventos: {
           create: [
             { tipo: 'creado', detalle: p.directo ? 'Cliente registrado directamente (ya trabajaba con nosotros)' : `Trabajo creado desde el prospecto ${prospecto.codigo}`, usuarioId: actor.usuarioId },
-            {
-              tipo: 'contrato',
-              detalle: `Contrato firmado por ${formatearSoles(datos.contrato.montoTotal)} (${datos.contrato.formaPago === 'contado' ? 'al contado' : `${datos.contrato.cuotas.length} cuotas`})`,
-              usuarioId: actor.usuarioId,
-            },
+            ...(datos.contrato
+              ? [
+                  {
+                    tipo: 'contrato' as const,
+                    detalle: `Contrato firmado por ${formatearSoles(datos.contrato.montoTotal)} (${datos.contrato.formaPago === 'contado' ? 'al contado' : `${datos.contrato.cuotas.length} cuotas`})`,
+                    usuarioId: actor.usuarioId,
+                  },
+                ]
+              : []),
           ],
         },
       },
       include: { contrato: { select: { id: true } } },
     });
 
-    for (const pago of p.pagos) await this.registrarPagoTx(tx, trabajo.contrato!.id, pago, actor);
+    if (trabajo.contrato) for (const pago of p.pagos) await this.registrarPagoTx(tx, trabajo.contrato.id, pago, actor);
 
     // El prospecto pasa a "Convertido" y sus actividades comerciales pendientes ya no aplican.
     await tx.tarea.updateMany({

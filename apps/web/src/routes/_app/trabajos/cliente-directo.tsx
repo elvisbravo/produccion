@@ -24,6 +24,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
@@ -80,7 +81,16 @@ function RegistrarClienteDirecto() {
       pagos: [],
     },
   })
-  const { control, register, setValue, getValues, formState } = form
+  const { control, register, setValue, getValues, unregister, formState } = form
+  const [conContrato, setConContrato] = useState(true)
+  const alternarContrato = (v: boolean) => {
+    setConContrato(v)
+    if (v) setValue('contrato', { fechaFirma: hoy, ...cobroVacio(), observaciones: '' })
+    else {
+      unregister('contrato')
+      setValue('pagos', [])
+    }
+  }
   const e = formState.errors
   const integrantes = useFieldArray({ control, name: 'integrantes' })
   const pagos = useFieldArray({ control, name: 'pagos' })
@@ -436,10 +446,19 @@ function RegistrarClienteDirecto() {
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Contrato</CardTitle>
-              <CardDescription>Con la fecha en que se firmó, aunque sea anterior a hoy.</CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <div className="space-y-1.5">
+                <CardTitle>Contrato</CardTitle>
+                <CardDescription>
+                  {conContrato ? 'Con la fecha en que se firmó, aunque sea anterior a hoy.' : 'Sin monto por ahora: el contrato y los cobros se registran después desde la ficha del trabajo.'}
+                </CardDescription>
+              </div>
+              <Label htmlFor="cd-con-contrato" className="flex items-center gap-2 font-normal">
+                <Checkbox id="cd-con-contrato" checked={conContrato} onCheckedChange={(v) => alternarContrato(v === true)} />
+                Registrar contrato
+              </Label>
             </CardHeader>
+            {conContrato && (
             <CardContent className="flex flex-col gap-4">
               <Field data-invalid={Boolean(e.contrato?.fechaFirma)} className="sm:max-w-xs">
                 <FieldLabel htmlFor="cd-firma">
@@ -452,8 +471,10 @@ function RegistrarClienteDirecto() {
               </Field>
               <CamposCobro prefijo="contrato" />
             </CardContent>
+            )}
           </Card>
 
+          {conContrato && (
           <Card>
             <CardHeader className="flex flex-row items-start justify-between gap-4">
               <div className="space-y-1.5">
@@ -516,6 +537,7 @@ function RegistrarClienteDirecto() {
               </CardContent>
             )}
           </Card>
+          )}
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" asChild>
