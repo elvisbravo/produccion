@@ -99,6 +99,33 @@ describe('Apoyo para una tarea que no llega (e2e)', () => {
     await app.close();
   });
 
+  it('al dar una reunión con hora a quien tiene la cola llena, se ve qué se corre y qué ya no llega', async () => {
+    const catalogos = (await http().get('/api/catalogos/prospecto').set(como('ana')).expect(200)).body as CatalogosProspecto;
+    const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body as CatalogoActividades;
+    // Un día entre semana (lunes a jueves) dentro de la planificación de la cola.
+    let dia = sumarDias(hoy, 1);
+    while (![1, 2, 3, 4].includes(new Date(`${dia}T12:00:00Z`).getUTCDay())) dia = sumarDias(dia, 1);
+    const p = (
+      await http()
+        .post('/api/prospectos')
+        .set(como('ana'))
+        .send({
+          tipoTrabajoId: catalogos.tiposTrabajo[0].id,
+          prioridadId: catalogos.prioridades[0].id,
+          origenId: catalogos.origenes[0].id,
+          contactos: [{ celular: celular(7), esPrincipal: true }],
+          primeraActividad: { actividadId: actividades.actividades.find((a) => a.nombre === 'Enfoque')!.id, fecha: dia, hora: '10:00', modalidad: 'virtual' },
+        })
+        .expect(201)
+    ).body as ProspectoDetalle;
+    const cand = (await http().get(`/api/tareas/${p.tareas[0].id}/candidatos`).set(como('prod')).expect(200)).body;
+    const suyo = cand.participaciones.flatMap((x: { candidatos: { usuario: { id: string }; impacto: { titulo: string; finAntes: string; finDespues: string }[] }[] }) => x.candidatos).find((c: { usuario: { id: string } }) => c.usuario.id === ids.aux);
+    expect(suyo.impacto.some((i: { titulo: string }) => i.titulo === 'Capítulo largo')).toBe(true);
+    // Quien no tiene cola no se ve afectado.
+    const libre = cand.participaciones.flatMap((x: { candidatos: { usuario: { id: string }; impacto: unknown[] }[] }) => x.candidatos).find((c: { usuario: { id: string } }) => c.usuario.id === ids.aux3);
+    expect(libre.impacto).toEqual([]);
+  });
+
   it('evalúa quién puede tomarla y qué necesitaría cada uno; solo quien reasigna lo ve', async () => {
     await http().get(`/api/produccion/tareas/${tareaId}/apoyo`).set(como('aux')).expect(403);
     const a = await apoyo();

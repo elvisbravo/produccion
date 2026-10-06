@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   diaEnLima,
+  horaAMinutos,
   horaEnLima,
   instanteDesdeLima,
   ROLES_BASE,
@@ -368,6 +369,10 @@ export class TareasService {
       { id: tarea.id, fecha: tarea.fecha.toISOString().slice(0, 10), inicio: tarea.inicio, minutos: tarea.minutosEstimados },
     );
 
+    // Con hora fija, qué se corre en la cola de cada persona (sirve para decidir a quién dársela).
+    const minInicio = tarea.inicio ? horaAMinutos(horaEnLima(tarea.inicio)) : null;
+    const impactos = minInicio === null ? new Map() : await this.agenda.impactoDeHoraFija(usuarios.map((u) => u.id), tarea.fecha.toISOString().slice(0, 10), minInicio, minInicio + tarea.minutosEstimados);
+
     return {
       tarea: aTareaItem(tarea),
       participaciones: tarea.actividad.participaciones.map((p) => ({
@@ -388,6 +393,7 @@ export class TareasService {
                 conflictos: this.conflictos(suyas, tarea.inicio, tarea.minutosEstimados),
                 tareasDelDia: suyas.length,
                 disponibilidad: disponibilidad.get(u.id)!,
+                impacto: impactos.get(u.id) ?? [],
               },
             ];
           })

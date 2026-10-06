@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ApiError } from '@/lib/api'
-import { describirCuando, formatearHora, nombreCompleto } from '@/lib/formato'
+import { describirCuando, formatearFecha, formatearHora, nombreCompleto } from '@/lib/formato'
 import { usePermiso } from '@/lib/permisos'
 import { cn } from '@/lib/utils'
 import { candidatosQuery, useAsignarTarea } from '../api'
@@ -148,6 +148,19 @@ export function DialogoAsignar({ tareaId, hoy, abierto, onAbiertoChange }: Props
                                     ? `${horas(d.ocupado)} programadas de ${horas(d.capacidad)} ese día`
                                     : 'Libre ese día'}
                             </span>
+                            {!bloqueado && c.impacto.length > 0 && (
+                              <div className="mt-1 flex flex-col gap-0.5 rounded-md bg-muted/50 px-2 py-1.5 text-xs">
+                                <span className="font-medium">Si toma esta actividad, se corre en su cola:</span>
+                                {c.impacto.map((i) => (
+                                  <span key={i.tareaId} className={cn('text-muted-foreground', i.semaforoDespues === 'rojo' && 'text-destructive')}>
+                                    {i.trabajoCodigo && <span className="font-mono">{i.trabajoCodigo} · </span>}
+                                    {i.titulo}: termina {i.finDespues ? formatearFecha(i.finDespues) : 'fuera de plazo'}
+                                    {i.finAntes && ` (antes ${formatearFecha(i.finAntes)})`}
+                                    {i.semaforoDespues === 'rojo' || i.semaforoDespues === 'sin_plan' ? ' · ya no llega a su fecha límite' : ''}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </Label>
                       )
