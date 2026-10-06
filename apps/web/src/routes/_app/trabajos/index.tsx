@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { InsigniaPrioridad } from '@/features/prospectos/components/insignias'
-import { trabajosQuery } from '@/features/trabajos/api'
+import { asistentesQuery, trabajosQuery } from '@/features/trabajos/api'
 import { MarcaFechasFijas } from '@/features/trabajos/components/fechas-fijas'
 import { EtiquetasSeguimiento, LeyendaSeguimiento } from '@/features/trabajos/components/insignias'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -27,6 +27,7 @@ export const Route = createFileRoute('/_app/trabajos/')({
     seguimiento: z.enum(SEGUIMIENTOS).optional().catch(undefined),
     origen: z.enum(['cliente', 'proveedor']).optional().catch(undefined),
     proveedorId: z.uuid().optional().catch(undefined),
+    responsableId: z.uuid().optional().catch(undefined),
     pagina: z.coerce.number().int().min(1).optional().catch(undefined),
   }),
   beforeLoad: () => exigirPermiso('trabajos.ver'),
@@ -43,6 +44,7 @@ function ListadoTrabajos() {
   const puedeClienteDirecto = usePermiso('trabajos.registrar_cliente_directo')
   const puedeProveedor = usePermiso('trabajos.registrar_de_proveedor')
   const { data, isPending } = useQuery(trabajosQuery(filtros))
+  const { data: asistentes = [] } = useQuery(asistentesQuery)
   const [texto, setTexto] = useState(filtros.q ?? '')
   const q = useDebounce(texto.trim(), 350)
   const hoy = diaEnLima()
@@ -110,6 +112,22 @@ function ListadoTrabajos() {
             <SelectItem value={TODOS}>Clientes y proveedores</SelectItem>
             <SelectItem value="cliente">Solo clientes</SelectItem>
             <SelectItem value="proveedor">Solo proveedores</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={filtros.responsableId ?? TODOS}
+          onValueChange={(v) => void navigate({ search: (s) => ({ ...s, responsableId: v === TODOS ? undefined : v, pagina: undefined }), replace: true })}
+        >
+          <SelectTrigger aria-label="Asistente administrativa" className="w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODOS}>Todas las asistentes administrativas</SelectItem>
+            {asistentes.map((a) => (
+              <SelectItem key={a.id} value={a.id}>
+                {nombreCompleto(a)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Popover>

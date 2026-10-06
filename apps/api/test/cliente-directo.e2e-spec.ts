@@ -213,6 +213,18 @@ describe('Cliente directo (e2e)', () => {
     await prisma.proveedor.deleteMany({ where: { id: proveedor.id } });
   });
 
+  it('el listado de trabajos se filtra por asistente administrativa', async () => {
+    const integrantes = [{ celular: `9${sufijo}79`, nombres: 'Con', apellidos: 'Filtro', email: `con.filtro.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `9${sufijo}1`, esTitular: true }];
+    const creado = (await enviar('prod', { integrantes, pagos: [] }).expect(201)).body as TrabajoDetalle;
+    const asistentes = (await http().get('/api/trabajos/asistentes-administrativas').set(como('prod')).expect(200)).body as { id: string }[];
+    expect(asistentes.map((a) => a.id)).toContain(ids.ana);
+    const deAna = (await http().get(`/api/trabajos?responsableId=${ids.ana}`).set(como('admin')).expect(200)).body.datos as { id: string }[];
+    expect(deAna.map((t) => t.id)).toContain(creado.id);
+    const deOtra = (await http().get(`/api/trabajos?responsableId=${ids.jefe}`).set(como('admin')).expect(200)).body.datos as { id: string }[];
+    expect(deOtra.map((t) => t.id)).not.toContain(creado.id);
+    await prisma.trabajo.deleteMany({ where: { id: creado.id } });
+  });
+
   it('acepta una hora de inicio de hoy que ya pasó: la actividad arranca desde ahora', async () => {
     const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string }[];
     const elaboracion = actividades.find((a) => a.nombre === 'Elaboración')!;

@@ -262,7 +262,7 @@ export class TrabajosService {
   // ─── Consultas ───────────────────────────────────────────
 
   async listar(filtros: ListarTrabajosConsulta, usuarioId: string): Promise<Paginado<TrabajoListadoItem>> {
-    const { q, estado, seguimiento, proveedorId, personaId, origen, pagina, porPagina } = filtros;
+    const { q, estado, seguimiento, proveedorId, personaId, origen, responsableId, pagina, porPagina } = filtros;
     const permisosMontos = await this.permisosDeMontos(usuarioId);
     const where: Prisma.TrabajoWhereInput = {
       eliminadoEn: null,
@@ -273,6 +273,7 @@ export class TrabajosService {
         ...(seguimiento ? [await this.filtroSeguimiento(seguimiento, permisosMontos.verMontos)] : []),
         ...(proveedorId ? [{ proveedorId }] : []),
         ...(personaId ? [{ integrantes: { some: { personaId } } }] : []),
+        ...(responsableId ? [{ prospecto: { responsableId } }] : []),
         ...(origen ? [origen === 'proveedor' ? { proveedorId: { not: null } } : { prospectoId: { not: null } }] : []),
         ...(q ? [{ id: { in: await this.idsQueCoinciden(q) } }] : []),
       ],
@@ -399,6 +400,19 @@ export class TrabajosService {
   // ─── Equipo ──────────────────────────────────────────────
 
   /** Personas que pueden integrar el equipo: auxiliares y jefes de producción activos. */
+  /** Asistentes administrativas (y quien figure como responsable de algún cliente) para filtrar el listado de trabajos. */
+  async asistentesAdministrativas(): Promise<UsuarioResumen[]> {
+    const responsables = await this.prisma.prospecto.findMany({ where: { trabajo: { isNot: null }, eliminadoEn: null }, distinct: ['responsableId'], select: { responsableId: true } });
+    return this.prisma.usuario.findMany({
+      where: {
+        eliminadoEn: null,
+        OR: [{ roles: { some: { rol: { codigo: ROLES_BASE.ASIST_ADM, activo: true } } } }, { id: { in: responsables.map((r) => r.responsableId) } }],
+      },
+      select: { id: true, nombres: true, apellidos: true },
+      orderBy: [{ nombres: 'asc' }, { apellidos: 'asc' }],
+    });
+  }
+
   async candidatosEquipo(): Promise<{ auxiliares: UsuarioResumen[]; jefes: UsuarioResumen[] }> {
     const conRol = (codigo: string) =>
       this.prisma.usuario.findMany({

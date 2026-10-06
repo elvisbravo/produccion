@@ -22,6 +22,7 @@ export const clavesTrabajos = {
   lista: (f: ListarTrabajosFiltros) => ['trabajos', 'lista', f] as const,
   detalle: (id: string) => ['trabajos', 'detalle', id] as const,
   candidatos: ['trabajos', 'candidatos-equipo'] as const,
+  asistentes: ['trabajos', 'asistentes-administrativas'] as const,
   cobranza: ['contratos', 'cobranza'] as const,
 }
 
@@ -45,6 +46,13 @@ export const trabajoQuery = (id: string) =>
 export const candidatosEquipoQuery = queryOptions({
   queryKey: clavesTrabajos.candidatos,
   queryFn: () => api<{ auxiliares: UsuarioResumen[]; jefes: UsuarioResumen[] }>('/trabajos/candidatos-equipo'),
+  staleTime: 60_000,
+})
+
+/** Asistentes administrativas, para filtrar el listado de trabajos. */
+export const asistentesQuery = queryOptions({
+  queryKey: clavesTrabajos.asistentes,
+  queryFn: () => api<UsuarioResumen[]>('/trabajos/asistentes-administrativas'),
   staleTime: 60_000,
 })
 

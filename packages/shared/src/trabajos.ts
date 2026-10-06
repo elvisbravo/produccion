@@ -432,6 +432,8 @@ export const listarTrabajosSchema = z.object({
   /** Trabajos de un cliente (persona integrante). */
   personaId: z.uuid().optional(),
   origen: z.enum(['cliente', 'proveedor']).optional(),
+  /** Trabajos cuyo cliente sigue esa asistente administrativa (la responsable del cliente). */
+  responsableId: z.uuid().optional(),
   pagina: z.coerce.number().int().min(1).default(1),
   porPagina: z.coerce.number().int().min(5).max(100).default(20),
 })

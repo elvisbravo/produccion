@@ -45,6 +45,12 @@ export class TrabajosController {
     return this.trabajos.listar(filtros, req.usuario!.id);
   }
 
+  @RequierePermiso('trabajos.ver')
+  @Get('trabajos/asistentes-administrativas')
+  asistentesAdministrativas(): Promise<UsuarioResumen[]> {
+    return this.trabajos.asistentesAdministrativas();
+  }
+
   @RequierePermiso('trabajos.armar_equipo')
   @Get('trabajos/candidatos-equipo')
   candidatosEquipo(): Promise<{ auxiliares: UsuarioResumen[]; jefes: UsuarioResumen[] }> {

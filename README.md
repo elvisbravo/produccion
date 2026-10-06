@@ -77,6 +77,7 @@ Para publicarlo en un VPS con Ubuntu (Nginx, HTTPS, systemd, respaldos y actuali
 | POST | `/api/tareas/:id/completar`, `…/reprogramar`, `…/cancelar` | Cierre con resultado y siguiente paso; reprogramación; cancelación |
 | POST | `/api/prospectos/:id/convertir` | Convierte en cliente: trabajo, integrantes, contrato con cuotas y pago inicial opcional. Exige de cada integrante documento, nombres y apellidos; de todos, al menos un correo; y del trabajo nivel académico, universidad, carrera, fecha límite y enlace de Drive (se copian del prospecto y también lo actualizan) |
 | GET | `/api/trabajos`, `/api/trabajos/:id` | Listado y detalle (según el alcance: propios, equipo o todos; montos solo con permiso) |
+| GET | `/api/trabajos?responsableId=…`, `/api/trabajos/asistentes-administrativas` | Filtro del listado por la asistente administrativa que sigue al cliente (por defecto, todas) y la lista para elegirla |
 | GET/PUT | `/api/trabajos/candidatos-equipo`, `/api/trabajos/:id/equipo` | Candidatos y armado/cambio del equipo (queda el historial) |
 | POST | `/api/contratos/:id/pagos`, `/api/pagos/:id/anular` | Registrar un pago (se reparte a las cuotas más antiguas, emite recibo R-) y anularlo con motivo |
 | GET | `/api/contratos/cobranza` | Cuotas con saldo, de la más atrasada a la más lejana, con totales |
