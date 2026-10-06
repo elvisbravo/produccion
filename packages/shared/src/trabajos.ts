@@ -144,10 +144,13 @@ interface ConversionBase {
 
 /** Reglas que valen al convertir un prospecto y al registrar un cliente directo. */
 function validarConversion(d: ConversionBase, ctx: z.RefinementCtx) {
-  const titulares = d.integrantes.filter((i) => i.esTitular).length
-  if (titulares !== 1) ctx.addIssue({ code: 'custom', path: ['integrantes'], message: 'Marca a un integrante como titular' })
-  if (!d.integrantes.some((i) => i.email)) {
-    ctx.addIssue({ code: 'custom', path: ['integrantes'], message: 'Al menos uno de los integrantes debe tener un correo' })
+  // Sin integrantes (solo un trabajo de proveedor) no hay titular ni correo que exigir.
+  if (d.integrantes.length > 0) {
+    const titulares = d.integrantes.filter((i) => i.esTitular).length
+    if (titulares !== 1) ctx.addIssue({ code: 'custom', path: ['integrantes'], message: 'Marca a un integrante como titular' })
+    if (!d.integrantes.some((i) => i.email)) {
+      ctx.addIssue({ code: 'custom', path: ['integrantes'], message: 'Al menos uno de los integrantes debe tener un correo' })
+    }
   }
   if (d.trabajo.fechaLimite < d.trabajo.fechaInicio) {
     ctx.addIssue({ code: 'custom', path: ['trabajo', 'fechaLimite'], message: 'Debe ser posterior a la fecha de inicio' })
@@ -634,7 +637,8 @@ export type ProgramacionInicialDatos = z.output<typeof programacionInicialSchema
 /** Un cliente que ya tiene trabajo contratado: se registra directo, con su contrato y los pagos ya recibidos. */
 export const clienteDirectoSchema = z
   .object({
-    integrantes: z.array(integranteDirectoSchema).min(1, 'Agrega al menos un integrante').max(5, 'Máximo 5 integrantes'),
+    /** Obligatorio, salvo que el trabajo lo haya entregado un proveedor (entonces puede no haber cliente). */
+    integrantes: z.array(integranteDirectoSchema).max(5, 'Máximo 5 integrantes'),
     tipoTrabajoId: z.string({ error: 'Elige el tipo de trabajo' }).min(1, 'Elige el tipo de trabajo').pipe(z.uuid('Elige el tipo de trabajo')),
     prioridadId: z.string({ error: 'Elige la prioridad' }).min(1, 'Elige la prioridad').pipe(z.uuid('Elige la prioridad')),
     /** Quien sigue al cliente: la asistente administrativa que lo captó, el jefe de producción, etc. */
@@ -652,6 +656,7 @@ export const clienteDirectoSchema = z
   })
   .superRefine((d, ctx) => {
     validarConversion({ ...d, pagoInicial: undefined }, ctx)
+    if (d.integrantes.length === 0 && !d.proveedorId) ctx.addIssue({ code: 'custom', path: ['integrantes'], message: 'Agrega al menos un integrante (solo es opcional si el trabajo es de un proveedor)' })
     if (d.programacion) {
       const [h, m] = d.programacion.hora.split(':').map(Number)
       // Fecha y hora de inicio pueden ser pasadas: el trabajo ya empezó y la actividad se programa desde ese momento.

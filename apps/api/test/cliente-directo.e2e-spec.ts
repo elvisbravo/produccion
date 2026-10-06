@@ -193,6 +193,26 @@ describe('Cliente directo (e2e)', () => {
     await prisma.trabajo.deleteMany({ where: { id: creado.id } });
   });
 
+  it('si el trabajo es de un proveedor, los integrantes son opcionales', async () => {
+    const proveedor = await prisma.proveedor.create({ data: { nombres: `E2E${sufijo}`, apellidos: 'SinCliente', creadoPor: ids.admin } });
+    const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string }[];
+    const elaboracion = actividades.find((a) => a.nombre === 'Elaboración')!;
+    const programacion = { actividadId: elaboracion.id, minutosEstimados: 60, hora: '10:00', auxiliarPrincipalId: ids.aux, jefeResponsableId: ids.jefe };
+    // Sin proveedor siguen siendo obligatorios
+    await enviar('prod', { integrantes: [] }).expect(400);
+    const creado = (await enviar('prod', { integrantes: [], proveedorId: proveedor.id, programacion, pagos: [], contrato: undefined }).expect(201)).body as TrabajoDetalle;
+    expect(creado.integrantes).toHaveLength(0);
+    expect(creado.proveedor).toMatchObject({ id: proveedor.id });
+    expect(creado.entregables[0].tareas).toHaveLength(1);
+    // Se puede abrir su ficha
+    await http().get(`/api/trabajos/${creado.id}`).set(como('prod')).expect(200);
+    const lista = (await http().get(`/api/trabajos?proveedorId=${proveedor.id}`).set(como('admin')).expect(200)).body.datos as { id: string }[];
+    expect(lista.map((x) => x.id)).toContain(creado.id);
+    await prisma.trabajo.deleteMany({ where: { id: creado.id } });
+    await prisma.prospecto.deleteMany({ where: { creadoPor: ids.prod, trabajo: null } });
+    await prisma.proveedor.deleteMany({ where: { id: proveedor.id } });
+  });
+
   it('acepta una hora de inicio de hoy que ya pasó: la actividad arranca desde ahora', async () => {
     const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string }[];
     const elaboracion = actividades.find((a) => a.nombre === 'Elaboración')!;

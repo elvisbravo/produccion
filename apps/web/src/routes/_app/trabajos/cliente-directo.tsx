@@ -107,6 +107,11 @@ function RegistrarClienteDirecto() {
   const alternarProveedor = (v: boolean) => {
     setDeProveedor(v)
     if (!v) setValue('proveedorId', '')
+    // Con proveedor el integrante es opcional: si estaba en blanco se quita; al desmarcar vuelve el primero.
+    const actuales = getValues('integrantes')
+    const enBlanco = (i: (typeof actuales)[number]) => !i.celular && !i.nombres && !i.apellidos && !i.numeroDocumento && !i.email
+    if (v && actuales.length === 1 && enBlanco(actuales[0])) integrantes.replace([])
+    if (!v && actuales.length === 0) integrantes.replace([integranteVacio(true)])
   }
   const alternarContrato = (v: boolean) => {
     setConContrato(v)
@@ -167,6 +172,7 @@ function RegistrarClienteDirecto() {
               <CardTitle>Integrantes</CardTitle>
               <CardDescription>
                 Cada integrante necesita celular, documento, nombres y apellidos; y al menos uno, un correo. Máximo {maxIntegrantes}. Si el celular ya existe, se reutiliza a la persona.
+                {deProveedor && ' Como el trabajo es de un proveedor, los integrantes son opcionales: puedes registrar solo el trabajo.'}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
@@ -181,7 +187,7 @@ function RegistrarClienteDirecto() {
                           <RadioGroupItem value={String(i)} id={`int-${i}-titular`} />
                           Titular (firma el contrato)
                         </Label>
-                        {integrantes.fields.length > 1 && (
+                        {(integrantes.fields.length > 1 || deProveedor) && (
                           <Button type="button" variant="ghost" size="icon-sm" className="ml-auto" aria-label={`Quitar al integrante ${i + 1}`} onClick={() => integrantes.remove(i)}>
                             <Trash2 />
                           </Button>
@@ -279,7 +285,7 @@ function RegistrarClienteDirecto() {
               <Field data-invalid={Boolean(e.responsableId)} className="sm:col-span-2">
                 <FieldLabel htmlFor="cd-responsable">
                   <span>
-                    Responsable del cliente <Requerido />
+                    Asistente administrativo <Requerido />
                   </span>
                 </FieldLabel>
                 <Controller
