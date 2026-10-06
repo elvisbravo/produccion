@@ -3,9 +3,10 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities'
 import type { ColaItem } from '@grupoes/shared'
 import { Link } from '@tanstack/react-router'
-import { Check, Clock, GripVertical, Loader2, Pin } from 'lucide-react'
+import { Check, Clock, GripVertical, LifeBuoy, Loader2, Pin } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { Can } from '@/components/can'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ApiError } from '@/lib/api'
@@ -14,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { BotonCronometro, TiempoTarea } from '@/features/tiempo/components/cronometro'
 import { DialogoTiempos } from '@/features/tiempo/components/dialogo-tiempos'
 import { useCompletarTareaCola, useReordenarCola } from '../api'
+import { DialogoApoyo } from './dialogo-apoyo'
 import { describirHolgura, PuntoSemaforo } from './insignias'
 
 interface Props {
@@ -60,6 +62,8 @@ function FilaCola({ item, posicion, ordenable, acciones }: { item: ColaItem; pos
   const esRevision = item.actividad.comportamiento === 'revision'
 
   const [verTiempos, setVerTiempos] = useState(false)
+  const [buscandoApoyo, setBuscandoApoyo] = useState(false)
+  const enRiesgo = item.semaforo === 'rojo' || item.semaforo === 'sin_plan'
   const completarTarea = async () => {
     try {
       await completar.mutateAsync({ tareaId: item.tareaId })
@@ -108,6 +112,12 @@ function FilaCola({ item, posicion, ordenable, acciones }: { item: ColaItem; pos
           </span>
         </span>
       </div>
+      <Can permiso="programacion.reasignar">
+        <Button size={enRiesgo ? 'sm' : 'icon-sm'} variant={enRiesgo ? 'outline' : 'ghost'} className={enRiesgo ? 'shrink-0 border-red-300 text-red-700 dark:border-red-800 dark:text-red-400' : 'shrink-0'} onClick={() => setBuscandoApoyo(true)} aria-label="Buscar apoyo para esta tarea" title="Buscar apoyo: pasarla a otra persona o con horas extra o bono">
+          <LifeBuoy />
+          {enRiesgo && 'Buscar apoyo'}
+        </Button>
+      </Can>
       {acciones && (
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
           <BotonCronometro tareaId={item.tareaId} enCurso={Boolean(item.enCursoDesde)} compacto />
@@ -130,6 +140,7 @@ function FilaCola({ item, posicion, ordenable, acciones }: { item: ColaItem; pos
           )}
         </div>
       )}
+      {buscandoApoyo && <DialogoApoyo tareaId={item.tareaId} onCerrar={() => setBuscandoApoyo(false)} />}
       {verTiempos && <DialogoTiempos tareaId={item.tareaId} titulo={item.titulo ?? item.actividad.nombre} esResponsable onCerrar={() => setVerTiempos(false)} />}
     </li>
   )

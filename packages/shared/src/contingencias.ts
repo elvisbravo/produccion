@@ -206,6 +206,18 @@ export const NOMBRE_ESTADO_EXTRA: Record<EstadoExtra, string> = {
   anulada: 'Anulada',
 }
 
+/** Reglas comunes de una propuesta de horas extra o bono. */
+function validarExtra(d: { modalidad: ModalidadExtra; fecha?: string; horaInicio?: string; horaFin?: string; monto?: number }, ctx: z.RefinementCtx) {
+  if (d.modalidad === 'horas_extra') {
+    if (!d.fecha) ctx.addIssue({ code: 'custom', message: 'Elige el día', path: ['fecha'] })
+    if (!d.horaInicio) ctx.addIssue({ code: 'custom', message: 'Indica la hora de inicio', path: ['horaInicio'] })
+    if (!d.horaFin) ctx.addIssue({ code: 'custom', message: 'Indica la hora de fin', path: ['horaFin'] })
+    if (d.horaInicio && d.horaFin && d.horaInicio >= d.horaFin) ctx.addIssue({ code: 'custom', message: 'La hora de fin debe ser posterior', path: ['horaFin'] })
+  } else if (!d.monto) {
+    ctx.addIssue({ code: 'custom', message: 'Indica el monto del bono', path: ['monto'] })
+  }
+}
+
 export const proponerExtraSchema = z
   .object({
     usuarioId: z.string().min(1, 'Elige a la persona').pipe(z.uuid()),
@@ -218,16 +230,7 @@ export const proponerExtraSchema = z
     horaFin: opcional(hora),
     monto: opcional(z.coerce.number('Monto no válido').positive('Debe ser mayor que cero').max(100_000)),
   })
-  .superRefine((d, ctx) => {
-    if (d.modalidad === 'horas_extra') {
-      if (!d.fecha) ctx.addIssue({ code: 'custom', message: 'Elige el día', path: ['fecha'] })
-      if (!d.horaInicio) ctx.addIssue({ code: 'custom', message: 'Indica la hora de inicio', path: ['horaInicio'] })
-      if (!d.horaFin) ctx.addIssue({ code: 'custom', message: 'Indica la hora de fin', path: ['horaFin'] })
-      if (d.horaInicio && d.horaFin && d.horaInicio >= d.horaFin) ctx.addIssue({ code: 'custom', message: 'La hora de fin debe ser posterior', path: ['horaFin'] })
-    } else if (!d.monto) {
-      ctx.addIssue({ code: 'custom', message: 'Indica el monto del bono', path: ['monto'] })
-    }
-  })
+  .superRefine(validarExtra)
 export type ProponerExtraFormulario = z.input<typeof proponerExtraSchema>
 export type ProponerExtraDatos = z.output<typeof proponerExtraSchema>
 
@@ -274,3 +277,56 @@ export interface ResumenExtras {
   personas: { usuario: UsuarioResumen; minutosPlanificados: number; minutosReales: number; bonos: number; cantidad: number }[]
   items: HoraExtraItem[]
 }
+
+// ─── Apoyo para una tarea que no llega ──────────────────────
+
+/** Horas extra que haría falta para que la tarea llegue a su fecha límite, con una ventana sugerida. */
+export interface OpcionHorasExtra {
+  fecha: string
+  horaInicio: string
+  horaFin: string
+  minutos: number
+  /** Minutos que no caben en el horario normal antes de la fecha límite. */
+  faltanMinutos: number
+  /** La ventana sugerida cubre todo lo que falta (si no, harían falta más días). */
+  cubreTodo: boolean
+  /** Topes de horas extra, feriados u otras advertencias para esa persona. */
+  avisos: string[]
+}
+
+export interface CandidatoApoyo {
+  usuario: UsuarioResumen
+  motivo: MotivoCandidato
+  /** Cómo quedaría la tarea en su cola en horario normal. */
+  horario: ResultadoPlan
+  llegaEnHorario: boolean
+  /** Solo si en horario normal no llega. */
+  horasExtra: OpcionHorasExtra | null
+  aviso: string | null
+}
+
+/** Quién puede tomar una tarea que no llega, y con qué: horario normal, horas extra o un bono. */
+export interface ApoyoTarea {
+  tarea: { id: string; titulo: string; color: string; minutos: number; fechaLimite: string | null; referencia: { tipo: 'prospecto' | 'trabajo'; id: string; codigo: string } | null; trabajoId: string | null }
+  responsable: UsuarioResumen
+  actual: ResultadoPlan
+  candidatos: CandidatoApoyo[]
+}
+
+export const reasignarTareaSchema = z.object({ usuarioId: z.string().min(1, 'Elige a la persona').pipe(z.uuid()), motivo: texto(300) })
+export type ReasignarTareaDatos = z.output<typeof reasignarTareaSchema>
+
+/** Proponer horas extra o un bono a quien tomaría la tarea: la tarea le pasa cuando se aprueba. */
+export const proponerApoyoSchema = z
+  .object({
+    usuarioId: z.string().min(1, 'Elige a la persona').pipe(z.uuid()),
+    modalidad: z.enum(MODALIDADES_EXTRA),
+    descripcion: texto(500),
+    fecha: opcional(dia),
+    horaInicio: opcional(hora),
+    horaFin: opcional(hora),
+    monto: opcional(z.coerce.number('Monto no válido').positive('Debe ser mayor que cero').max(100_000)),
+  })
+  .superRefine(validarExtra)
+export type ProponerApoyoFormulario = z.input<typeof proponerApoyoSchema>
+export type ProponerApoyoDatos = z.output<typeof proponerApoyoSchema>

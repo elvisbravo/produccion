@@ -1,4 +1,5 @@
 import type {
+  ApoyoTarea,
   AplicarReasignacionDatos,
   EjecutarUrgenteDatos,
   HoraExtraItem,
@@ -6,6 +7,7 @@ import type {
   ImpactoUrgente,
   PlanReasignacion,
   ProponerExtraDatos,
+  ProponerApoyoFormulario,
   ResumenExtras,
   PropuestaUrgente,
   RepartoUrgente,
@@ -53,6 +55,9 @@ export const repartoQuery = (id: string, reparto: RepartoUrgente) =>
 export const reasignacionQuery = (ausenciaId: string) =>
   queryOptions({ queryKey: clavesContingencias.reasignacion(ausenciaId), queryFn: () => api<PlanReasignacion>(`/ausencias/${ausenciaId}/reasignacion`), staleTime: 0 })
 
+/** Quién puede tomar una tarea que no llega y con qué (horario normal, horas extra o bono). */
+export const apoyoQuery = (tareaId: string) => queryOptions({ queryKey: ['produccion', 'apoyo', tareaId], queryFn: () => api<ApoyoTarea>(`/produccion/tareas/${tareaId}/apoyo`), staleTime: 0 })
+
 export const extrasQuery = (vista: VistaExtras, desde: string, hasta: string) =>
   queryOptions({
     queryKey: clavesContingencias.extras(vista, desde, hasta),
@@ -95,3 +100,9 @@ export const useAccionExtra = () =>
   )
 
 export const useGuardarTopes = () => useAccion((datos: TopesExtra) => api<TopesExtra>('/horas-extra/topes', { method: 'PUT', body: datos }))
+
+export const useReasignarTarea = (tareaId: string) =>
+  useAccion((datos: { usuarioId: string; motivo?: string }) => api<void>(`/produccion/tareas/${tareaId}/reasignar`, { method: 'POST', body: datos }))
+
+export const useProponerApoyo = (tareaId: string) =>
+  useAccion((datos: ProponerApoyoFormulario) => api<HoraExtraItem>(`/produccion/tareas/${tareaId}/apoyo`, { method: 'POST', body: datos }))

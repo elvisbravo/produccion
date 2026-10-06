@@ -1437,6 +1437,8 @@ model HoraExtraBono {
   trabajoId      String         @map("trabajo_id") @db.Uuid
   entregableId   String?        @map("entregable_id") @db.Uuid
   tareaId        String?        @map("tarea_id") @db.Uuid
+  /// Al aprobarse, la tarea pasa a esta persona (apoyo con horas extra o bono para una tarea que no llega).
+  reasignaTarea  Boolean        @default(false) @map("reasigna_tarea")
   /// Horas extra: el día y el tramo (minutos desde las 00:00).
   fecha          DateTime?      @db.Date
   minutoInicio   Int?           @map("minuto_inicio") @db.SmallInt

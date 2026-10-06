@@ -35,9 +35,9 @@ const RANGO: Record<Semaforo, number> = { verde: 0, ambar: 1, rojo: 2, sin_plan:
 const ORDEN_MOTIVO: Record<MotivoCandidato, number> = { equipo: 0, auxiliar: 1, jefe: 2 };
 
 /** Fecha límite de una tarea de la cola: la de su entregable o la del trabajo. */
-const limiteDe = (t: TareaDeAgenda) => (t.entregable ? soloFecha(t.entregable.fechaLimite) : t.trabajo ? soloFecha(t.trabajo.fechaLimite) : null);
+export const limiteDe = (t: TareaDeAgenda) => (t.entregable ? soloFecha(t.entregable.fechaLimite) : t.trabajo ? soloFecha(t.trabajo.fechaLimite) : null);
 
-function resultado(plan: PlanCola | undefined, fechaLimite: string | null): ResultadoPlan {
+export function resultado(plan: PlanCola | undefined, fechaLimite: string | null): ResultadoPlan {
   const fin = plan?.fin ? new Date(new Date(`${plan.fin.fecha}T00:00:00-05:00`).getTime() + plan.fin.fin * 60_000).toISOString() : null;
   if (!fechaLimite) return { fin, semaforo: plan?.fin ? 'verde' : 'sin_plan', holguraDias: null };
   const h = holgura(plan?.fin?.fecha ?? null, fechaLimite);
@@ -269,37 +269,7 @@ export class ContingenciasService {
     await this.prisma.$transaction(async (tx) => {
       for (const cambio of datos.cambios) {
         if (cambio.usuarioId === u) continue;
-        const responsable = await tx.tareaResponsable.findFirst({
-          where: { tareaId: cambio.tareaId, usuarioId: u, tarea: { estado: { in: [...ACTIVAS] } } },
-          include: { tarea: { include: { actividad: true } } },
-        });
-        if (!responsable) throw new ConflictException('Alguna tarea ya no está a cargo de esa persona: vuelve a cargar la propuesta');
-        if (await tx.tareaResponsable.count({ where: { tareaId: cambio.tareaId, usuarioId: cambio.usuarioId } })) {
-          throw new BadRequestException('Esa persona ya participa en la tarea');
-        }
-        const t = responsable.tarea;
-        if (t.inicio) {
-          const d = (await this.agenda.disponibilidad([cambio.usuarioId], { id: t.id, fecha: soloFecha(t.fecha), inicio: t.inicio, minutos: t.minutosEstimados }, tx)).get(cambio.usuarioId)!;
-          if (d.estado === 'no_laborable') throw new BadRequestException(`No trabaja ese día (${d.bloqueo})`);
-        }
-        const rol = await this.rolPara(tx, responsable.participacionId, cambio.usuarioId);
-        const enCola = responsable.ordenCola !== null;
-        const ultimo = enCola
-          ? ((await tx.tareaResponsable.aggregate({ where: { usuarioId: cambio.usuarioId, ordenCola: { not: null }, tarea: { estado: { in: [...ACTIVAS] } } }, _max: { ordenCola: true } }))._max.ordenCola ?? 0)
-          : 0;
-        await tx.tareaResponsable.update({
-          where: { id: responsable.id },
-          data: { usuarioId: cambio.usuarioId, ...rol, asignadoPorId: actor.usuarioId, asignadoEn: new Date(), ordenCola: enCola ? ultimo + 1 : null, forzado: false, motivoForzado: null },
-        });
-        if (t.estado === 'en_proceso') await tx.tarea.update({ where: { id: t.id }, data: { estado: 'pendiente' } });
-        const motivo = `Ausencia de ${nombreDe(ausencia.usuario)}`;
-        const destino = await tx.usuario.findUniqueOrThrow({ where: { id: cambio.usuarioId } });
-        const detalle = `"${t.titulo ?? t.actividad.nombre}" pasó de ${nombreDe(ausencia.usuario)} a ${nombreDe(destino)} — ${motivo}`;
-        if (t.trabajoId) {
-          await this.sumarAlEquipo(tx, t.trabajoId, cambio.usuarioId, actor, motivo);
-          await tx.trabajoEvento.create({ data: { trabajoId: t.trabajoId, tipo: 'equipo', detalle, usuarioId: actor.usuarioId } });
-        }
-        if (t.prospectoId) await tx.prospectoEvento.create({ data: { prospectoId: t.prospectoId, tipo: 'tarea', detalle, datos: { tareaId: t.id }, usuarioId: actor.usuarioId } });
+        await this.trasladarTx(tx, { tareaId: cambio.tareaId, deUsuarioId: u, aUsuarioId: cambio.usuarioId, motivo: `Ausencia de ${nombreDe(ausencia.usuario)}` }, actor);
       }
       await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'reasignar_por_ausencia', entidad: 'ausencia', entidadId: ausenciaId, despues: datos, ip: actor.ip }, tx);
     });
@@ -313,6 +283,60 @@ export class ContingenciasService {
       );
     }
     return datos.cambios.length;
+  }
+
+  /**
+   * Pasa una tarea a otra persona dentro de una transacción: conserva su lugar en la cola (al final de la de quien la recibe),
+   * suma a la persona al equipo del trabajo si hace falta y deja el rastro en el historial. Sin `deUsuarioId` toma a quien la tiene en su cola.
+   */
+  async trasladarTx(tx: Tx, p: { tareaId: string; deUsuarioId?: string; aUsuarioId: string; motivo: string }, actor: ActorProduccion): Promise<{ titulo: string; deNombre: string; aNombre: string }> {
+    const responsable = await tx.tareaResponsable.findFirst({
+      where: { tareaId: p.tareaId, ...(p.deUsuarioId ? { usuarioId: p.deUsuarioId } : { ordenCola: { not: null } }), tarea: { estado: { in: [...ACTIVAS] } } },
+      include: { tarea: { include: { actividad: true } }, usuario: { select: CAMPOS_USUARIO } },
+    });
+    if (!responsable) throw new ConflictException('La tarea ya no está pendiente o cambió de responsable: vuelve a cargar la propuesta');
+    if (responsable.usuarioId === p.aUsuarioId) throw new BadRequestException('Esa persona ya tiene la tarea');
+    if (await tx.tareaResponsable.count({ where: { tareaId: p.tareaId, usuarioId: p.aUsuarioId } })) {
+      throw new BadRequestException('Esa persona ya participa en la tarea');
+    }
+    const t = responsable.tarea;
+    if (t.inicio) {
+      const d = (await this.agenda.disponibilidad([p.aUsuarioId], { id: t.id, fecha: soloFecha(t.fecha), inicio: t.inicio, minutos: t.minutosEstimados }, tx)).get(p.aUsuarioId)!;
+      if (d.estado === 'no_laborable') throw new BadRequestException(`No trabaja ese día (${d.bloqueo})`);
+    }
+    const rol = await this.rolPara(tx, responsable.participacionId, p.aUsuarioId);
+    const enCola = responsable.ordenCola !== null;
+    const ultimo = enCola
+      ? ((await tx.tareaResponsable.aggregate({ where: { usuarioId: p.aUsuarioId, ordenCola: { not: null }, tarea: { estado: { in: [...ACTIVAS] } } }, _max: { ordenCola: true } }))._max.ordenCola ?? 0)
+      : 0;
+    await tx.tareaResponsable.update({
+      where: { id: responsable.id },
+      data: { usuarioId: p.aUsuarioId, ...rol, asignadoPorId: actor.usuarioId, asignadoEn: new Date(), ordenCola: enCola ? ultimo + 1 : null, forzado: false, motivoForzado: null },
+    });
+    if (t.estado === 'en_proceso') await tx.tarea.update({ where: { id: t.id }, data: { estado: 'pendiente' } });
+    const destino = await tx.usuario.findUniqueOrThrow({ where: { id: p.aUsuarioId }, select: CAMPOS_USUARIO });
+    const titulo = t.titulo ?? t.actividad.nombre;
+    const detalle = `"${titulo}" pasó de ${nombreDe(responsable.usuario)} a ${nombreDe(destino)} — ${p.motivo}`;
+    if (t.trabajoId) {
+      await this.sumarAlEquipo(tx, t.trabajoId, p.aUsuarioId, actor, p.motivo);
+      await tx.trabajoEvento.create({ data: { trabajoId: t.trabajoId, tipo: 'equipo', detalle, usuarioId: actor.usuarioId } });
+    }
+    if (t.prospectoId) await tx.prospectoEvento.create({ data: { prospectoId: t.prospectoId, tipo: 'tarea', detalle, datos: { tareaId: t.id }, usuarioId: actor.usuarioId } });
+    return { titulo, deNombre: nombreDe(responsable.usuario), aNombre: nombreDe(destino) };
+  }
+
+  /** Pasar una tarea a otra persona en horario normal (por una enfermedad, una urgencia o una cola saturada). */
+  async reasignarTarea(tareaId: string, usuarioId: string, motivo: string | undefined, actor: ActorProduccion): Promise<void> {
+    const r = await this.prisma.$transaction(async (tx) => {
+      const resultado = await this.trasladarTx(tx, { tareaId, aUsuarioId: usuarioId, motivo: motivo ?? 'Reasignación por falta de disponibilidad' }, actor);
+      await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'reasignar_tarea', entidad: 'tarea', entidadId: tareaId, despues: { usuarioId, motivo }, ip: actor.ip }, tx);
+      return resultado;
+    });
+    await this.notificaciones.notificar(
+      [usuarioId],
+      { tipo: 'tarea.reasignada', titulo: `Recibiste una tarea de ${r.deNombre}`, mensaje: r.titulo, enlace: '/tareas?vista=cola' },
+      actor.usuarioId,
+    );
   }
 
   // ─── Inserción urgente ───────────────────────────────────

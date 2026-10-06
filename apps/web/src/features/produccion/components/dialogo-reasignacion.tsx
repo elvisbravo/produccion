@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ApiError } from '@/lib/api'
 import { duracion, formatearFecha, formatearFechaHora, nombreCompleto } from '@/lib/formato'
 import { reasignacionQuery, useAplicarReasignacion } from '../api-contingencias'
+import { DialogoApoyo } from './dialogo-apoyo'
 import { describirHolgura, PuntoSemaforo } from './insignias'
 
 const MANTENER = 'mantener'
@@ -23,6 +24,7 @@ export function DialogoReasignacion({ ausenciaId, onCerrar }: { ausenciaId: stri
   const aplicar = useAplicarReasignacion(ausenciaId)
   const [elegidos, setElegidos] = useState<Record<string, string>>({})
   const [errorAplicar, setErrorAplicar] = useState<string | null>(null)
+  const [apoyoDe, setApoyoDe] = useState<string | null>(null)
 
   const destino = (p: PropuestaReasignacion) => elegidos[p.tarea.id] ?? p.sugerido ?? MANTENER
   const cambios = data?.propuestas.filter((p) => destino(p) !== MANTENER).map((p) => ({ tareaId: p.tarea.id, usuarioId: destino(p) })) ?? []
@@ -86,9 +88,14 @@ export function DialogoReasignacion({ ausenciaId, onCerrar }: { ausenciaId: stri
                       </span>
                     )}
                   </span>
-                  <Badge variant="outline" className="mt-1">
-                    {SUGERENCIA[p.sugerencia]}
-                  </Badge>
+                  <span className="mt-1 flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{SUGERENCIA[p.sugerencia]}</Badge>
+                    {p.tarea.enCola && p.sugerencia === 'reasignar' && (
+                      <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setApoyoDe(p.tarea.id)}>
+                        Si nadie llega a tiempo: horas extra o bono
+                      </Button>
+                    )}
+                  </span>
                 </div>
                 <Select value={destino(p)} onValueChange={(v) => setElegidos((x) => ({ ...x, [p.tarea.id]: v }))}>
                   <SelectTrigger className="w-full sm:w-72" aria-label={`Destino de ${p.tarea.titulo}`}>
@@ -126,6 +133,7 @@ export function DialogoReasignacion({ ausenciaId, onCerrar }: { ausenciaId: stri
           </Button>
         </DialogFooter>
       </DialogContent>
+      {apoyoDe && <DialogoApoyo tareaId={apoyoDe} onCerrar={() => setApoyoDe(null)} />}
     </Dialog>
   )
 }

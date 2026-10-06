@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   diaEnLima,
   diaSemanaDe,
@@ -18,6 +18,7 @@ import { NotificacionesService } from '../notificaciones/notificaciones.service.
 import { ParametrosService } from '../parametros/parametros.service.js';
 import { PermisosService } from '../permisos/permisos.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ContingenciasService } from './contingencias.service.js';
 import type { ActorProduccion } from './produccion.service.js';
 
 const CAMPOS_USUARIO = { id: true, nombres: true, apellidos: true } as const;
@@ -56,6 +57,7 @@ export class ExtrasService {
     private readonly auditoria: AuditoriaService,
     private readonly notificaciones: NotificacionesService,
     private readonly parametros: ParametrosService,
+    private readonly contingencias: ContingenciasService,
   ) {}
 
   // ─── Topes ───────────────────────────────────────────────
@@ -115,9 +117,19 @@ export class ExtrasService {
     return avisos;
   }
 
+  /** Para sugerir horas extra: ¿se puede ese día y tramo?, con los avisos de topes, feriados y cruces. null si no se puede (ausencia). */
+  async evaluarVentana(usuarioId: string, fecha: string, inicio: number, fin: number): Promise<string[] | null> {
+    try {
+      const avisos = await this.revisarDia(usuarioId, fecha, inicio, fin);
+      return [...avisos, ...(await this.avisosDeTope(usuarioId, fecha, fin - inicio))];
+    } catch {
+      return null;
+    }
+  }
+
   // ─── Flujo ───────────────────────────────────────────────
 
-  async proponer(datos: ProponerExtraDatos, actor: ActorProduccion): Promise<HoraExtraItem> {
+  async proponer(datos: ProponerExtraDatos, actor: ActorProduccion, apoyo?: { tareaId: string }): Promise<HoraExtraItem> {
     const trabajo = await this.prisma.trabajo.findFirst({ where: { id: datos.trabajoId, eliminadoEn: null } });
     if (!trabajo || ['finalizado', 'cancelado'].includes(trabajo.estado)) throw errorCampo('trabajoId', 'Trabajo no disponible');
     if (datos.entregableId && !(await this.prisma.entregable.count({ where: { id: datos.entregableId, trabajoId: datos.trabajoId } }))) {
@@ -126,6 +138,15 @@ export class ExtrasService {
     const usuario = await this.prisma.usuario.findFirst({ where: { id: datos.usuarioId, activo: true, eliminadoEn: null } });
     if (!usuario) throw errorCampo('usuarioId', 'Usuario no disponible');
 
+    // Apoyo para una tarea: se propone a quien la tomaría; la tarea le pasa cuando se aprueba.
+    if (apoyo) {
+      const tarea = await this.prisma.tarea.findFirst({ where: { id: apoyo.tareaId, trabajoId: datos.trabajoId, estado: { in: ['pendiente', 'en_proceso'] } }, select: { id: true, responsables: { select: { usuarioId: true, ordenCola: true } } } });
+      if (!tarea || !tarea.responsables.some((r) => r.ordenCola !== null)) throw errorCampo('tareaId', 'La tarea ya no está pendiente en una cola');
+      if (tarea.responsables.some((r) => r.usuarioId === datos.usuarioId)) throw errorCampo('usuarioId', 'Esa persona ya tiene la tarea');
+      if (await this.prisma.horaExtraBono.count({ where: { tareaId: apoyo.tareaId, reasignaTarea: true, estado: { in: ['propuesta', 'aceptada'] } } })) {
+        throw new ConflictException('Esta tarea ya tiene una propuesta de apoyo abierta: anúlala antes de proponer otra');
+      }
+    }
     const esHoras = datos.modalidad === 'horas_extra';
     const inicio = esHoras ? horaAMinutos(datos.horaInicio!) : null;
     const fin = esHoras ? horaAMinutos(datos.horaFin!) : null;
@@ -139,6 +160,8 @@ export class ExtrasService {
         modalidad: datos.modalidad,
         trabajoId: datos.trabajoId,
         entregableId: datos.entregableId ?? null,
+        tareaId: apoyo?.tareaId ?? null,
+        reasignaTarea: Boolean(apoyo),
         descripcion: datos.descripcion,
         fecha: esHoras ? aFecha(datos.fecha!) : null,
         minutoInicio: inicio,
@@ -192,11 +215,27 @@ export class ExtrasService {
     const x = await this.obtener(id);
     if (x.estado !== 'aceptada') throw new BadRequestException('Solo se aprueba lo que la persona ya aceptó');
     if (x.modalidad === 'horas_extra') await this.revisarDia(x.usuarioId, soloFecha(x.fecha!), x.minutoInicio!, x.minutoFin!);
-    await this.cambiar(x, { estado: 'aprobada', aprobadaPorId: actor.usuarioId, aprobadaEn: new Date() }, 'aprobar', actor);
+    let traslado: { titulo: string; deNombre: string } | null = null;
+    if (x.reasignaTarea && x.tareaId) {
+      // La tarea pasa a la persona en el mismo momento en que se aprueba: si ya no se puede, no se aprueba.
+      traslado = await this.prisma.$transaction(async (tx) => {
+        const t = await this.contingencias.trasladarTx(tx, { tareaId: x.tareaId!, aUsuarioId: x.usuarioId, motivo: x.modalidad === 'bono' ? 'Apoyo con bono aprobado' : 'Apoyo con horas extra aprobado' }, actor);
+        await tx.horaExtraBono.update({ where: { id: x.id }, data: { estado: 'aprobada', aprobadaPorId: actor.usuarioId, aprobadaEn: new Date() } });
+        await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'aprobar', entidad: 'hora_extra_bono', entidadId: x.id, antes: { estado: x.estado }, despues: { estado: 'aprobada', tareaId: x.tareaId }, ip: actor.ip }, tx);
+        return t;
+      });
+    } else {
+      await this.cambiar(x, { estado: 'aprobada', aprobadaPorId: actor.usuarioId, aprobadaEn: new Date() }, 'aprobar', actor);
+    }
     const item = await this.item(id);
     await this.notificaciones.notificar(
       [x.usuarioId, x.propuestaPorId],
-      { tipo: 'extra.aprobada', titulo: `Aprobado: ${x.modalidad === 'bono' ? 'bono' : 'horas extra'} de ${item.usuario.nombres}`, mensaje: describir(item), enlace: '/horas-extra' },
+      {
+        tipo: 'extra.aprobada',
+        titulo: `Aprobado: ${x.modalidad === 'bono' ? 'bono' : 'horas extra'} de ${item.usuario.nombres}`,
+        mensaje: traslado ? `${describir(item)} · La tarea "${traslado.titulo}" (de ${traslado.deNombre}) pasa a la cola de ${item.usuario.nombres}` : describir(item),
+        enlace: traslado ? '/tareas?vista=cola' : '/horas-extra',
+      },
       actor.usuarioId,
     );
     return item;

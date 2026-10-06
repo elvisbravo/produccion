@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AgendaModule } from '../agenda/agenda.module.js';
+import { ApoyoController } from './apoyo.controller.js';
+import { ApoyoService } from './apoyo.service.js';
 import { ColasController } from './colas.controller.js';
 import { ContingenciasService } from './contingencias.service.js';
 import { ExtrasController } from './extras.controller.js';
@@ -9,8 +11,8 @@ import { ProduccionService } from './produccion.service.js';
 /** Colas de trabajo y lógica de entregables. Los endpoints de entregables viven en TrabajosModule (necesitan la visibilidad del trabajo). */
 @Module({
   imports: [AgendaModule],
-  controllers: [ColasController, ExtrasController],
-  providers: [ProduccionService, ContingenciasService, ExtrasService],
+  controllers: [ColasController, ExtrasController, ApoyoController],
+  providers: [ProduccionService, ContingenciasService, ExtrasService, ApoyoService],
   exports: [ProduccionService, ContingenciasService],
 })
 export class ProduccionModule {}
