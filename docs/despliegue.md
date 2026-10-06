@@ -22,6 +22,7 @@ Los archivos están en la raíz y en [`deploy/`](../deploy):
 | `deploy/env.produccion.example` | Plantilla del archivo `.env` con tus datos |
 | `deploy/actualizar.sh` | Actualiza el sistema (respaldo, código, construcción, migraciones, reinicio) |
 | `deploy/respaldo.sh` | Respaldo de la base de datos |
+| `deploy/limpiar-datos.sh` | Borra prospectos, clientes, trabajos y proveedores para empezar de cero (conserva usuarios y actividades; hace un respaldo y pide confirmación) |
 
 ## 0. Antes de empezar
 
