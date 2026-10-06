@@ -84,16 +84,17 @@ function AgendaReuniones() {
           <Button variant="outline" size="icon" aria-label={vista === 'semana' ? 'Semana anterior' : 'Día anterior'} onClick={() => ir({ dia: sumarDias(dia, -paso) })}>
             <ChevronLeft />
           </Button>
-          <Input type="date" aria-label="Día" className="w-40" value={dia} onChange={(e) => e.target.value && ir({ dia: e.target.value })} />
-          <Button variant="outline" size="icon" aria-label={vista === 'semana' ? 'Semana siguiente' : 'Día siguiente'} onClick={() => ir({ dia: sumarDias(dia, paso) })}>
-            <ChevronRight />
-          </Button>
-          {vista === 'semana' && (
+          {vista === 'semana' ? (
             <span className="inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium whitespace-nowrap">
               <CalendarRange className="size-4" />
               Semana del {formatearFecha(desde)} al {formatearFecha(hasta)}
             </span>
+          ) : (
+            <Input type="date" aria-label="Día" className="w-40" value={dia} onChange={(e) => e.target.value && ir({ dia: e.target.value })} />
           )}
+          <Button variant="outline" size="icon" aria-label={vista === 'semana' ? 'Semana siguiente' : 'Día siguiente'} onClick={() => ir({ dia: sumarDias(dia, paso) })}>
+            <ChevronRight />
+          </Button>
           <Button variant="outline" onClick={() => ir({ dia: undefined })} disabled={dia === hoy}>
             Hoy
           </Button>
