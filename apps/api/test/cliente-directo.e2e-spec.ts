@@ -10,6 +10,7 @@ import { configurarApp } from '../src/app.setup.js';
 import { hashPassword } from '../src/auth/password.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { datosAcademicos } from './datos-academicos.js';
+import { proximoDiaHabil } from './dias.js';
 
 const sufijo = Date.now().toString().slice(-6);
 const PASSWORD = 'Prueba-e2e-123';
@@ -223,6 +224,33 @@ describe('Cliente directo (e2e)', () => {
     const deOtra = (await http().get(`/api/trabajos?responsableId=${ids.jefe}`).set(como('admin')).expect(200)).body.datos as { id: string }[];
     expect(deOtra.map((t) => t.id)).not.toContain(creado.id);
     await prisma.trabajo.deleteMany({ where: { id: creado.id } });
+  });
+
+  it('a un cliente (trabajo) se le programan reuniones, no otras actividades ni a un trabajo cerrado', async () => {
+    const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string }[];
+    const id = (nombre: string) => actividades.find((a) => a.nombre === nombre)!.id;
+    const integrantes = [{ celular: `9${sufijo}80`, nombres: 'Con', apellidos: 'Reunion', email: `con.reunion.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `6${sufijo}2`, esTitular: true }];
+    const creado = (await enviar('prod', { integrantes, pagos: [] }).expect(201)).body as TrabajoDetalle;
+    const dia = await proximoDiaHabil(prisma);
+    const reunion = { actividadId: id('Enfoque'), fecha: dia, hora: '10:00', modalidad: 'virtual' };
+    const programar = (q: Quien, extra: Record<string, unknown> = {}) => http().post(`/api/trabajos/${creado.id}/reuniones`).set(como(q)).send({ ...reunion, ...extra });
+    // Solo reuniones que apliquen a clientes
+    await programar('prod', { actividadId: id('Elaboración') }).expect(400);
+    await programar('prod', { actividadId: id('Reunión comercial') }).expect(400);
+    await programar('prod', { personaIds: ['0199a000-0000-7000-8000-000000000009'] }).expect(400);
+    await programar('aux').expect(403); // el auxiliar no crea tareas
+    const r = (await programar('prod').expect(201)).body as { id: string; estado: string; trabajo: { id: string } | null; prospecto: unknown };
+    expect(r).toMatchObject({ estado: 'por_asignar', trabajo: { id: creado.id }, prospecto: null });
+    // Queda en la línea de tiempo del trabajo, avisa al coordinador y aparece en la agenda como cliente
+    const t = (await http().get(`/api/trabajos/${creado.id}`).set(como('prod')).expect(200)).body as TrabajoDetalle;
+    expect(t.eventos.some((e) => e.tipo === 'reunion' && e.detalle.includes('Enfoque'))).toBe(true);
+    const fila = ((await http().get(`/api/reuniones?desde=${dia}&hasta=${dia}`).set(como('prod')).expect(200)).body as { tarea: { id: string }; condicion: string; cliente: { nombres: string } | null }[]).find((f) => f.tarea.id === r.id)!;
+    expect(fila).toMatchObject({ condicion: 'cliente', cliente: { nombres: 'Con' } });
+    // Un trabajo cerrado ya no recibe reuniones
+    await prisma.trabajo.update({ where: { id: creado.id }, data: { estado: 'cancelado' } });
+    await programar('prod').expect(400);
+    await prisma.trabajo.deleteMany({ where: { id: creado.id } });
+    await prisma.prospecto.deleteMany({ where: { creadoPor: ids.prod, trabajo: null } });
   });
 
   it('acepta una hora de inicio de hoy que ya pasó: la actividad arranca desde ahora', async () => {

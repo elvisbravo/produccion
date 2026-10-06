@@ -949,6 +949,7 @@ enum TipoEventoTrabajo {
   entregable
   adicional
   pausa
+  reunion
 
   @@map("tipo_evento_trabajo")
 }

@@ -8,18 +8,23 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { aplicarErroresApi } from '@/lib/formularios'
-import { useProgramarTarea } from '../api'
+import { useProgramarReunionDeTrabajo, useProgramarTarea } from '../api'
 import { CamposProgramacion } from './campos-programacion'
 
 interface Props {
-  prospectoId: string
+  /** A un prospecto: cualquier actividad comercial. */
+  prospectoId?: string
+  /** A un cliente (un trabajo): solo reuniones. */
+  trabajoId?: string
   actividades: ActividadCatalogo[]
   abierto: boolean
   onAbiertoChange: (abierto: boolean) => void
 }
 
-export function DialogoProgramar({ prospectoId, actividades, abierto, onAbiertoChange }: Props) {
-  const programar = useProgramarTarea(prospectoId)
+export function DialogoProgramar({ prospectoId, trabajoId, actividades, abierto, onAbiertoChange }: Props) {
+  const programarProspecto = useProgramarTarea(prospectoId ?? '')
+  const programarTrabajo = useProgramarReunionDeTrabajo(trabajoId ?? '')
+  const programar = trabajoId ? programarTrabajo : programarProspecto
   const [error, setError] = useState<string | null>(null)
   const form = useForm<ProgramarTareaFormulario, unknown, ProgramarTareaDatos>({
     resolver: zodResolver(programarTareaSchema),
@@ -44,8 +49,8 @@ export function DialogoProgramar({ prospectoId, actividades, abierto, onAbiertoC
         <FormProvider {...form}>
           <form onSubmit={enviar} noValidate className="flex flex-col gap-4">
             <DialogHeader>
-              <DialogTitle>Programar actividad</DialogTitle>
-              <DialogDescription>Enfoque, llamada, mensaje o reunión con el prospecto.</DialogDescription>
+              <DialogTitle>{trabajoId ? 'Programar reunión' : 'Programar actividad'}</DialogTitle>
+              <DialogDescription>{trabajoId ? 'Una reunión con el cliente de este trabajo. Si la actividad se coordina, queda por asignar para producción.' : 'Enfoque, llamada, mensaje o reunión con el prospecto.'}</DialogDescription>
             </DialogHeader>
             {error && (
               <Alert variant="destructive">

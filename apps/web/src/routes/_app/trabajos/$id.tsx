@@ -32,6 +32,7 @@ import { AvisoEnEspera, BotonPausar } from '@/features/trabajos/components/pausa
 import { AvisoValoracion, BotonValorar } from '@/features/trabajos/components/valoracion'
 import { CobroPendiente } from '@/features/trabajos/components/cobro'
 import { BotonEditarDatos, BotonReprogramar } from '@/features/trabajos/components/edicion'
+import { BotonProgramarReunion } from '@/features/trabajos/components/boton-programar-reunion'
 import { ApiError } from '@/lib/api'
 import { diasHasta, duracion, formatearFecha, formatearFechaHora, haceCuanto, nombreCompleto } from '@/lib/formato'
 import { exigirPermiso } from '@/lib/guardas'
@@ -114,6 +115,7 @@ function DetalleTrabajo() {
           <div className="flex flex-col items-end gap-1 text-right">
             <BotonPausar t={t} />
             <BotonReprogramar t={t} />
+            <BotonProgramarReunion t={t} />
             <BotonValorar t={t} />
             <BotonFijarFechas t={t} />
             <span className="mt-1 text-sm text-muted-foreground">Entrega final</span>

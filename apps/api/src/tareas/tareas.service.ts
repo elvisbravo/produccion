@@ -220,6 +220,75 @@ export class TareasService {
     return tarea.id;
   }
 
+  /** El trabajo debe estar dentro del alcance de "trabajos.ver" del usuario (todos, su equipo o los de sus prospectos). */
+  async verificarTrabajo(trabajoId: string, usuarioId: string) {
+    const alcance = await this.alcance(usuarioId, 'trabajos.ver');
+    const enEquipo: Prisma.TrabajoWhereInput = { equipo: { some: { usuarioId, hasta: null } } };
+    const visible: Prisma.TrabajoWhereInput =
+      alcance === 'todos' ? {} : alcance === 'propios' ? { OR: [enEquipo, { prospecto: { responsableId: usuarioId } }, { creadoPor: usuarioId, proveedorId: { not: null } }] } : enEquipo;
+    const trabajo = alcance ? await this.prisma.trabajo.findFirst({ where: { id: trabajoId, eliminadoEn: null, ...visible }, select: { id: true } }) : null;
+    if (!trabajo) throw new NotFoundException('Trabajo no encontrado');
+  }
+
+  /**
+   * Programa una reunión a un cliente (un trabajo): la misma validación y asignación que a un prospecto, según cómo esté configurada la actividad.
+   * La reunión queda ligada al trabajo (una tarea es de un prospecto o de un trabajo, no de ambos); su prospecto se alcanza a través del trabajo.
+   */
+  async programarReunionDeTrabajo(trabajoId: string, datos: ProgramarTareaDatos, actor: ActorTarea): Promise<string> {
+    const id = await this.prisma.$transaction(async (tx) => {
+      const actividad = await tx.actividad.findFirst({ where: { id: datos.actividadId, activa: true }, include: INCLUIR_ACTIVIDAD });
+      if (!actividad || actividad.aplicaA === 'prospecto' || actividad.tipo.comportamiento !== 'reunion') throw errorCampo('actividadId', 'Elige una reunión que aplique a clientes');
+      const { fecha, inicio } = this.validarProgramacion(actividad, datos);
+
+      const trabajo = await tx.trabajo.findUniqueOrThrow({ where: { id: trabajoId }, select: { codigo: true, estado: true, integrantes: { select: { personaId: true } } } });
+      if (['finalizado', 'cancelado'].includes(trabajo.estado)) throw new BadRequestException('El trabajo ya está cerrado: no se le programan reuniones');
+      const integrantes = trabajo.integrantes.map((i) => i.personaId);
+      const personaIds = datos.personaIds ?? integrantes;
+      if (personaIds.some((p) => !integrantes.includes(p))) throw errorCampo('personaIds', 'Solo pueden participar integrantes del trabajo');
+
+      let estado: 'por_asignar' | 'pendiente' = 'pendiente';
+      let responsables: Prisma.TareaResponsableCreateManyTareaInput[] = [];
+      if (actividad.modoAsignacion === 'coordinada') estado = 'por_asignar';
+      else if (actividad.modoAsignacion === 'creador') responsables = [await this.responsableCreador(tx, actividad, actor.usuarioId)];
+      else if (actividad.modoAsignacion === 'directa') {
+        if (!datos.responsables?.length) throw errorCampo('responsables', 'Elige al responsable');
+        responsables = await this.resolverResponsables(tx, actividad, datos.responsables, actor.usuarioId);
+      } else throw errorCampo('actividadId', 'Esta actividad se asigna al responsable de un trabajo: elige otra reunión');
+
+      await this.verificarLaborable(tx, responsables.map((r) => r.usuarioId), { fecha: datos.fecha, inicio, minutos: actividad.minutosEstimados }, actor.usuarioId, 'fecha');
+
+      const tarea = await tx.tarea.create({
+        data: {
+          actividadId: actividad.id,
+          trabajoId,
+          fecha,
+          inicio,
+          minutosEstimados: actividad.minutosEstimados,
+          modalidad: datos.modalidad ?? null,
+          estado,
+          notas: datos.notas ?? null,
+          creadaPorId: actor.usuarioId,
+          responsables: { createMany: { data: responsables } },
+          personas: { createMany: { data: personaIds.map((personaId) => ({ personaId })) } },
+        },
+        select: { id: true },
+      });
+      await tx.trabajoEvento.create({
+        data: {
+          trabajoId,
+          tipo: 'reunion',
+          detalle: `Se programó "${actividad.nombre}" para el ${fechaLegible(datos.fecha, datos.hora)}${estado === 'por_asignar' ? ' (por asignar)' : ''}`,
+          datos: { tareaId: tarea.id },
+          usuarioId: actor.usuarioId,
+        },
+      });
+      await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'crear', entidad: 'tarea', entidadId: tarea.id, despues: datos, ip: actor.ip }, tx);
+      return tarea.id;
+    });
+    await this.avisarPorAsignar(id, actor.usuarioId);
+    return id;
+  }
+
   /** Valida día, hora y modalidad según la actividad; devuelve la fecha y el inicio a guardar. */
   private validarProgramacion(actividad: ActividadCompleta, d: { fecha: string; hora?: string; modalidad?: string }, prefijo = '') {
     if (actividad.requiereHoraFija && !d.hora) throw errorCampo(`${prefijo}hora`, `"${actividad.nombre}" necesita día y hora`);

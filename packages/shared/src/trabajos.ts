@@ -532,7 +532,7 @@ export interface TrabajoListadoItem {
 
 export interface TrabajoEventoItem {
   id: string
-  tipo: 'creado' | 'editado' | 'equipo' | 'contrato' | 'pago' | 'estado' | 'entregable' | 'adicional' | 'pausa'
+  tipo: 'creado' | 'editado' | 'equipo' | 'contrato' | 'pago' | 'estado' | 'entregable' | 'adicional' | 'pausa' | 'reunion'
   detalle: string
   usuario: UsuarioResumen | null
   fecha: string

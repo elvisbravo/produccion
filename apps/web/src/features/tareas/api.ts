@@ -88,6 +88,19 @@ export function useProgramarTarea(prospectoId: string) {
   })
 }
 
+/** Programa una reunión a un cliente (un trabajo); refresca también la ficha del trabajo. */
+export function useProgramarReunionDeTrabajo(trabajoId: string) {
+  const refrescar = useRefrescar()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (datos: ProgramarTareaDatos) => api<TareaItem>(`/trabajos/${trabajoId}/reuniones`, { method: 'POST', body: datos }),
+    onSuccess: () => {
+      refrescar()
+      void queryClient.invalidateQueries({ queryKey: ['trabajos'] })
+    },
+  })
+}
+
 export function useAsignarTarea(tareaId: string) {
   const refrescar = useRefrescar()
   return useMutation({

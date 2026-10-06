@@ -51,6 +51,19 @@ export class TareasController {
     return this.tareas.detalle(id, req.usuario!.id);
   }
 
+  /** Programa una reunión a un cliente (un trabajo). */
+  @RequierePermiso('tareas.crear')
+  @Post('trabajos/:id/reuniones')
+  async programarReunionDeTrabajo(
+    @Param('id', ParseUUIDPipe) trabajoId: string,
+    @Body(new ZodValidationPipe(programarTareaSchema)) datos: ProgramarTareaDatos,
+    @Req() req: SolicitudAutenticada,
+  ): Promise<TareaItem> {
+    await this.tareas.verificarTrabajo(trabajoId, req.usuario!.id);
+    const id = await this.tareas.programarReunionDeTrabajo(trabajoId, datos, actor(req));
+    return this.tareas.detalle(id, req.usuario!.id);
+  }
+
   @RequierePermiso('tareas.ver')
   @Get('tareas/mias')
   mias(@Req() req: SolicitudAutenticada): Promise<TareaItem[]> {
