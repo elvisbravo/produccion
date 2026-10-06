@@ -115,6 +115,8 @@ export const trabajoProveedorSchema = z.object({
   /** La única actividad del trabajo y su tiempo estimado. */
   actividadId: idRequerido('Elige la actividad'),
   minutosEstimados: z.coerce.number('Indica el tiempo estimado').int('Número entero').min(15, 'Mínimo 15 minutos').max(60 * 200, 'Máximo 200 horas'),
+  /** Opcional: el cliente (ya registrado) de quien es el trabajo. Lo entrega el proveedor y el proveedor paga. */
+  clienteId: opcional(z.uuid('Cliente no válido')),
   /** Opcional: lo que se le cobra al proveedor. También se puede registrar después. */
   cobro: cobroSchema.optional(),
 })
@@ -401,6 +403,8 @@ export const listarTrabajosSchema = z.object({
   seguimiento: z.enum(SEGUIMIENTOS).optional(),
   /** De un proveedor en particular, o solo de clientes / solo de proveedores. */
   proveedorId: z.uuid().optional(),
+  /** Trabajos de un cliente (persona integrante). */
+  personaId: z.uuid().optional(),
   origen: z.enum(['cliente', 'proveedor']).optional(),
   pagina: z.coerce.number().int().min(1).default(1),
   porPagina: z.coerce.number().int().min(5).max(100).default(20),

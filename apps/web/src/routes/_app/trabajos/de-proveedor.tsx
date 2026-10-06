@@ -21,10 +21,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { DialogoProveedor } from '@/features/proveedores/components/dialogo-proveedor'
 import { proveedoresQuery, useRegistrarTrabajoDeProveedor } from '@/features/proveedores/api'
-import { buscarCatalogo, catalogosProspectoQuery, crearEnCatalogo } from '@/features/prospectos/api'
+import { buscarCatalogo, buscarClientes, catalogosProspectoQuery, crearEnCatalogo } from '@/features/prospectos/api'
 import { actividadesQuery } from '@/features/tareas/api'
 import { CamposCobro, cobroVacio } from '@/features/trabajos/components/cobro'
-import { duracion } from '@/lib/formato'
+import { duracion, nombreCompleto } from '@/lib/formato'
+import { formatearCelular } from '@grupoes/shared'
 import { aplicarErroresApi } from '@/lib/formularios'
 import { exigirPermiso } from '@/lib/guardas'
 import { usePermiso } from '@/lib/permisos'
@@ -48,12 +49,13 @@ function RegistrarTrabajoDeProveedor() {
   const [error, setError] = useState<string | null>(null)
   const [conCobro, setConCobro] = useState(false)
   const [nuevoProveedor, setNuevoProveedor] = useState(false)
-  const [etiquetas, setEtiquetas] = useState<{ universidad?: string; carrera?: string }>({})
+  const [etiquetas, setEtiquetas] = useState<{ universidad?: string; carrera?: string; cliente?: string }>({})
 
   const form = useForm<TrabajoProveedorFormulario, unknown, TrabajoProveedorDatos>({
     resolver: zodResolver(trabajoProveedorSchema),
     defaultValues: {
       proveedorId: proveedorInicial ?? '',
+      clienteId: '',
       tipoTrabajoId: catalogos.tiposTrabajo.find((t) => t.nombre === 'Tesis')?.id ?? '',
       titulo: '',
       prioridadId: catalogos.prioridades.find((p) => p.porDefecto)?.id ?? '',
@@ -86,7 +88,7 @@ function RegistrarTrabajoDeProveedor() {
       toast.success(`Trabajo ${trabajo.codigo} registrado`)
       void navigate({ to: '/trabajos/$id', params: { id: trabajo.id } })
     } catch (err) {
-      setError(aplicarErroresApi(err, form.setError, ['proveedorId', 'tipoTrabajoId', 'titulo', 'prioridadId', 'nivelAcademicoId', 'universidadId', 'carreraId', 'fechaLimite', 'linkDrive', 'observaciones', 'actividadId', 'minutosEstimados', 'cobro']))
+      setError(aplicarErroresApi(err, form.setError, ['proveedorId', 'tipoTrabajoId', 'titulo', 'prioridadId', 'nivelAcademicoId', 'universidadId', 'carreraId', 'fechaLimite', 'linkDrive', 'observaciones', 'actividadId', 'minutosEstimados', 'cobro', 'clienteId']))
     }
   })
 
@@ -150,6 +152,33 @@ function RegistrarTrabajoDeProveedor() {
                   )}
                 </div>
                 <FieldError errors={[e.proveedorId]} />
+              </Field>
+
+              <Field data-invalid={Boolean(e.clienteId)} className="sm:col-span-2">
+                <FieldLabel htmlFor="tp-cliente">Cliente del trabajo</FieldLabel>
+                <Controller
+                  control={control}
+                  name="clienteId"
+                  render={({ field }) => (
+                    <SelectorRemoto
+                      id="tp-cliente"
+                      clave="clientes"
+                      minimo={2}
+                      valor={field.value as string | undefined}
+                      etiqueta={etiquetas.cliente}
+                      onCambio={(o) => {
+                        field.onChange(o?.id ?? '')
+                        setEtiquetas((x) => ({ ...x, cliente: o?.nombre }))
+                      }}
+                      buscar={async (q, signal) =>
+                        (await buscarClientes(q, signal)).map((p) => ({ id: p.id, nombre: nombreCompleto(p) ?? formatearCelular(p.celular), detalle: formatearCelular(p.celular) }))
+                      }
+                      placeholder="Opcional: si el trabajo es de un cliente ya registrado, búscalo por nombre, celular o documento…"
+                    />
+                  )}
+                />
+                <FieldDescription>El proveedor sigue siendo quien lo entrega y quien paga; el cliente solo queda asociado al trabajo.</FieldDescription>
+                <FieldError errors={[e.clienteId]} />
               </Field>
 
               <Field data-invalid={Boolean(e.titulo)} className="sm:col-span-2">

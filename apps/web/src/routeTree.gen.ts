@@ -20,6 +20,7 @@ import { Route as AppAuditoriaIndexRouteImport } from './routes/_app/auditoria/i
 import { Route as AppAusenciasIndexRouteImport } from './routes/_app/ausencias/index'
 import { Route as AppCalendarioIndexRouteImport } from './routes/_app/calendario/index'
 import { Route as AppCatalogosIndexRouteImport } from './routes/_app/catalogos/index'
+import { Route as AppClientesIdRouteImport } from './routes/_app/clientes/$id'
 import { Route as AppContratosIndexRouteImport } from './routes/_app/contratos/index'
 import { Route as AppCotizacionesIndexRouteImport } from './routes/_app/cotizaciones/index'
 import { Route as AppDocumentosIndexRouteImport } from './routes/_app/documentos/index'
@@ -102,6 +103,11 @@ const AppCalendarioIndexRoute = AppCalendarioIndexRouteImport.update({
 const AppCatalogosIndexRoute = AppCatalogosIndexRouteImport.update({
   id: '/catalogos/',
   path: '/catalogos/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppClientesIdRoute = AppClientesIdRouteImport.update({
+  id: '/clientes/$id',
+  path: '/clientes/$id',
   getParentRoute: () => AppRoute,
 } as any)
 const AppContratosIndexRoute = AppContratosIndexRouteImport.update({
@@ -258,6 +264,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/$': typeof AppSplatRoute
   '/cuenta': typeof AppCuentaRoute
+  '/clientes/$id': typeof AppClientesIdRoute
   '/prospectos/nuevo': typeof AppProspectosNuevoRoute
   '/proveedores/$id': typeof AppProveedoresIdRoute
   '/roles/$id': typeof AppRolesIdRoute
@@ -299,6 +306,7 @@ export interface FileRoutesByTo {
   '/$': typeof AppSplatRoute
   '/cuenta': typeof AppCuentaRoute
   '/': typeof AppIndexRoute
+  '/clientes/$id': typeof AppClientesIdRoute
   '/prospectos/nuevo': typeof AppProspectosNuevoRoute
   '/proveedores/$id': typeof AppProveedoresIdRoute
   '/roles/$id': typeof AppRolesIdRoute
@@ -342,6 +350,7 @@ export interface FileRoutesById {
   '/_app/$': typeof AppSplatRoute
   '/_app/cuenta': typeof AppCuentaRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/clientes/$id': typeof AppClientesIdRoute
   '/_app/prospectos/nuevo': typeof AppProspectosNuevoRoute
   '/_app/proveedores/$id': typeof AppProveedoresIdRoute
   '/_app/roles/$id': typeof AppRolesIdRoute
@@ -385,6 +394,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/$'
     | '/cuenta'
+    | '/clientes/$id'
     | '/prospectos/nuevo'
     | '/proveedores/$id'
     | '/roles/$id'
@@ -426,6 +436,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/cuenta'
     | '/'
+    | '/clientes/$id'
     | '/prospectos/nuevo'
     | '/proveedores/$id'
     | '/roles/$id'
@@ -468,6 +479,7 @@ export interface FileRouteTypes {
     | '/_app/$'
     | '/_app/cuenta'
     | '/_app/'
+    | '/_app/clientes/$id'
     | '/_app/prospectos/nuevo'
     | '/_app/proveedores/$id'
     | '/_app/roles/$id'
@@ -587,6 +599,13 @@ declare module '@tanstack/react-router' {
       path: '/catalogos'
       fullPath: '/catalogos/'
       preLoaderRoute: typeof AppCatalogosIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/clientes/$id': {
+      id: '/_app/clientes/$id'
+      path: '/clientes/$id'
+      fullPath: '/clientes/$id'
+      preLoaderRoute: typeof AppClientesIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/contratos/': {
@@ -799,6 +818,7 @@ interface AppRouteChildren {
   AppSplatRoute: typeof AppSplatRoute
   AppCuentaRoute: typeof AppCuentaRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppClientesIdRoute: typeof AppClientesIdRoute
   AppProspectosNuevoRoute: typeof AppProspectosNuevoRoute
   AppProveedoresIdRoute: typeof AppProveedoresIdRoute
   AppRolesIdRoute: typeof AppRolesIdRoute
@@ -836,6 +856,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSplatRoute: AppSplatRoute,
   AppCuentaRoute: AppCuentaRoute,
   AppIndexRoute: AppIndexRoute,
+  AppClientesIdRoute: AppClientesIdRoute,
   AppProspectosNuevoRoute: AppProspectosNuevoRoute,
   AppProveedoresIdRoute: AppProveedoresIdRoute,
   AppRolesIdRoute: AppRolesIdRoute,

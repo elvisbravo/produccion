@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   NOMBRE_TIPO_DOCUMENTO,
   formatearCelular,
@@ -57,12 +57,20 @@ export class PersonasService {
     };
   }
 
+  async obtener(id: string): Promise<PersonaResumen> {
+    const p = await this.prisma.persona.findFirst({ where: { id, eliminadoEn: null }, select: CAMPOS_PERSONA });
+    if (!p) throw new NotFoundException('Persona no encontrada');
+    return p;
+  }
+
   /** Búsqueda por nombre (sin distinguir tildes), celular o documento, para el campo "referido por". */
-  async buscar(q: string, limite = 10): Promise<PersonaResumen[]> {
+  async buscar(q: string, limite = 10, soloClientes = false): Promise<PersonaResumen[]> {
     const digitos = digitosDe(q);
     const ids = await this.prisma.$queryRaw<{ id: string }[]>`
       SELECT id FROM persona
-      WHERE eliminado_en IS NULL AND (
+      WHERE eliminado_en IS NULL
+        ${soloClientes ? Prisma.sql`AND EXISTS (SELECT 1 FROM trabajo_integrante ti JOIN trabajo t ON t.id = ti.trabajo_id WHERE ti.persona_id = persona.id AND t.eliminado_en IS NULL)` : Prisma.empty}
+        AND (
         ${contieneTodas([Prisma.sql`nombres`, Prisma.sql`apellidos`], palabrasDe(q))}
         OR ${contieneDigitos(Prisma.sql`celular`, digitos)}
         OR ${contieneDigitos(Prisma.sql`numero_documento`, digitos)}

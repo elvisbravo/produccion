@@ -1,11 +1,15 @@
-import { BadRequestException, Controller, Get, Param, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { normalizarCelular, type CoincidenciaPersona, type PersonaResumen } from '@grupoes/shared';
 import { z } from 'zod';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { RequierePermiso } from '../permisos/requiere-permiso.decorator.js';
 import { PersonasService } from './personas.service.js';
 
-const busquedaSchema = z.object({ q: z.string().trim().min(2, 'Escribe al menos 2 caracteres').max(100) });
+const busquedaSchema = z.object({
+  q: z.string().trim().min(2, 'Escribe al menos 2 caracteres').max(100),
+  /** Solo quienes ya son clientes (tienen algún trabajo). */
+  clientes: z.enum(['1']).optional(),
+});
 
 @Controller('personas')
 export class PersonasController {
@@ -22,7 +26,14 @@ export class PersonasController {
 
   @RequierePermiso('prospectos.ver')
   @Get()
-  buscar(@Query(new ZodValidationPipe(busquedaSchema)) { q }: z.output<typeof busquedaSchema>): Promise<PersonaResumen[]> {
-    return this.personas.buscar(q);
+  buscar(@Query(new ZodValidationPipe(busquedaSchema)) { q, clientes }: z.output<typeof busquedaSchema>): Promise<PersonaResumen[]> {
+    return this.personas.buscar(q, 10, clientes === '1');
+  }
+
+  /** Ficha de un cliente (persona con trabajos). */
+  @RequierePermiso('trabajos.ver')
+  @Get(':id')
+  obtener(@Param('id', ParseUUIDPipe) id: string): Promise<PersonaResumen> {
+    return this.personas.obtener(id);
   }
 }

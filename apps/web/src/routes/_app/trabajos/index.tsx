@@ -171,10 +171,10 @@ function ListadoTrabajos() {
                           <div className="flex flex-col">
                             {t.proveedor ? (
                               <>
-                                <span className="font-medium">
-                                  {t.proveedor.nombres} {t.proveedor.apellidos}
+                                <span className="font-medium">{t.titular ? (nombreCompleto(t.titular) ?? '—') : `${t.proveedor.nombres} ${t.proveedor.apellidos}`}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {t.titular ? `Proveedor: ${t.proveedor.nombres} ${t.proveedor.apellidos}` : 'Proveedor'}
                                 </span>
-                                <span className="text-xs text-muted-foreground">Proveedor</span>
                               </>
                             ) : (
                               <>

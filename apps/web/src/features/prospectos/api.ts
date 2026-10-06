@@ -72,6 +72,12 @@ export const buscarPorCelular = (celular: string, signal?: AbortSignal) =>
 export const buscarPersonas = (q: string, signal?: AbortSignal) =>
   api<PersonaResumen[]>(`/personas${aQuery({ q })}`, { signal })
 
+/** Solo quienes ya son clientes (tienen algún trabajo). */
+export const buscarClientes = (q: string, signal?: AbortSignal) =>
+  api<PersonaResumen[]>(`/personas${aQuery({ q, clientes: '1' })}`, { signal })
+
+export const personaQuery = (id: string) => queryOptions({ queryKey: ['personas', id], queryFn: () => api<PersonaResumen>(`/personas/${id}`) })
+
 export type CatalogoBuscable = 'universidades' | 'carreras'
 
 export const buscarCatalogo = (catalogo: CatalogoBuscable, q: string, signal?: AbortSignal) =>

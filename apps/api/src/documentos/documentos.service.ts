@@ -256,7 +256,8 @@ export class DocumentosService {
     const empresa = await this.empresa();
     const titular = t.integrantes[0]?.persona;
     // En un trabajo de proveedor, quien paga es el proveedor.
-    const nombrePagador = titular ? nombrePersona(titular) : t.proveedor ? `${t.proveedor.nombres} ${t.proveedor.apellidos}` : '';
+    // Si el trabajo lo entrega un proveedor, paga el proveedor aunque el trabajo sea de un cliente.
+    const nombrePagador = t.proveedor ? `${t.proveedor.nombres} ${t.proveedor.apellidos}` : titular ? nombrePersona(titular) : '';
     const monto = Number(pago.monto);
     // Total de la cuenta: el contrato más los adicionales aceptados (sus cuotas).
     const totalCentimos = pago.contrato.cuotas.reduce((s, q) => s + centimos(q.monto), 0);
@@ -277,7 +278,7 @@ export class DocumentosService {
       numero: pago.numeroRecibo,
       fecha: fechaLarga(soloFecha(pago.fecha)),
       cliente: nombrePagador,
-      documento_cliente: (titular && documentoPersona(titular)) ?? VACIO,
+      documento_cliente: (!t.proveedor && titular && documentoPersona(titular)) || VACIO,
       monto: formatearSoles(monto),
       monto_letras: montoEnLetras(monto),
       metodo: NOMBRE_METODO_PAGO[pago.metodo],
@@ -295,7 +296,7 @@ export class DocumentosService {
       montoLetras: montoEnLetras(monto),
       metodo: NOMBRE_METODO_PAGO[pago.metodo],
       numeroOperacion: pago.numeroOperacion,
-      cliente: { nombre: nombrePagador || '—', documento: titular ? documentoPersona(titular) : null },
+      cliente: { nombre: nombrePagador || '—', documento: !t.proveedor && titular ? documentoPersona(titular) : null },
       trabajo: { id: t.id, codigo: t.codigo, tipo: t.tipoTrabajo.nombre, titulo: t.titulo },
       cuotas,
       totalContrato: total,

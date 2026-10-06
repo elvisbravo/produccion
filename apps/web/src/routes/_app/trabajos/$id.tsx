@@ -71,7 +71,23 @@ function DetalleTrabajo() {
               {t.fechasFijas && <MarcaFechasFijas motivo={t.fechasFijas.motivo} />}
               <InsigniaPrioridad nombre={t.prioridad.nombre} color={t.prioridad.color} />
             </div>
-            {t.proveedor ? (
+            {t.proveedor && titular ? (
+              <>
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  <Link to="/clientes/$id" params={{ id: titular.id }} className="underline-offset-4 hover:underline">
+                    {nombreCompleto(titular) ?? formatearCelular(titular.celular)}
+                  </Link>
+                </h1>
+                <p className="text-sm">
+                  <Badge variant="outline" className="mr-2 align-middle">
+                    Proveedor
+                  </Badge>
+                  <Link to="/proveedores/$id" params={{ id: t.proveedor.id }} className="underline-offset-4 hover:underline">
+                    {t.proveedor.nombres} {t.proveedor.apellidos}
+                  </Link>
+                </p>
+              </>
+            ) : t.proveedor ? (
               <h1 className="text-2xl font-semibold tracking-tight">
                 <Badge variant="outline" className="mr-2 align-middle">
                   Proveedor
@@ -133,7 +149,9 @@ function DetalleTrabajo() {
               {t.integrantes.map((i) => (
                 <div key={i.id} className="flex flex-col gap-2 rounded-lg border p-4">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{nombreCompleto(i)}</span>
+                    <Link to="/clientes/$id" params={{ id: i.id }} className="font-medium underline-offset-4 hover:underline">
+                      {nombreCompleto(i) ?? formatearCelular(i.celular)}
+                    </Link>
                     {i.esTitular && (
                       <Badge variant="secondary" className="gap-1">
                         <Star className="fill-current" />

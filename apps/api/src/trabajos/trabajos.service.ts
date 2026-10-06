@@ -255,7 +255,7 @@ export class TrabajosService {
   // ─── Consultas ───────────────────────────────────────────
 
   async listar(filtros: ListarTrabajosConsulta, usuarioId: string): Promise<Paginado<TrabajoListadoItem>> {
-    const { q, estado, seguimiento, proveedorId, origen, pagina, porPagina } = filtros;
+    const { q, estado, seguimiento, proveedorId, personaId, origen, pagina, porPagina } = filtros;
     const permisosMontos = await this.permisosDeMontos(usuarioId);
     const where: Prisma.TrabajoWhereInput = {
       eliminadoEn: null,
@@ -265,6 +265,7 @@ export class TrabajosService {
       AND: [
         ...(seguimiento ? [await this.filtroSeguimiento(seguimiento, permisosMontos.verMontos)] : []),
         ...(proveedorId ? [{ proveedorId }] : []),
+        ...(personaId ? [{ integrantes: { some: { personaId } } }] : []),
         ...(origen ? [origen === 'proveedor' ? { proveedorId: { not: null } } : { prospectoId: { not: null } }] : []),
         ...(q ? [{ id: { in: await this.idsQueCoinciden(q) } }] : []),
       ],

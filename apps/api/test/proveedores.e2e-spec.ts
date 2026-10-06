@@ -117,6 +117,56 @@ describe('Proveedores y sus trabajos (e2e)', () => {
     expect((await http().get(`/api/proveedores/${proveedor.id}`).set(como('prod')).expect(200)).body.trabajos).toBe(1);
   });
 
+  it('el trabajo puede ser de un cliente ya registrado: lo entrega el proveedor y el proveedor paga', async () => {
+    // Un cliente existente: se registra directo (reutilizando la plantilla del cuerpo de otras pruebas)
+    const personaCliente = await prisma.persona.create({ data: { celular: `+519${sufijo}88`, nombres: 'Cliente', apellidos: 'Existente', email: `cli.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `8${sufijo}1` } });
+    const origen = await prisma.origenContacto.create({ data: { nombre: `E2E ${sufijo}` } });
+    const etapa = await prisma.etapaProspecto.findFirstOrThrow({ where: { clase: 'ganada' } });
+    const prospecto = await prisma.prospecto.create({
+      data: { codigo: `P-E2E-${sufijo}`, tipoTrabajoId: cuerpo.tipoTrabajoId as string, prioridadId: cuerpo.prioridadId as string, origenId: origen.id, etapaId: etapa.id, captadoPorId: ids.ana, responsableId: ids.ana, creadoPor: ids.ana },
+    });
+    const enTrabajo = await prisma.trabajo.create({
+      data: {
+        codigo: `T-E2E-${sufijo}`,
+        prospectoId: prospecto.id,
+        tipoTrabajoId: cuerpo.tipoTrabajoId as string,
+        prioridadId: cuerpo.prioridadId as string,
+        fechaInicio: new Date(),
+        fechaLimite: new Date(),
+        creadoPor: ids.ana,
+        integrantes: { create: { personaId: personaCliente.id, esTitular: true } },
+      },
+    });
+    // Búsqueda de clientes: solo quienes tienen trabajos
+    const sinTrabajo = await prisma.persona.create({ data: { celular: `+519${sufijo}89`, nombres: 'Solo', apellidos: 'Prospecto' } });
+    const encontrados = (await http().get('/api/personas?q=Existente&clientes=1').set(como('prod')).expect(200)).body as { id: string }[];
+    expect(encontrados.map((p) => p.id)).toContain(personaCliente.id);
+    expect(((await http().get('/api/personas?q=Prospecto&clientes=1').set(como('prod')).expect(200)).body as { id: string }[]).map((p) => p.id)).not.toContain(sinTrabajo.id);
+    await http().post('/api/trabajos/de-proveedor').set(como('prod')).send({ proveedorId: proveedor.id, ...cuerpo, titulo: 'De un cliente', clienteId: '0199a000-0000-7000-8000-000000000009' }).expect(400);
+
+    const t = (await http().post('/api/trabajos/de-proveedor').set(como('prod')).send({ proveedorId: proveedor.id, ...cuerpo, titulo: 'De un cliente', clienteId: personaCliente.id, cobro: undefined }).expect(201)).body as TrabajoDetalle;
+    expect(t.proveedor).toMatchObject({ id: proveedor.id });
+    expect(t.integrantes[0]).toMatchObject({ id: personaCliente.id, nombres: 'Cliente', esTitular: true });
+    expect(t.eventos[0].detalle).toContain('para el cliente Cliente Existente');
+    // Aparece entre los trabajos del cliente y entre los del proveedor
+    const delCliente = (await http().get(`/api/trabajos?personaId=${personaCliente.id}`).set(como('prod')).expect(200)).body as Paginado<TrabajoListadoItem>;
+    expect(delCliente.datos.map((x) => x.id)).toEqual(expect.arrayContaining([t.id, enTrabajo.id]));
+    expect(delCliente.datos.find((x) => x.id === t.id)!.proveedor).toMatchObject({ id: proveedor.id });
+    // La ficha de la persona
+    expect((await http().get(`/api/personas/${personaCliente.id}`).set(como('prod')).expect(200)).body).toMatchObject({ nombres: 'Cliente' });
+    // El recibo sale a nombre del proveedor, no del cliente
+    const conCobro = (await http().post(`/api/trabajos/${t.id}/cobro`).set(como('admin')).send({ montoTotal: 200, formaPago: 'contado', cuotas: [{ monto: 200, vencimiento: hoy }] }).expect(200)).body as TrabajoDetalle;
+    const pagado = (await http().post(`/api/contratos/${conCobro.contrato!.id}/pagos`).set(como('admin')).send({ monto: 200, fecha: hoy, metodo: 'efectivo' }).expect(201)).body as TrabajoDetalle;
+    const recibo = (await http().get(`/api/documentos/recibo/${pagado.contrato!.pagos![0].id}`).set(como('admin')).expect(200)).body;
+    expect(recibo.cliente.nombre).toBe(`E2E${sufijo} Quispe Ríos`);
+    expect(recibo.cliente.documento).toBeNull();
+    // Limpieza de lo creado aquí
+    await prisma.trabajo.deleteMany({ where: { id: { in: [t.id, enTrabajo.id] } } });
+    await prisma.prospecto.deleteMany({ where: { codigo: `P-E2E-${sufijo}` } });
+    await prisma.origenContacto.deleteMany({ where: { nombre: `E2E ${sufijo}` } });
+    await prisma.persona.deleteMany({ where: { id: { in: [personaCliente.id, sinTrabajo.id] } } });
+  });
+
   it('se ve en la lista (por proveedor y por origen) y se encuentra por el nombre del proveedor', async () => {
     const lista = async (q: string) => ((await http().get(`/api/trabajos?${q}`).set(como('prod')).expect(200)).body as Paginado<TrabajoListadoItem>).datos;
     expect((await lista(`proveedorId=${proveedor.id}`)).map((t) => t.id)).toEqual([trabajo.id]);
