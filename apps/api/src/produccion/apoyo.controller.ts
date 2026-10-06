@@ -1,10 +1,11 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
-import { proponerApoyoSchema, reasignarTareaSchema, type ApoyoTarea, type HoraExtraItem, type ProponerApoyoDatos, type ReasignarTareaDatos } from '@grupoes/shared';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Req } from '@nestjs/common';
+import { cambiarInicioSchema, proponerApoyoSchema, reasignarTareaSchema, type ApoyoTarea, type CambiarInicioDatos, type HoraExtraItem, type ProponerApoyoDatos, type ReasignarTareaDatos } from '@grupoes/shared';
 import type { SolicitudAutenticada } from '../auth/tipos.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { RequierePermiso } from '../permisos/requiere-permiso.decorator.js';
 import { ApoyoService } from './apoyo.service.js';
 import { ContingenciasService } from './contingencias.service.js';
+import { ProduccionService } from './produccion.service.js';
 
 const actor = (req: SolicitudAutenticada) => ({ usuarioId: req.usuario!.id, ip: req.ip ?? null });
 
@@ -14,12 +15,21 @@ export class ApoyoController {
   constructor(
     private readonly apoyo: ApoyoService,
     private readonly contingencias: ContingenciasService,
+    private readonly produccion: ProduccionService,
   ) {}
 
   @RequierePermiso('programacion.reasignar')
   @Get('apoyo')
   ver(@Param('id', ParseUUIDPipe) id: string): Promise<ApoyoTarea> {
     return this.apoyo.apoyo(id);
+  }
+
+  /** Desde qué día y hora se programa la actividad en la cola (puede ser pasado). */
+  @RequierePermiso('programacion.programar')
+  @Put('inicio')
+  @HttpCode(204)
+  cambiarInicio(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(cambiarInicioSchema)) datos: CambiarInicioDatos, @Req() req: SolicitudAutenticada): Promise<void> {
+    return this.produccion.cambiarInicio(id, datos, actor(req));
   }
 
   /** En horario normal: la tarea pasa de inmediato a esa persona. */

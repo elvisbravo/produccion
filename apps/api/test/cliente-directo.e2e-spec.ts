@@ -220,7 +220,7 @@ describe('Cliente directo (e2e)', () => {
     const limite = sumarDias(hoy, 10);
     const programacion = { actividadId: actividades.find((a) => a.nombre === 'Elaboración')!.id, minutosEstimados: 180, hora: '10:00', auxiliarPrincipalId: ids.aux, jefeResponsableId: ids.jefe };
     const creado = (await enviar('prod', { integrantes, pagos: [], contrato: undefined, trabajo: { ...(cuerpo.trabajo as object), fechaInicio: hoy, fechaLimite: limite }, programacion }).expect(201)).body as TrabajoDetalle;
-    const tablero = async (q: Quien, consulta = '') => (await http().get(`/api/entregas?desde=${limite}&hasta=${limite}${consulta}`).set(como(q)).expect(200)).body as { dias: { fecha: string; filas: { trabajo: { id: string; jefeResponsable: { id: string } | null }; actividad: { nombre: string; minutosEstimados: number } | null; auxiliares: { id: string }[]; asistente: { id: string } | null; entregaCliente: string; entregaInterna: string; semaforo: string | null; nota: string | null }[] }[] };
+    const tablero = async (q: Quien, consulta = '') => (await http().get(`/api/entregas?desde=${limite}&hasta=${limite}${consulta}`).set(como(q)).expect(200)).body as { dias: { fecha: string; filas: { trabajo: { id: string; jefeResponsable: { id: string } | null }; actividad: { nombre: string; minutosEstimados: number } | null; auxiliares: { id: string }[]; asistente: { id: string } | null; entregaCliente: string; entregaInterna: string; semaforo: string | null; nota: string | null; inicio: string | null }[] }[] };
     const fila = async (q: Quien, consulta = '') => (await tablero(q, consulta)).dias.flatMap((d) => d.filas).find((f) => f.trabajo.id === creado.id);
     const f = (await fila('prod'))!;
     expect(f).toBeDefined();
@@ -239,6 +239,19 @@ describe('Cliente directo (e2e)', () => {
     expect(await fila('prod', '&seguimiento=sin_asignar')).toBeUndefined();
     // Otro día no aparece; el auxiliar puede ver el tablero pero no editar la nota
     expect((await http().get(`/api/entregas?desde=${sumarDias(limite, 1)}&hasta=${sumarDias(limite, 1)}`).set(como('prod')).expect(200)).body.dias.flatMap((d: { filas: unknown[] }) => d.filas)).toHaveLength(0);
+    // Cambiar desde cuándo se programa la actividad: solo quien programa; la hora debe ser de jornada
+    const tareaId = creado.entregables[0].tareas[0].id;
+    const nuevoDia = await proximoDiaHabil(prisma, sumarDias(hoy, 3));
+    await http().put(`/api/produccion/tareas/${tareaId}/inicio`).set(como('aux')).send({ fecha: nuevoDia, hora: '14:00' }).expect(403);
+    await http().put(`/api/produccion/tareas/${tareaId}/inicio`).set(como('prod')).send({ fecha: nuevoDia, hora: '23:30' }).expect(400);
+    await http().put(`/api/produccion/tareas/${tareaId}/inicio`).set(como('prod')).send({ fecha: nuevoDia, hora: '14:00' }).expect(204);
+    const fila2 = await prisma.tarea.findUniqueOrThrow({ where: { id: tareaId } });
+    expect(fila2.fecha.toISOString().slice(0, 10)).toBe(nuevoDia);
+    expect(fila2.noAntesDeMinuto).toBe(14 * 60);
+    const f2 = (await fila('prod'))!;
+    expect(f2.inicio).not.toBeNull();
+    expect(Date.parse(f2.inicio!)).toBeGreaterThanOrEqual(Date.parse(`${nuevoDia}T14:00:00-05:00`) - 60_000);
+    expect((await http().get(`/api/trabajos/${creado.id}`).set(como('prod')).expect(200)).body.eventos.some((e: { detalle: string }) => e.detalle.includes('ahora se programa desde'))).toBe(true);
     await http().put(`/api/trabajos/${creado.id}/nota-entrega`).set(como('aux')).send({ nota: 'x' }).expect(403);
     await http().put(`/api/trabajos/${creado.id}/nota-entrega`).set(como('admin')).send({ nota: 'Para el lunes' }).expect(204);
     expect((await fila('prod'))!.nota).toBe('Para el lunes');

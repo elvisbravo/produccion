@@ -2,6 +2,7 @@ import {
   diaEnLima,
   enlaceWhatsapp,
   formatearCelular,
+  horaEnLima,
   NOMBRE_SEGUIMIENTO,
   SEGUIMIENTOS,
   sumarDias,
@@ -12,7 +13,7 @@ import {
 } from '@grupoes/shared'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { CalendarRange, ChevronLeft, ChevronRight, ClipboardList, Download, ExternalLink, Gift, PartyPopper } from 'lucide-react'
+import { CalendarRange, ChevronLeft, ChevronRight, ClipboardList, Download, ExternalLink, Gift, PartyPopper, Pencil, UserRoundCog } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -23,6 +24,8 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { DialogoApoyo } from '@/features/produccion/components/dialogo-apoyo'
+import { DialogoInicio } from '@/features/produccion/components/dialogo-inicio'
 import { PuntoSemaforo } from '@/features/produccion/components/insignias'
 import { asistentesQuery, candidatosEquipoQuery, entregasQuery, useGuardarNotaEntrega } from '@/features/trabajos/api'
 import { EtiquetasSeguimiento, LeyendaSeguimiento } from '@/features/trabajos/components/insignias'
@@ -69,6 +72,8 @@ const tituloDia = (dia: string) => {
   return t.charAt(0).toUpperCase() + t.slice(1)
 }
 const corto = (u: { nombres: string; apellidos: string }) => u.nombres.split(' ')[0]
+/** El día (Lima) de un instante ISO. */
+const diaDe = (iso: string) => diaEnLima(new Date(iso))
 
 function TableroEntregasPantalla() {
   const filtros = Route.useSearch()
@@ -233,6 +238,9 @@ function Dia({ dia, hoy }: { dia: DiaEntregas; hoy: string }) {
 
 function Fila({ f }: { f: EntregaFila }) {
   const t = f.trabajo
+  const puedeProgramar = usePermiso('programacion.programar')
+  const puedeReasignar = usePermiso('programacion.reasignar')
+  const [dialogo, setDialogo] = useState<'inicio' | 'auxiliar' | null>(null)
   const cliente = t.proveedor ? `${t.proveedor.nombres} ${t.proveedor.apellidos}` : (nombreCompleto(t.titular) ?? (t.titular ? formatearCelular(t.titular.celular) : null))
   const fondo = FONDO_FILA[t.seguimiento.principal]
 
@@ -282,21 +290,41 @@ function Fila({ f }: { f: EntregaFila }) {
       </TableCell>
       <TableCell className="whitespace-nowrap">{formatearFecha(f.entregaCliente)}</TableCell>
       <TableCell className="uppercase">{t.jefeResponsable ? corto(t.jefeResponsable) : <span className="text-muted-foreground">—</span>}</TableCell>
-      <TableCell className="uppercase">{f.auxiliares.length > 0 ? f.auxiliares.map(corto).join(' - ') : <span className="text-muted-foreground">—</span>}</TableCell>
+      <TableCell className="uppercase">
+        <span className="inline-flex items-center gap-1">
+          {f.auxiliares.length > 0 ? f.auxiliares.map(corto).join(' - ') : <span className="text-muted-foreground">—</span>}
+          {puedeReasignar && f.actividad && (
+            <Button variant="ghost" size="icon-xs" aria-label="Cambiar el auxiliar o buscar apoyo" onClick={() => setDialogo('auxiliar')}>
+              <UserRoundCog />
+            </Button>
+          )}
+        </span>
+      </TableCell>
       <TableCell className="whitespace-nowrap">
-        {f.inicio ? (
-          <span className="inline-flex items-center gap-1.5">
-            {f.semaforo && <PuntoSemaforo semaforo={f.semaforo} fin={f.fin} />}
-            {formatearFecha(f.inicio)} · {formatearHora(f.inicio)}
-          </span>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
+        <span className="inline-flex items-center gap-1">
+          {f.inicio ? (
+            <span className="inline-flex items-center gap-1.5">
+              {f.semaforo && <PuntoSemaforo semaforo={f.semaforo} fin={f.fin} />}
+              {formatearFecha(f.inicio)} · {formatearHora(f.inicio)}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+          {puedeProgramar && f.actividad && (
+            <Button variant="ghost" size="icon-xs" aria-label="Cambiar el inicio" onClick={() => setDialogo('inicio')}>
+              <Pencil />
+            </Button>
+          )}
+        </span>
       </TableCell>
       <TableCell className="whitespace-nowrap">{formatearFecha(f.entregaInterna)}</TableCell>
       <TableCell className="uppercase">{f.asistente ? corto(f.asistente) : <span className="text-muted-foreground">—</span>}</TableCell>
       <TableCell className="min-w-52">
         <NotaEditable key={f.nota ?? ''} trabajoId={t.id} nota={f.nota} />
+        {dialogo === 'inicio' && f.actividad && (
+          <DialogoInicio tareaId={f.actividad.tareaId} actividad={f.actividad.nombre} fecha={f.inicio ? diaDe(f.inicio) : ''} hora={f.inicio ? horaEnLima(new Date(f.inicio)) : ''} onCerrar={() => setDialogo(null)} />
+        )}
+        {dialogo === 'auxiliar' && f.actividad && <DialogoApoyo tareaId={f.actividad.tareaId} onCerrar={() => setDialogo(null)} />}
       </TableCell>
     </TableRow>
   )

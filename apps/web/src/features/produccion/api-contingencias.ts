@@ -1,6 +1,7 @@
 import type {
   ApoyoTarea,
   AplicarReasignacionDatos,
+  CambiarInicioDatos,
   CargaPersona,
   ImpactoCarga,
   RepartoCargaDatos,
@@ -123,3 +124,7 @@ export const impactoCargaQuery = (usuarioId: string, reparto: RepartoCargaDatos[
 
 export const useAplicarCarga = (usuarioId: string) =>
   useAccion((datos: RepartoCargaDatos) => api<{ tareas: number }>(`/produccion/carga/${usuarioId}/aplicar`, { method: 'POST', body: datos }))
+
+/** Cambia desde qué día y hora se programa una actividad de la cola. */
+export const useCambiarInicio = (tareaId: string) =>
+  useAccion((datos: CambiarInicioDatos) => api<void>(`/produccion/tareas/${tareaId}/inicio`, { method: 'PUT', body: datos }))

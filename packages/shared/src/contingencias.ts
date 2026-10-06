@@ -381,3 +381,10 @@ export interface ImpactoCarga {
   }[]
   sinLlegar: number
 }
+
+/** Cambiar desde cuándo se programa una actividad de la cola (el trabajo ya empezó o se pospone). */
+export const cambiarInicioSchema = z.object({
+  fecha: z.string().min(1, 'Elige el día').pipe(dia),
+  hora: opcional(hora),
+})
+export type CambiarInicioDatos = z.output<typeof cambiarInicioSchema>

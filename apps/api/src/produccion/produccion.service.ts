@@ -790,6 +790,36 @@ export class ProduccionService {
     });
   }
 
+  /**
+   * Cambia desde qué día y hora se programa una actividad de la cola de trabajo (puede ser pasado: el trabajo ya empezó).
+   * La cola se reacomoda sola; si la persona ya tiene actividades antes, esta empieza cuando terminan.
+   */
+  async cambiarInicio(tareaId: string, datos: { fecha: string; hora?: string }, actor: ActorProduccion): Promise<void> {
+    const tarea = await this.prisma.tarea.findFirst({
+      where: { id: tareaId, estado: { in: ['pendiente', 'en_proceso'] }, trabajoId: { not: null }, inicio: null },
+      include: { actividad: { select: { nombre: true } }, trabajo: { select: { id: true, codigo: true, fechasFijas: true, fechasFijasMotivo: true } }, responsables: { where: { ordenCola: { not: null } }, select: { usuarioId: true } } },
+    });
+    if (!tarea?.trabajo || tarea.responsables.length === 0) throw new NotFoundException('La actividad no está pendiente en la cola de nadie');
+    if (tarea.trabajo.fechasFijas) throw errorFechasFijas(tarea.trabajo);
+    const [h, m] = datos.hora ? datos.hora.split(':').map(Number) : [null, null];
+    const minuto = h === null ? null : h * 60 + (m ?? 0);
+    if (minuto !== null && (minuto < 6 * 60 || minuto > 22 * 60)) throw errorCampo('hora', 'Elige una hora entre las 06:00 y las 22:00');
+    const antes = `${soloFecha(tarea.fecha)}${tarea.noAntesDeMinuto !== null ? ` ${String(Math.floor(tarea.noAntesDeMinuto / 60)).padStart(2, '0')}:${String(tarea.noAntesDeMinuto % 60).padStart(2, '0')}` : ''}`;
+    const despues = `${datos.fecha}${datos.hora ? ` ${datos.hora}` : ''}`;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.tarea.update({ where: { id: tareaId }, data: { fecha: aFecha(datos.fecha), noAntesDeMinuto: minuto } });
+      await tx.trabajoEvento.create({
+        data: { trabajoId: tarea.trabajo!.id, tipo: 'editado', detalle: `"${tarea.actividad.nombre}" ahora se programa desde el ${despues} (antes ${antes})`, datos: { tareaId }, usuarioId: actor.usuarioId },
+      });
+      await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'cambiar_inicio', entidad: 'tarea', entidadId: tareaId, antes: { desde: antes }, despues: { desde: despues }, ip: actor.ip }, tx);
+    });
+    await this.notificaciones.notificar(
+      tarea.responsables.map((r) => r.usuarioId),
+      { tipo: 'cola.inicio', titulo: 'Cambió el inicio de una actividad tuya', mensaje: `${tarea.trabajo.codigo} · ${tarea.actividad.nombre}: desde el ${despues}`, enlace: '/tareas?vista=cola' },
+      actor.usuarioId,
+    );
+  }
+
   /** Las tareas de un trabajo con fechas fijas no se pueden dejar detrás de otras que antes iban después de ellas. */
   private async verificarOrdenConFechasFijas(actuales: { tareaId: string; ordenCola: number | null }[], nuevoOrden: string[]) {
     const fijas = await this.prisma.tarea.findMany({
