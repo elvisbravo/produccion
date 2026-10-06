@@ -306,7 +306,13 @@ export class TareasService {
     const d = await this.describir(tareaId);
     if (!d || d.tarea.estado !== 'por_asignar' || !d.tarea.actividad.rolCoordinadorId) return;
     const coordinadores = await this.notificaciones.conRol(d.tarea.actividad.rolCoordinadorId);
-    await this.notificaciones.notificar(coordinadores, { tipo: 'tarea.por_asignar', titulo: 'Nueva tarea por asignar', mensaje: d.texto, enlace: '/tareas?vista=por-asignar' }, autorId);
+    // Una reunión (con hora fija) llega a su propia bandeja: confirmar la hora o proponer otra.
+    const reunion = d.tarea.actividad.requiereHoraFija;
+    await this.notificaciones.notificar(
+      coordinadores,
+      { tipo: 'tarea.por_asignar', titulo: reunion ? 'Reunión por programar' : 'Nueva tarea por asignar', mensaje: d.texto, enlace: reunion ? '/reuniones' : '/tareas?vista=por-asignar' },
+      autorId,
+    );
   }
 
   /** Días u horas no laborables (feriado, cumpleaños, ausencia) bloquean la programación: no es solo un aviso. */
@@ -648,8 +654,14 @@ export class TareasService {
     const d = await this.describir(tareaId);
     if (d) {
       await this.notificaciones.notificar(
-        [...d.responsables, d.tarea.prospecto?.responsableId],
-        { tipo: 'tarea.reprogramada', titulo: 'Se reprogramó una tarea', mensaje: `${d.texto}${datos.motivo ? ` — ${datos.motivo}` : ''}`, enlace: d.enlace },
+        [...d.responsables, d.tarea.prospecto?.responsableId, d.tarea.creadaPorId],
+        {
+          tipo: 'tarea.reprogramada',
+          // Si aún espera responsable, producción está proponiendo otra hora: quien la pidió debe confirmarla con el cliente.
+          titulo: tarea.estado === 'por_asignar' ? 'Producción propone otra hora para la reunión' : 'Se reprogramó una tarea',
+          mensaje: `${d.texto}${datos.motivo ? ` — ${datos.motivo}` : ''}`,
+          enlace: d.enlace,
+        },
         actor.usuarioId,
       );
     }

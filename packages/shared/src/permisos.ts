@@ -97,6 +97,10 @@ export const MODULOS = [
     ],
   },
   {
+    codigo: 'reuniones', nombre: 'Reuniones por programar', padre: 'produccion', ruta: '/reuniones', icono: 'CalendarCheck2', orden: 27,
+    acciones: [ver()],
+  },
+  {
     codigo: 'proveedores', nombre: 'Proveedores', padre: 'produccion', ruta: '/proveedores', icono: 'Handshake', orden: 26,
     acciones: [ver(), crear, editar(), desactivar],
   },

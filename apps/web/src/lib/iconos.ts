@@ -1,5 +1,6 @@
 import {
   BriefcaseBusiness,
+  CalendarCheck2,
   CalendarClock,
   CalendarCog,
   CalendarDays,
@@ -29,6 +30,7 @@ import {
  * Se listan explícitamente para no incluir todos los íconos de lucide en el bundle.
  */
 const ICONOS: Record<string, LucideIcon> = {
+  CalendarCheck2,
   Blocks,
   Handshake,
   BriefcaseBusiness,

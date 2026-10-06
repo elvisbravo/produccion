@@ -34,6 +34,7 @@ import { Route as AppProspectosNuevoRouteImport } from './routes/_app/prospectos
 import { Route as AppProveedoresIndexRouteImport } from './routes/_app/proveedores/index'
 import { Route as AppProveedoresIdRouteImport } from './routes/_app/proveedores/$id'
 import { Route as AppReportesIndexRouteImport } from './routes/_app/reportes/index'
+import { Route as AppReunionesIndexRouteImport } from './routes/_app/reuniones/index'
 import { Route as AppRolesIndexRouteImport } from './routes/_app/roles/index'
 import { Route as AppRolesIdRouteImport } from './routes/_app/roles/$id'
 import { Route as AppSeguimientoIndexRouteImport } from './routes/_app/seguimiento/index'
@@ -175,6 +176,11 @@ const AppReportesIndexRoute = AppReportesIndexRouteImport.update({
   path: '/reportes/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppReunionesIndexRoute = AppReunionesIndexRouteImport.update({
+  id: '/reuniones/',
+  path: '/reuniones/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppRolesIndexRoute = AppRolesIndexRouteImport.update({
   id: '/roles/',
   path: '/roles/',
@@ -291,6 +297,7 @@ export interface FileRoutesByFullPath {
   '/prospectos/': typeof AppProspectosIndexRoute
   '/proveedores/': typeof AppProveedoresIndexRoute
   '/reportes/': typeof AppReportesIndexRoute
+  '/reuniones/': typeof AppReunionesIndexRoute
   '/roles/': typeof AppRolesIndexRoute
   '/seguimiento/': typeof AppSeguimientoIndexRoute
   '/tareas/': typeof AppTareasIndexRoute
@@ -333,6 +340,7 @@ export interface FileRoutesByTo {
   '/prospectos': typeof AppProspectosIndexRoute
   '/proveedores': typeof AppProveedoresIndexRoute
   '/reportes': typeof AppReportesIndexRoute
+  '/reuniones': typeof AppReunionesIndexRoute
   '/roles': typeof AppRolesIndexRoute
   '/seguimiento': typeof AppSeguimientoIndexRoute
   '/tareas': typeof AppTareasIndexRoute
@@ -377,6 +385,7 @@ export interface FileRoutesById {
   '/_app/prospectos/': typeof AppProspectosIndexRoute
   '/_app/proveedores/': typeof AppProveedoresIndexRoute
   '/_app/reportes/': typeof AppReportesIndexRoute
+  '/_app/reuniones/': typeof AppReunionesIndexRoute
   '/_app/roles/': typeof AppRolesIndexRoute
   '/_app/seguimiento/': typeof AppSeguimientoIndexRoute
   '/_app/tareas/': typeof AppTareasIndexRoute
@@ -421,6 +430,7 @@ export interface FileRouteTypes {
     | '/prospectos/'
     | '/proveedores/'
     | '/reportes/'
+    | '/reuniones/'
     | '/roles/'
     | '/seguimiento/'
     | '/tareas/'
@@ -463,6 +473,7 @@ export interface FileRouteTypes {
     | '/prospectos'
     | '/proveedores'
     | '/reportes'
+    | '/reuniones'
     | '/roles'
     | '/seguimiento'
     | '/tareas'
@@ -506,6 +517,7 @@ export interface FileRouteTypes {
     | '/_app/prospectos/'
     | '/_app/proveedores/'
     | '/_app/reportes/'
+    | '/_app/reuniones/'
     | '/_app/roles/'
     | '/_app/seguimiento/'
     | '/_app/tareas/'
@@ -699,6 +711,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppReportesIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/reuniones/': {
+      id: '/_app/reuniones/'
+      path: '/reuniones'
+      fullPath: '/reuniones/'
+      preLoaderRoute: typeof AppReunionesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/roles/': {
       id: '/_app/roles/'
       path: '/roles'
@@ -842,6 +861,7 @@ interface AppRouteChildren {
   AppProspectosIndexRoute: typeof AppProspectosIndexRoute
   AppProveedoresIndexRoute: typeof AppProveedoresIndexRoute
   AppReportesIndexRoute: typeof AppReportesIndexRoute
+  AppReunionesIndexRoute: typeof AppReunionesIndexRoute
   AppRolesIndexRoute: typeof AppRolesIndexRoute
   AppSeguimientoIndexRoute: typeof AppSeguimientoIndexRoute
   AppTareasIndexRoute: typeof AppTareasIndexRoute
@@ -880,6 +900,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppProspectosIndexRoute: AppProspectosIndexRoute,
   AppProveedoresIndexRoute: AppProveedoresIndexRoute,
   AppReportesIndexRoute: AppReportesIndexRoute,
+  AppReunionesIndexRoute: AppReunionesIndexRoute,
   AppRolesIndexRoute: AppRolesIndexRoute,
   AppSeguimientoIndexRoute: AppSeguimientoIndexRoute,
   AppTareasIndexRoute: AppTareasIndexRoute,

@@ -28,7 +28,7 @@ interface PropsDialogo {
   onAbiertoChange: (abierto: boolean) => void
 }
 
-export function DialogoReprogramar({ tarea, abierto, onAbiertoChange }: PropsDialogo) {
+export function DialogoReprogramar({ tarea, abierto, onAbiertoChange, proponer = false }: PropsDialogo & { proponer?: boolean }) {
   const reprogramar = useReprogramarTarea(tarea.id)
   const [error, setError] = useState<string | null>(null)
   const form = useForm<z.input<typeof reprogramarTareaSchema>, unknown, ReprogramarTareaDatos>({
@@ -41,7 +41,7 @@ export function DialogoReprogramar({ tarea, abierto, onAbiertoChange }: PropsDia
     setError(null)
     try {
       await reprogramar.mutateAsync(datos)
-      toast.success('Actividad reprogramada')
+      toast.success(proponer ? 'Propuesta enviada: se avisó a quien pidió la reunión' : 'Actividad reprogramada')
       onAbiertoChange(false)
     } catch (err) {
       setError(aplicarErroresApi(err, form.setError, ['fecha', 'hora', 'motivo']))
@@ -53,8 +53,10 @@ export function DialogoReprogramar({ tarea, abierto, onAbiertoChange }: PropsDia
       <DialogContent className="sm:max-w-md">
         <form onSubmit={enviar} noValidate className="flex flex-col gap-4">
           <DialogHeader>
-            <DialogTitle>Reprogramar: {tarea.actividad.nombre}</DialogTitle>
-            <DialogDescription>Queda registrado en la línea de tiempo del prospecto.</DialogDescription>
+            <DialogTitle>{proponer ? 'Proponer otra hora' : 'Reprogramar'}: {tarea.actividad.nombre}</DialogTitle>
+            <DialogDescription>
+              {proponer ? 'Indica el día y la hora en que sí puedes. Se avisa a quien pidió la reunión para que lo confirme con el cliente; sigue pendiente de asignar.' : 'Queda registrado en la línea de tiempo del prospecto.'}
+            </DialogDescription>
           </DialogHeader>
           {error && (
             <Alert variant="destructive">
@@ -91,7 +93,7 @@ export function DialogoReprogramar({ tarea, abierto, onAbiertoChange }: PropsDia
             </Button>
             <Button type="submit" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting && <Loader2 className="animate-spin" />}
-              Reprogramar
+              {proponer ? 'Proponer esta hora' : 'Reprogramar'}
             </Button>
           </DialogFooter>
         </form>

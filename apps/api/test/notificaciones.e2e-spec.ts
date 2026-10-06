@@ -106,7 +106,7 @@ describe('Notificaciones (e2e)', () => {
         .expect(201)
     ).body as ProspectoDetalle;
     enfoqueId = p.tareas[0].id;
-    expect((await bandeja('prod')).items.some((n) => n.tipo === 'tarea.por_asignar' && n.mensaje?.includes(p.codigo))).toBe(true);
+    expect((await bandeja('prod')).items.some((n) => n.tipo === 'tarea.por_asignar' && n.mensaje?.includes(p.codigo) && n.titulo === 'Reunión por programar' && n.enlace === '/reuniones')).toBe(true);
     // Quien hizo la acción no se avisa a sí misma.
     expect((await bandeja('ana')).items.some((n) => n.tipo === 'tarea.por_asignar')).toBe(false);
 
