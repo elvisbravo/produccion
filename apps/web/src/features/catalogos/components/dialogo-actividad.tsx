@@ -46,7 +46,10 @@ export function DialogoActividad({ catalogo, actividad, abierto, onAbiertoChange
   const guardar = useGuardarActividad(actividad?.id ?? null)
   const [nombre, setNombre] = useState(actividad?.nombre ?? '')
   const [tipoId, setTipoId] = useState(actividad?.tipo.id ?? '')
-  const [minutos, setMinutos] = useState(String(actividad?.minutosEstimados ?? ''))
+  // El tiempo se escribe en horas y minutos; al guardar se envía el total en minutos.
+  const [horas, setHoras] = useState(actividad ? String(Math.floor(actividad.minutosEstimados / 60)) : '')
+  const [mins, setMins] = useState(actividad ? String(actividad.minutosEstimados % 60) : '')
+  const minutos = horas === '' && mins === '' ? '' : String((Number(horas) || 0) * 60 + (Number(mins) || 0))
   const [aplicaA, setAplicaA] = useState<string>(actividad?.aplicaA ?? 'prospecto')
   const [modo, setModo] = useState<string>(actividad?.modoAsignacion ?? 'directa')
   const [coordinadorId, setCoordinadorId] = useState(actividad?.rolCoordinadorId ?? '')
@@ -134,8 +137,13 @@ export function DialogoActividad({ catalogo, actividad, abierto, onAbiertoChange
             <FieldError>{errores.tipoActividadId}</FieldError>
           </Field>
           <Field data-invalid={Boolean(errores.minutosEstimados)}>
-            <FieldLabel htmlFor="act-min">Tiempo estimado (minutos)</FieldLabel>
-            <Input id="act-min" type="number" inputMode="numeric" min={5} step={5} value={minutos} onChange={(e) => setMinutos(e.target.value)} aria-invalid={Boolean(errores.minutosEstimados)} />
+            <FieldLabel htmlFor="act-horas">Tiempo estimado</FieldLabel>
+            <div className="flex items-center gap-2">
+              <Input id="act-horas" type="number" inputMode="numeric" min={0} max={999} placeholder="0" className="w-20" value={horas} onChange={(e) => setHoras(e.target.value)} aria-invalid={Boolean(errores.minutosEstimados)} />
+              <span className="text-sm text-muted-foreground">h</span>
+              <Input id="act-mins" type="number" inputMode="numeric" min={0} max={59} step={5} placeholder="0" className="w-20" value={mins} onChange={(e) => setMins(e.target.value)} aria-label="Minutos" aria-invalid={Boolean(errores.minutosEstimados)} />
+              <span className="text-sm text-muted-foreground">min</span>
+            </div>
             <FieldError>{errores.minutosEstimados}</FieldError>
           </Field>
           <Field>
@@ -199,7 +207,12 @@ export function DialogoActividad({ catalogo, actividad, abierto, onAbiertoChange
 
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium">Quién la hace</h3>
+            <div>
+              <h3 className="text-sm font-medium">Quién la hace</h3>
+              <p className="max-w-xl text-xs text-muted-foreground">
+                Una participación es un papel dentro de la actividad (por ejemplo «Responsable» o «Revisor»). Cada una se cubre con una persona que tenga alguno de los roles que marques abajo; las obligatorias deben cubrirse al asignar la actividad.
+              </p>
+            </div>
             <Button type="button" variant="outline" size="sm" onClick={() => setParticipaciones((ps) => [...ps, participacionVacia(catalogo)])}>
               <Plus />
               Agregar participación
