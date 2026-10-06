@@ -220,7 +220,9 @@ export class ProspectosService {
       ...this.filtroAlcance(actor),
       // En un AND aparte: con alcance «propios» no puede pisar el filtro de sus propios prospectos.
       ...(responsableId && { AND: [{ responsableId }] }),
-      ...(etapaId && { etapaId }),
+      // Los clientes que se registran directo nunca fueron prospectos; y los convertidos ya son clientes (se ven en Trabajos), salvo que se pida esa etapa.
+      clienteDirecto: false,
+      ...(etapaId ? { etapaId } : { etapa: { clase: { not: 'ganada' as const } } }),
       ...(temperatura && { temperatura }),
       ...(tipoTrabajoId && { tipoTrabajoId }),
       ...(q && { id: { in: await this.idsQueCoinciden(q) } }),

@@ -65,7 +65,7 @@ function ListadoProspectos() {
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">Prospectos</h1>
           <p className="text-sm text-muted-foreground">
-            {alcance === 'todos' ? 'Todos los prospectos.' : 'Los prospectos que tienes a cargo.'}
+            {alcance === 'todos' ? 'Todos los prospectos.' : 'Los prospectos que tienes a cargo.'} Los que ya se convirtieron en cliente están en Trabajos (o elige la etapa «Convertido»).
           </p>
         </div>
         <Can permiso="prospectos.crear">

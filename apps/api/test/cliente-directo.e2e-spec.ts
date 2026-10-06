@@ -114,6 +114,10 @@ describe('Cliente directo (e2e)', () => {
     expect(origen).toMatchObject({ clienteDirecto: true, responsableId: ids.ana });
     expect(origen.origen.nombre).toBe('Cliente directo');
     expect(origen.etapa.clase).toBe('ganada');
+    // Y no aparece en la lista de prospectos (ni siquiera pidiendo la etapa «Convertido»)
+    const enLista = async (consulta: string) => ((await http().get(`/api/prospectos?${consulta}`).set(como('admin')).expect(200)).body.datos as { id: string }[]).map((p) => p.id);
+    expect(await enLista('porPagina=100')).not.toContain(origen.id);
+    expect(await enLista(`porPagina=100&etapaId=${origen.etapaId}`)).not.toContain(origen.id);
     const reporte = (await http().get(`/api/reportes/conversion?desde=${sumarDias(hoy, -1)}&hasta=${hoy}`).set(como('admin')).expect(200)).body as ReporteConversion;
     expect(reporte.porOrigen.map((o) => o.nombre)).not.toContain('Cliente directo');
     // La asistente administrativa lo ve entre sus clientes y recibe los avisos de cobro
