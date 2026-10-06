@@ -24,7 +24,7 @@ import {
   type VistaBandeja,
 } from '@grupoes/shared';
 import { AgendaService, type ColaDeUsuario } from '../agenda/agenda.service.js';
-import { ahoraEnLima, holgura, type PlanCola } from '../agenda/cola.js';
+import { holgura, type PlanCola } from '../agenda/cola.js';
 import { AuditoriaService } from '../common/auditoria.service.js';
 import { errorFechasFijas } from '../trabajos/fechas-fijas.error.js';
 import type { Prisma } from '../generated/prisma/client.js';
@@ -223,8 +223,8 @@ export class ProduccionService {
           { trabajoId, entregableId: entregable.id, actividadId: trabajo.actividadPlanId, titulo: trabajo.titulo ?? 'Trabajo de proveedor', minutos: trabajo.minutosPlan, ...(inicial && { noAntesDe: inicial.fecha, noAntesDeMinuto: inicial.minuto }) },
           undefined,
           actor,
-          // Si ya empezó (fecha y hora de inicio pasadas) va primera en la cola: se programa desde su inicio.
-          paraRevisar || (inicial ? this.yaEmpezo(inicial) : false),
+          // Va al final de la cola: si el auxiliar no tiene nada, arranca en la fecha y hora indicadas (aunque sean pasadas); si ya tiene actividades, sigue cuando terminan.
+          paraRevisar,
         );
         await this.evento(tx, trabajoId, paraRevisar ? 'Plan generado: 1 entregable, ya en revisión' : 'Plan generado: 1 entregable y 1 tarea', actor);
         await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'generar_plan', entidad: 'trabajo', entidadId: trabajoId, ip: actor.ip }, tx);
@@ -346,11 +346,6 @@ export class ProduccionService {
     const rol = participacion.roles.find((r) => roles.some((u) => u.rolId === r.rolId));
     if (!rol) throw errorCampo('usuarioId', 'Esa persona no tiene un rol permitido para esta actividad');
     return { usuarioId: elegido, participacionId: participacion.id, rolId: rol.rolId, prioridadRolId: rol.prioridadRolId };
-  }
-
-  private yaEmpezo(inicial: { fecha: string; minuto: number }): boolean {
-    const ahora = ahoraEnLima();
-    return inicial.fecha < ahora.fecha || (inicial.fecha === ahora.fecha && inicial.minuto < ahora.minuto);
   }
 
   /** Crea una tarea de producción en la cola de la persona (al final o, si `alFrente`, primera). */

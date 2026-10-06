@@ -220,6 +220,14 @@ describe('Cliente directo (e2e)', () => {
     const [dia, hora] = new Date(Date.parse(plan.inicio) - 5 * 3_600_000).toISOString().split('T');
     expect(dia).toBe(pasado);
     expect(hora.slice(0, 5) >= '10:00').toBe(true);
+    // Si el auxiliar ya tiene actividades, la siguiente empieza cuando termina la anterior (aunque pida la misma hora pasada)
+    const otros = [{ celular: `9${sufijo}78`, nombres: 'Con', apellidos: 'Segundo', email: `con.segundo.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `1${sufijo}1`, esTitular: true }];
+    const segundo = (await enviar('prod', { ...base, integrantes: otros, programacion: { ...programacion, minutosEstimados: 60 } }).expect(201)).body as TrabajoDetalle;
+    const cola2 = (await http().get('/api/produccion/colas/mia').set(como('aux')).expect(200)).body as { items: { tareaId: string; plan: { inicio: string; fin: string } | null }[] };
+    const primero = cola2.items.find((i) => i.tareaId === tarea.id)!.plan!;
+    const siguiente = cola2.items.find((i) => i.tareaId === segundo.entregables[0].tareas[0].id)!.plan!;
+    expect(Date.parse(siguiente.inicio)).toBeGreaterThanOrEqual(Date.parse(primero.fin) - 60_000);
+    await prisma.trabajo.deleteMany({ where: { id: segundo.id } });
     // Aparece en la agenda de ese día
     const agenda = (await http().get(`/api/agenda/mia?desde=${pasado}&hasta=${pasado}`).set(como('aux')).expect(200)).body as { dias: { fecha: string; tareas: { tareaId?: string; id?: string }[] }[] };
     expect(JSON.stringify(agenda)).toContain(tarea.id);
