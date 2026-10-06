@@ -145,20 +145,6 @@ export interface ConflictoAgenda {
   fin: string
 }
 
-/** Una tarea de la cola de trabajo que se corre al meter una actividad con hora fija. */
-export interface ImpactoEnCola {
-  tareaId: string
-  titulo: string
-  trabajoCodigo: string | null
-  /** Fecha límite (día) del trabajo o entregable. */
-  fechaLimite: string | null
-  /** Cuándo terminaba y cuándo terminaría (día). */
-  finAntes: string | null
-  finDespues: string | null
-  /** 'rojo' = con el cambio ya no llega a su fecha límite. */
-  semaforoDespues: 'verde' | 'ambar' | 'rojo' | 'sin_plan'
-}
-
 export interface CandidatosTarea {
   tarea: TareaItem
   participaciones: {
@@ -175,8 +161,6 @@ export interface CandidatosTarea {
       tareasDelDia: number
       /** Horario, días no laborables y carga de ese día. */
       disponibilidad: Disponibilidad
-      /** Tareas de su cola que se corren si toma esta actividad (las reuniones con hora no se mueven). */
-      impacto: ImpactoEnCola[]
     }[]
   }[]
 }

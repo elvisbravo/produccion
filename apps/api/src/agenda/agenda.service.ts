@@ -8,16 +8,15 @@ import {
   type AgendaEquipo,
   type AgendaPersona,
   type DiaAgenda,
-  type ImpactoEnCola,
   type Disponibilidad,
   type TareaAgenda,
   type TramoSemanal,
 } from '@grupoes/shared';
 import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { ahoraEnLima, holgura, HORIZONTE_DIAS, huecosDelDia, planificar, type DiaLibre, type PlanCola, type TareaEnCola } from './cola.js';
+import { ahoraEnLima, HORIZONTE_DIAS, huecosDelDia, planificar, type DiaLibre, type PlanCola, type TareaEnCola } from './cola.js';
 import { minutosReales } from '../tareas/mapeo.js';
-import { calcularDia, esCumpleanos, evaluar, restar, tramosDelDia, type EntradaDia, type HorarioVigencia } from './disponibilidad.js';
+import { calcularDia, esCumpleanos, evaluar, tramosDelDia, type EntradaDia, type HorarioVigencia } from './disponibilidad.js';
 
 type Cliente = PrismaService | Prisma.TransactionClient;
 
@@ -177,41 +176,6 @@ export class AgendaService {
       });
       const items = filas.filter((f) => f.usuarioId === usuarioId).map((f) => ({ ordenCola: f.ordenCola!, tarea: f.tarea }));
       resultado.set(usuarioId, { dias, items, ahora });
-    }
-    return resultado;
-  }
-
-  /**
-   * Qué tareas de la cola de cada persona se corren si toma una actividad con hora fija ese día. La cola se reacomoda sola
-   * alrededor de la reunión (mismo orden de prioridad); las otras reuniones con hora no se mueven.
-   */
-  async impactoDeHoraFija(usuarioIds: string[], fecha: string, inicio: number, fin: number, db: Cliente = this.prisma): Promise<Map<string, ImpactoEnCola[]>> {
-    const bases = await this.basesDeCola(usuarioIds, db);
-    const resultado = new Map<string, ImpactoEnCola[]>();
-    for (const [usuarioId, b] of bases) {
-      const tareas = b.items.map(({ tarea }) => aTareaEnCola(tarea));
-      const antes = planificar(b.dias, tareas, b.ahora);
-      const dias = b.dias.map((d) => (d.fecha === fecha ? { fecha: d.fecha, huecos: restar(d.huecos, [{ inicio, fin }]) } : d));
-      const despues = planificar(dias, tareas, b.ahora);
-      const impacto: ImpactoEnCola[] = [];
-      for (const { tarea } of b.items) {
-        const fa = antes.get(tarea.id)?.fin?.fecha ?? null;
-        const fd = despues.get(tarea.id)?.fin?.fecha ?? null;
-        const mismoFin = antes.get(tarea.id)?.fin?.fin === despues.get(tarea.id)?.fin?.fin;
-        if (fa === fd && mismoFin) continue;
-        const limite = tarea.entregable?.fechaLimite ?? tarea.trabajo?.fechaLimite;
-        const fechaLimite = limite ? soloFecha(limite) : null;
-        impacto.push({
-          tareaId: tarea.id,
-          titulo: tarea.titulo ?? tarea.actividad.nombre,
-          trabajoCodigo: tarea.trabajo?.codigo ?? null,
-          fechaLimite,
-          finAntes: fa,
-          finDespues: fd,
-          semaforoDespues: fechaLimite ? holgura(fd, fechaLimite).semaforo : fd ? 'verde' : 'sin_plan',
-        });
-      }
-      resultado.set(usuarioId, impacto);
     }
     return resultado;
   }

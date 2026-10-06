@@ -71,7 +71,6 @@ Para publicarlo en un VPS con Ubuntu (Nginx, HTTPS, systemd, respaldos y actuali
 | POST | `/api/prospectos/:id/tareas` | Programar una actividad para el prospecto |
 | GET | `/api/actividades` | Catálogo de actividades con participaciones, roles y prioridades |
 | GET | `/api/tareas/mias`, `/api/tareas/por-asignar` | Mis tareas y bandeja del coordinador |
-| GET | `/api/tareas/:id/candidatos` | Candidatos por participación; si la actividad tiene hora fija, cada uno trae `impacto`: las tareas de su cola que se corren (con su nueva fecha de término y si dejan de llegar a su fecha límite). La cola se reacomoda sola alrededor de la reunión; las demás reuniones con hora no se mueven y, si chocan, piden motivo |
 | — | Pantalla `/reuniones` (permiso `reuniones.ver`) | Reuniones por programar: las tareas con hora fija que esperan responsable. «Confirmar esa hora y asignar» o «Proponer otra hora» (avisa a quien la pidió). La notificación llega solo si la actividad está en modo «queda por asignar al coordinador» (Catálogos → Actividades) |
 | GET/POST | `/api/tareas/:id/candidatos`, `/api/tareas/:id/asignar` | Candidatos por prioridad y disponibilidad; asignación (con motivo si hay choque) |
 | POST | `/api/tareas/:id/completar`, `…/reprogramar`, `…/cancelar` | Cierre con resultado y siguiente paso; reprogramación; cancelación |
