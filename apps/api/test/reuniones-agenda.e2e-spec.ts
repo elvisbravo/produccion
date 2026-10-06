@@ -138,7 +138,7 @@ describe('Agenda de reuniones (e2e)', () => {
     }
   });
 
-  it('una reunión por asignar ya se ve en el calendario del equipo, en su día y hora', async () => {
+  it('la reunión de un prospecto por asignar no entra al calendario del equipo hasta que se asigna', async () => {
     const catalogos = (await http().get('/api/catalogos/prospecto').set(como('ana')).expect(200)).body as CatalogosProspecto;
     const actividades = (await http().get('/api/actividades?aplicaA=prospecto').set(como('ana')).expect(200)).body as { id: string; nombre: string }[];
     const nuevo = (
@@ -155,11 +155,14 @@ describe('Agenda de reuniones (e2e)', () => {
         .expect(201)
     ).body as ProspectoDetalle;
     const idPorAsignar = nuevo.tareas[0].id;
-    const equipo = (await http().get(`/api/agenda/equipo?desde=${dia}&hasta=${dia}`).set(como('prod')).expect(200)).body as { porAsignar: { fecha: string; tarea: { id: string; inicio: number | null; actividad: string } }[] };
-    const r = equipo.porAsignar.find((x) => x.tarea.id === idPorAsignar)!;
-    expect(r).toMatchObject({ fecha: dia, tarea: { actividad: 'Enfoque', inicio: 16 * 60 } });
-    // Una reunión ya asignada no aparece como «por asignar»
-    expect(equipo.porAsignar.some((x) => x.tarea.id === tareaId)).toBe(false);
+    const equipo = async () => (await http().get(`/api/agenda/equipo?desde=${dia}&hasta=${dia}`).set(como('prod')).expect(200)).body as { personas: { usuario: { id: string }; dias: { tareas: { id: string }[] }[] }[]; porAsignar: { tarea: { id: string } }[] };
+    // Sigue en la bandeja de producción, pero no en el calendario
+    expect((await equipo()).porAsignar.some((x) => x.tarea.id === idPorAsignar)).toBe(false);
+    // Al escoger jefe y auxiliar, recién entra al calendario de ellos
+    await http().put(`/api/tareas/${idPorAsignar}/equipo-reunion`).set(como('prod')).send({ jefeId: ids.jefe, motivoForzado: 'prueba' }).expect(200);
+    const despues = await equipo();
+    expect(despues.porAsignar.some((x) => x.tarea.id === idPorAsignar)).toBe(false);
+    expect(despues.personas.find((p) => p.usuario.id === ids.jefe)!.dias.some((d) => d.tareas.some((t) => t.id === idPorAsignar))).toBe(true);
   });
 
   it('guarda el enlace de la reunión (solo http/https) y quien no la ve no puede cambiarlo', async () => {

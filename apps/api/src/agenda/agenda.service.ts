@@ -237,10 +237,13 @@ export class AgendaService {
     return { desde, hasta, personas: await this.personas(this.filtroPersonal(rol), desde, hasta), porAsignar: await this.reunionesPorAsignar(desde, hasta) };
   }
 
-  /** Las reuniones con hora que aún no tienen responsable (de prospectos o de clientes): se muestran en el calendario del equipo como «por asignar». */
+  /**
+   * Las reuniones con hora de un cliente (un trabajo) que aún no tienen responsable: se ven de una vez en el calendario del equipo como «por asignar».
+   * Las de un prospecto no: entran al calendario cuando producción les asigna jefe y auxiliar.
+   */
   private async reunionesPorAsignar(desde: string, hasta: string): Promise<AgendaEquipo['porAsignar']> {
     const filas = await this.prisma.tarea.findMany({
-      where: { estado: 'por_asignar', inicio: { not: null }, fecha: { gte: aFecha(desde), lte: aFecha(hasta) }, actividad: { tipo: { comportamiento: 'reunion' } } },
+      where: { estado: 'por_asignar', trabajoId: { not: null }, inicio: { not: null }, fecha: { gte: aFecha(desde), lte: aFecha(hasta) }, actividad: { tipo: { comportamiento: 'reunion' } } },
       include: INCLUIR_TAREA_AGENDA,
       orderBy: [{ fecha: 'asc' }, { inicio: 'asc' }],
     });

@@ -297,6 +297,9 @@ describe('Cliente directo (e2e)', () => {
     expect(t.eventos.some((e) => e.tipo === 'reunion' && e.detalle.includes('Enfoque'))).toBe(true);
     const fila = ((await http().get(`/api/reuniones?desde=${dia}&hasta=${dia}`).set(como('prod')).expect(200)).body as { tarea: { id: string }; condicion: string; cliente: { nombres: string } | null }[]).find((f) => f.tarea.id === r.id)!;
     expect(fila).toMatchObject({ condicion: 'cliente', cliente: { nombres: 'Con' } });
+    // La reunión de un cliente se ve de una vez en el calendario del equipo, como «por asignar»
+    const equipo = (await http().get(`/api/agenda/equipo?desde=${dia}&hasta=${dia}`).set(como('prod')).expect(200)).body as { porAsignar: { fecha: string; tarea: { id: string; inicio: number | null } }[] };
+    expect(equipo.porAsignar.find((x) => x.tarea.id === r.id)).toMatchObject({ fecha: dia, tarea: { inicio: 10 * 60 } });
     // Un trabajo cerrado ya no recibe reuniones
     await prisma.trabajo.update({ where: { id: creado.id }, data: { estado: 'cancelado' } });
     await programar('prod').expect(400);
