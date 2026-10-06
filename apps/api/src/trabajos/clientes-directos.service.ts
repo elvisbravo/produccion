@@ -39,7 +39,7 @@ export class ClientesDirectosService {
       throw new ForbiddenException('No tienes permiso para registrar pagos');
     }
 
-    const [responsables, tipo, prioridad, nivel, universidad, carrera, ganada, inicial] = await Promise.all([
+    const [responsables, tipo, prioridad, nivel, universidad, carrera, ganada, inicial, proveedor] = await Promise.all([
       this.posiblesResponsables(actor.usuarioId),
       this.prisma.tipoTrabajo.findFirst({ where: { id: datos.tipoTrabajoId, activo: true } }),
       this.prisma.prioridadTrabajo.count({ where: { id: datos.prioridadId, activo: true } }),
@@ -48,7 +48,10 @@ export class ClientesDirectosService {
       this.prisma.carrera.count({ where: { id: datos.trabajo.carreraId } }),
       this.prisma.etapaProspecto.findFirst({ where: { clase: 'ganada', activa: true } }),
       this.prisma.etapaProspecto.findFirst({ where: { inicial: true, activa: true }, orderBy: { orden: 'asc' } }),
+      datos.proveedorId ? this.prisma.proveedor.findFirst({ where: { id: datos.proveedorId, eliminadoEn: null }, select: { id: true, nombres: true, apellidos: true, activo: true } }) : Promise.resolve(null),
     ]);
+    if (datos.proveedorId && !proveedor) throw errorCampo('proveedorId', 'Proveedor no encontrado');
+    if (proveedor && !proveedor.activo) throw errorCampo('proveedorId', 'El proveedor está inactivo');
     if (!responsables.some((r) => r.id === datos.responsableId)) throw errorCampo('responsableId', 'Debe ser una persona activa que pueda seguir clientes');
     if (!tipo) throw errorCampo('tipoTrabajoId', 'Tipo de trabajo no disponible');
     if (!prioridad) throw errorCampo('prioridadId', 'Prioridad no disponible');
@@ -111,6 +114,7 @@ export class ClientesDirectosService {
           datos: conversion,
           pagos: datos.pagos,
           directo: true,
+          ...(proveedor && { proveedor }),
         },
         actor,
       );

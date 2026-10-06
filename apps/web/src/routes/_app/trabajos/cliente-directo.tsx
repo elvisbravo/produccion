@@ -10,7 +10,7 @@ import {
   type TipoDocumento,
 } from '@grupoes/shared'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { AlertCircle, ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
@@ -21,7 +21,7 @@ import { SelectorRemoto } from '@/components/selector-remoto'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Field, FieldError, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -30,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { BotonBuscarDni } from '@/features/consultas/components/boton-buscar-dni'
 import { buscarCatalogo, catalogosProspectoQuery, crearEnCatalogo } from '@/features/prospectos/api'
+import { proveedoresQuery } from '@/features/proveedores/api'
 import { responsablesClienteDirectoQuery, useRegistrarClienteDirecto } from '@/features/trabajos/api'
 import { CamposCobro, cobroVacio } from '@/features/trabajos/components/cobro'
 import { aplicarErroresApi } from '@/lib/formularios'
@@ -75,6 +76,7 @@ function RegistrarClienteDirecto() {
       tipoTrabajoId: catalogos.tiposTrabajo.find((t) => t.nombre === 'Tesis')?.id ?? '',
       prioridadId: catalogos.prioridades.find((p) => p.porDefecto)?.id ?? '',
       responsableId: '',
+      proveedorId: '',
       trabajo: { titulo: '', fechaInicio: hoy, fechaLimite: '', nivelAcademicoId: '', universidadId: '', carreraId: '', linkDrive: '' },
       contrato: { fechaFirma: hoy, ...cobroVacio(), observaciones: '' },
       observaciones: '',
@@ -83,6 +85,12 @@ function RegistrarClienteDirecto() {
   })
   const { control, register, setValue, getValues, unregister, formState } = form
   const [conContrato, setConContrato] = useState(true)
+  const [deProveedor, setDeProveedor] = useState(false)
+  const { data: proveedores } = useQuery({ ...proveedoresQuery({ estado: 'activos', porPagina: 100 }), enabled: deProveedor })
+  const alternarProveedor = (v: boolean) => {
+    setDeProveedor(v)
+    if (!v) setValue('proveedorId', '')
+  }
   const alternarContrato = (v: boolean) => {
     setConContrato(v)
     if (v) setValue('contrato', { fechaFirma: hoy, ...cobroVacio(), observaciones: '' })
@@ -101,12 +109,13 @@ function RegistrarClienteDirecto() {
 
   const enviar = form.handleSubmit(async (datos) => {
     setError(null)
+    if (deProveedor && !datos.proveedorId) return form.setError('proveedorId', { message: 'Elige al proveedor' })
     try {
       const trabajo = await registrar.mutateAsync(datos)
       toast.success(`Cliente registrado: trabajo ${trabajo.codigo}`)
       void navigate({ to: '/trabajos/$id', params: { id: trabajo.id } })
     } catch (err) {
-      setError(aplicarErroresApi(err, form.setError, ['integrantes', 'tipoTrabajoId', 'prioridadId', 'responsableId', 'trabajo', 'contrato', 'pagos', 'observaciones']))
+      setError(aplicarErroresApi(err, form.setError, ['integrantes', 'tipoTrabajoId', 'prioridadId', 'responsableId', 'proveedorId', 'trabajo', 'contrato', 'pagos', 'observaciones']))
     }
   })
 
@@ -274,6 +283,41 @@ function RegistrarClienteDirecto() {
                 />
                 <FieldError errors={[e.responsableId]} />
               </Field>
+              <div className="flex flex-col gap-3 rounded-lg border p-3 sm:col-span-2">
+                <Label htmlFor="cd-de-proveedor" className="flex items-center gap-2 font-normal">
+                  <Checkbox id="cd-de-proveedor" checked={deProveedor} onCheckedChange={(v) => alternarProveedor(v === true)} />
+                  Este trabajo lo entrega un proveedor
+                </Label>
+                {deProveedor && (
+                  <Field data-invalid={Boolean(e.proveedorId)}>
+                    <FieldLabel htmlFor="cd-proveedor">
+                      <span>
+                        Proveedor <Requerido />
+                      </span>
+                    </FieldLabel>
+                    <Controller
+                      control={control}
+                      name="proveedorId"
+                      render={({ field }) => (
+                        <Select value={(field.value as string) || undefined} onValueChange={field.onChange}>
+                          <SelectTrigger id="cd-proveedor" className="w-full" aria-invalid={Boolean(e.proveedorId)}>
+                            <SelectValue placeholder="Seleccionar…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {proveedores?.datos.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.nombres} {p.apellidos}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                    <FieldDescription>El trabajo es de este cliente, pero lo entrega el proveedor y es quien paga: el cobro y los recibos salen a su nombre.</FieldDescription>
+                    <FieldError errors={[e.proveedorId]} />
+                  </Field>
+                )}
+              </div>
               <Field data-invalid={Boolean(e.trabajo?.titulo)} className="sm:col-span-2">
                 <FieldLabel htmlFor="cd-titulo">Título del trabajo</FieldLabel>
                 <Input id="cd-titulo" {...register('trabajo.titulo')} />

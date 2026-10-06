@@ -139,6 +139,8 @@ export class TrabajosService {
       pagos: PagoDatos[];
       /** Cliente registrado directo (no viene de un seguimiento comercial). */
       directo?: boolean;
+      /** Si el trabajo de este cliente lo entregó un proveedor (el proveedor paga). */
+      proveedor?: { id: string; nombres: string; apellidos: string };
     },
     actor: ActorTrabajo,
   ): Promise<string> {
@@ -167,6 +169,7 @@ export class TrabajosService {
       data: {
         codigo,
         prospectoId,
+        proveedorId: p.proveedor?.id ?? null,
         tipoTrabajoId: prospecto.tipoTrabajoId,
         titulo: datos.trabajo.titulo ?? prospecto.titulo,
         prioridadId: prospecto.prioridadId,
@@ -196,7 +199,7 @@ export class TrabajosService {
         }),
         eventos: {
           create: [
-            { tipo: 'creado', detalle: p.directo ? 'Cliente registrado directamente (ya trabajaba con nosotros)' : `Trabajo creado desde el prospecto ${prospecto.codigo}`, usuarioId: actor.usuarioId },
+            { tipo: 'creado', detalle: p.directo ? `Cliente registrado directamente (ya trabajaba con nosotros)${p.proveedor ? ` · trabajo del proveedor ${p.proveedor.nombres} ${p.proveedor.apellidos}` : ''}` : `Trabajo creado desde el prospecto ${prospecto.codigo}`, usuarioId: actor.usuarioId },
             ...(datos.contrato
               ? [
                   {

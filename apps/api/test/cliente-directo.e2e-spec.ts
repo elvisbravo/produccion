@@ -150,6 +150,37 @@ describe('Cliente directo (e2e)', () => {
     await http().post(`/api/trabajos/${trabajo.id}/cobro`).set(como('admin')).send(cobro).expect(409);
   });
 
+  it('el trabajo del cliente puede ser de un proveedor: el proveedor entrega y paga', async () => {
+    const proveedor = await prisma.proveedor.create({ data: { nombres: `E2E${sufijo}`, apellidos: 'Proveedora', creadoPor: ids.admin } });
+    const inactivo = await prisma.proveedor.create({ data: { nombres: `E2E${sufijo}`, apellidos: 'Inactivo', activo: false, creadoPor: ids.admin } });
+    const integrantes = [{ celular: `9${sufijo}73`, nombres: 'Con', apellidos: 'Proveedor', email: `con.prov.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `5${sufijo}1`, esTitular: true }];
+    await enviar('prod', { integrantes, proveedorId: inactivo.id }).expect(400);
+    await enviar('prod', { integrantes, proveedorId: '0199a000-0000-7000-8000-000000000009' }).expect(400);
+    const creado = (await enviar('prod', { integrantes, proveedorId: proveedor.id, pagos: [{ monto: 400, fecha: sumarDias(hoy, -20), metodo: 'yape' }] }).expect(201)).body as TrabajoDetalle;
+    const t = (await http().get(`/api/trabajos/${creado.id}`).set(como('admin')).expect(200)).body as TrabajoDetalle;
+    // Es del cliente (titular) y a la vez de un proveedor
+    expect(t.proveedor).toMatchObject({ id: proveedor.id });
+    expect(t.integrantes[0]).toMatchObject({ nombres: 'Con', esTitular: true });
+    expect(t.clienteDirecto).toBe(true);
+    expect(t.eventos.map((e) => e.detalle).join(' ')).toContain('trabajo del proveedor');
+    // Aparece en los trabajos del proveedor y en los del cliente
+    const delProveedor = (await http().get(`/api/trabajos?proveedorId=${proveedor.id}`).set(como('admin')).expect(200)).body.datos as { id: string }[];
+    expect(delProveedor.map((x) => x.id)).toContain(t.id);
+    const delCliente = (await http().get(`/api/trabajos?personaId=${t.integrantes[0].id}`).set(como('admin')).expect(200)).body.datos as { id: string }[];
+    expect(delCliente.map((x) => x.id)).toContain(t.id);
+    // El recibo sale a nombre del proveedor
+    const recibo = (await http().get(`/api/documentos/recibo/${t.contrato!.pagos![0].id}`).set(como('admin')).expect(200)).body;
+    expect(recibo.cliente.nombre).toBe(`E2E${sufijo} Proveedora`);
+    // No lleva contrato impreso (el proveedor paga)
+    await http().get(`/api/documentos/contrato/${t.id}`).set(como('admin')).expect(400);
+    // La ficha de la persona y la búsqueda de clientes
+    expect(((await http().get(`/api/personas?q=Con%20Proveedor&clientes=1`).set(como('prod')).expect(200)).body as { id: string }[]).map((p) => p.id)).toContain(t.integrantes[0].id);
+    expect((await http().get(`/api/personas/${t.integrantes[0].id}`).set(como('prod')).expect(200)).body).toMatchObject({ nombres: 'Con' });
+    await prisma.trabajo.deleteMany({ where: { id: creado.id } });
+    await prisma.prospecto.deleteMany({ where: { creadoPor: ids.prod, trabajo: null } });
+    await prisma.proveedor.deleteMany({ where: { id: { in: [proveedor.id, inactivo.id] } } });
+  });
+
   it('desde ahí sigue el flujo normal: armar equipo y el trabajo se ve con su cuenta', async () => {
     await http().put(`/api/trabajos/${trabajo.id}/equipo`).set(como('prod')).send({ auxiliarPrincipalId: ids.aux, auxiliaresApoyo: [], jefeResponsableId: ids.jefe }).expect(200);
     const t = (await http().get(`/api/trabajos/${trabajo.id}`).set(como('admin')).expect(200)).body as TrabajoDetalle;

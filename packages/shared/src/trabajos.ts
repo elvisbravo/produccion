@@ -115,8 +115,6 @@ export const trabajoProveedorSchema = z.object({
   /** La única actividad del trabajo y su tiempo estimado. */
   actividadId: idRequerido('Elige la actividad'),
   minutosEstimados: z.coerce.number('Indica el tiempo estimado').int('Número entero').min(15, 'Mínimo 15 minutos').max(60 * 200, 'Máximo 200 horas'),
-  /** Opcional: el cliente (ya registrado) de quien es el trabajo. Lo entrega el proveedor y el proveedor paga. */
-  clienteId: opcional(z.uuid('Cliente no válido')),
   /** Opcional: lo que se le cobra al proveedor. También se puede registrar después. */
   cobro: cobroSchema.optional(),
 })
@@ -609,6 +607,8 @@ export const clienteDirectoSchema = z
     /** Opcional: si no se conoce el monto total, se registra después. */
     contrato: contratoConversionSchema.optional(),
     observaciones: texto(5000),
+    /** Opcional: si el trabajo de este cliente lo entregó un proveedor (el proveedor es quien paga). */
+    proveedorId: opcional(z.uuid('Proveedor no válido')),
     /** Pagos que el cliente ya hizo (con su fecha real). */
     pagos: z.array(pagoSchema).default([]),
   })

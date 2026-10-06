@@ -48,7 +48,7 @@ export class TrabajosProveedorService {
     const hoy = diaEnLima();
     if (datos.fechaLimite < hoy) throw errorCampo('fechaLimite', 'La fecha de entrega no puede ser anterior a hoy');
 
-    const [proveedor, tipo, prioridad, nivel, universidad, carrera, actividad, cliente] = await Promise.all([
+    const [proveedor, tipo, prioridad, nivel, universidad, carrera, actividad] = await Promise.all([
       this.prisma.proveedor.findFirst({ where: { id: datos.proveedorId, eliminadoEn: null }, select: { id: true, nombres: true, apellidos: true, activo: true } }),
       this.prisma.tipoTrabajo.count({ where: { id: datos.tipoTrabajoId } }),
       this.prisma.prioridadTrabajo.count({ where: { id: datos.prioridadId } }),
@@ -56,9 +56,7 @@ export class TrabajosProveedorService {
       this.prisma.universidad.count({ where: { id: datos.universidadId } }),
       this.prisma.carrera.count({ where: { id: datos.carreraId } }),
       this.prisma.actividad.findFirst({ where: { id: datos.actividadId, activa: true }, select: { aplicaA: true, requiereHoraFija: true } }),
-      datos.clienteId ? this.prisma.persona.findFirst({ where: { id: datos.clienteId, eliminadoEn: null }, select: { id: true, nombres: true, apellidos: true } }) : Promise.resolve(null),
     ]);
-    if (datos.clienteId && !cliente) throw errorCampo('clienteId', 'Cliente no encontrado');
     if (!proveedor) throw errorCampo('proveedorId', 'Proveedor no encontrado');
     if (!proveedor.activo) throw errorCampo('proveedorId', 'El proveedor está inactivo');
     if (!tipo) throw errorCampo('tipoTrabajoId', 'Tipo de trabajo no válido');
@@ -88,8 +86,6 @@ export class TrabajosProveedorService {
           fechaInicio: dia(hoy),
           fechaLimite: dia(datos.fechaLimite),
           creadoPor: actor.usuarioId,
-          // El cliente de quien es el trabajo (si se indicó) queda como su titular.
-          ...(cliente && { integrantes: { create: { personaId: cliente.id, esTitular: true, orden: 0 } } }),
         },
         select: { id: true },
       });
@@ -97,7 +93,7 @@ export class TrabajosProveedorService {
         data: {
           trabajoId: trabajo.id,
           tipo: 'creado',
-          detalle: `Trabajo registrado del proveedor ${proveedor.nombres} ${proveedor.apellidos}${cliente ? ` para el cliente ${[cliente.nombres, cliente.apellidos].filter(Boolean).join(' ')}` : ''}`,
+          detalle: `Trabajo registrado del proveedor ${proveedor.nombres} ${proveedor.apellidos}`,
           usuarioId: actor.usuarioId,
         },
       });
