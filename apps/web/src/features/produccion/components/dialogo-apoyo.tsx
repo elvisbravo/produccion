@@ -1,4 +1,4 @@
-import { NOMBRE_MOTIVO_CANDIDATO, type ApoyoTarea, type CandidatoApoyo } from '@grupoes/shared'
+import { diaEnLima, NOMBRE_MOTIVO_CANDIDATO, type ApoyoTarea, type CandidatoApoyo } from '@grupoes/shared'
 import { useQuery } from '@tanstack/react-query'
 import { AlertCircle, ArrowRight, Clock, HandCoins, Loader2, Timer } from 'lucide-react'
 import { useState } from 'react'
@@ -175,7 +175,7 @@ function Candidato({ tareaId, trabajoTitulo, candidato: c, onListo }: { tareaId:
                 <div className="grid gap-2 sm:grid-cols-[1fr_8rem_8rem_auto] sm:items-end">
                   <label className="flex flex-col gap-1 text-xs text-muted-foreground">
                     Día
-                    <Input type="date" min={new Date().toISOString().slice(0, 10)} value={extra.fecha} onChange={(e) => setExtra((x) => ({ ...x, fecha: e.target.value }))} />
+                    <Input type="date" min={diaEnLima()} value={extra.fecha} onChange={(e) => setExtra((x) => ({ ...x, fecha: e.target.value }))} />
                   </label>
                   <label className="flex flex-col gap-1 text-xs text-muted-foreground">
                     Desde
