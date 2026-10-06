@@ -374,7 +374,8 @@ export class ProduccionService {
         actividadId: actividad.id,
         trabajoId: t.trabajoId,
         entregableId: t.entregableId,
-        titulo: t.titulo,
+        // La columna admite 150 caracteres y el título de un trabajo, hasta 300: se recorta con puntos suspensivos.
+        titulo: t.titulo.length > 150 ? `${t.titulo.slice(0, 149)}…` : t.titulo,
         fecha: aFecha(t.noAntesDe ?? diaEnLima()),
         noAntesDeMinuto: t.noAntesDeMinuto ?? null,
         minutosEstimados: t.minutos,

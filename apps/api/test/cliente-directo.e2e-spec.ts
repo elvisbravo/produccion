@@ -181,6 +181,18 @@ describe('Cliente directo (e2e)', () => {
     await prisma.proveedor.deleteMany({ where: { id: { in: [proveedor.id, inactivo.id] } } });
   });
 
+  it('un trabajo con título largo (más de 150 caracteres) también se programa', async () => {
+    const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string }[];
+    const elaboracion = actividades.find((a) => a.nombre === 'Elaboración')!;
+    const integrantes = [{ celular: `9${sufijo}77`, nombres: 'Con', apellidos: 'TituloLargo', email: `con.largo.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `8${sufijo}1`, esTitular: true }];
+    const titulo = 'Estrategias de marketing digital y su influencia en el posicionamiento de las micro y pequeñas empresas del sector turismo de la región, periodo 2023 - 2025, un estudio descriptivo correlacional'.padEnd(250, ' x');
+    const programacion = { actividadId: elaboracion.id, minutosEstimados: 60, hora: '10:00', auxiliarPrincipalId: ids.aux, jefeResponsableId: ids.jefe };
+    const base = { integrantes, trabajo: { ...(cuerpo.trabajo as object), titulo, fechaInicio: hoy, fechaLimite: sumarDias(hoy, 30) }, contrato: undefined, pagos: [] };
+    const creado = (await enviar('prod', { ...base, programacion }).expect(201)).body as TrabajoDetalle;
+    expect(creado.entregables[0].tareas[0].titulo?.length).toBeLessThanOrEqual(150);
+    await prisma.trabajo.deleteMany({ where: { id: creado.id } });
+  });
+
   it('acepta una hora de inicio de hoy que ya pasó: la actividad arranca desde ahora', async () => {
     const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string }[];
     const elaboracion = actividades.find((a) => a.nombre === 'Elaboración')!;
