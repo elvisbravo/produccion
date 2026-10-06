@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import type { EntregableItem, TurnitinConfig } from './produccion.js'
 import { normalizarCelular } from './celular.js'
-import { diaEnLima } from './fechas.js'
 import { TIPOS_DOCUMENTO, validarDocumento, type Opcion, type PersonaResumen, type UsuarioResumen } from './prospectos.js'
 
 // ─── Dinero ─────────────────────────────────────────────────
@@ -655,8 +654,7 @@ export const clienteDirectoSchema = z
     validarConversion({ ...d, pagoInicial: undefined }, ctx)
     if (d.programacion) {
       const [h, m] = d.programacion.hora.split(':').map(Number)
-      // La hora de hoy puede haber pasado (el trabajo ya empezó): la actividad arranca desde ahora. Solo se rechaza un día anterior a hoy.
-      if (d.trabajo.fechaInicio < diaEnLima()) ctx.addIssue({ code: 'custom', path: ['trabajo', 'fechaInicio'], message: 'Para programar la actividad, la fecha de inicio no puede ser un día pasado' })
+      // Fecha y hora de inicio pueden ser pasadas: el trabajo ya empezó y la actividad se programa desde ese momento.
       if (h * 60 + m < 6 * 60 || h * 60 + m > 22 * 60) ctx.addIssue({ code: 'custom', path: ['programacion', 'hora'], message: 'Elige una hora entre las 06:00 y las 22:00' })
       if (d.programacion.auxiliarPrincipalId === d.programacion.jefeResponsableId) ctx.addIssue({ code: 'custom', path: ['programacion', 'jefeResponsableId'], message: 'Quien revisa debe ser otra persona que quien elabora' })
     }

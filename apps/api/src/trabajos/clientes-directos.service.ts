@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
-import { diaEnLima, ROLES_BASE, type ClienteDirectoDatos, ConvertirProspectoDatos, TrabajoDetalle, UsuarioResumen } from '@grupoes/shared';
+import { ROLES_BASE, type ClienteDirectoDatos, ConvertirProspectoDatos, TrabajoDetalle, UsuarioResumen } from '@grupoes/shared';
 import { siguienteCodigo } from '../common/correlativo.js';
 import { ProduccionService } from '../produccion/produccion.service.js';
 import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
@@ -134,8 +134,8 @@ export class ClientesDirectosService {
       const [h, m] = datos.programacion.hora.split(':').map(Number);
       try {
         await this.trabajos.armarEquipo(id, { auxiliarPrincipalId: datos.programacion.auxiliarPrincipalId, auxiliaresApoyo: [], jefeResponsableId: datos.programacion.jefeResponsableId, motivo: 'Equipo al registrar el cliente' }, actor);
-        const inicio = datos.trabajo.fechaInicio < diaEnLima() ? diaEnLima() : datos.trabajo.fechaInicio;
-        await this.produccion.generarPlan(id, actor, { fecha: inicio, minuto: h * 60 + m });
+        // Desde la fecha y hora indicadas, aunque ya hayan pasado: el trabajo ya empezó y debe verse así en la agenda.
+        await this.produccion.generarPlan(id, actor, { fecha: datos.trabajo.fechaInicio, minuto: h * 60 + m });
       } catch (err) {
         const cod = (await this.prisma.trabajo.findUniqueOrThrow({ where: { id }, select: { codigo: true } })).codigo;
         throw new BadRequestException(`El cliente quedó registrado (${cod}) pero no se pudo programar la actividad: ${err instanceof Error ? err.message : 'error'}. Arma el equipo y genera el plan desde su ficha.`);

@@ -192,6 +192,28 @@ describe('Cliente directo (e2e)', () => {
     await prisma.trabajo.deleteMany({ where: { id: creado.id } });
   });
 
+  it('con fecha y hora de inicio anteriores, la actividad se programa desde ese momento y se ve en la agenda', async () => {
+    const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string }[];
+    const elaboracion = actividades.find((a) => a.nombre === 'Elaboración')!;
+    // Último día de lunes a jueves anterior a hoy
+    let pasado = sumarDias(hoy, -1);
+    while (![1, 2, 3, 4].includes(new Date(`${pasado}T12:00:00Z`).getUTCDay())) pasado = sumarDias(pasado, -1);
+    const integrantes = [{ celular: `9${sufijo}76`, nombres: 'Con', apellidos: 'Retroactivo', email: `con.retro.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `2${sufijo}1`, esTitular: true }];
+    const programacion = { actividadId: elaboracion.id, minutosEstimados: 120, hora: '10:00', auxiliarPrincipalId: ids.aux, jefeResponsableId: ids.jefe };
+    const base = { integrantes, trabajo: { ...(cuerpo.trabajo as object), fechaInicio: pasado, fechaLimite: sumarDias(hoy, 30) }, contrato: undefined, pagos: [] };
+    const creado = (await enviar('prod', { ...base, programacion }).expect(201)).body as TrabajoDetalle;
+    const tarea = creado.entregables[0].tareas[0];
+    const cola = (await http().get('/api/produccion/colas/mia').set(como('aux')).expect(200)).body as { items: { tareaId: string; plan: { inicio: string } | null }[] };
+    const plan = cola.items.find((i) => i.tareaId === tarea.id)!.plan!;
+    const [dia, hora] = new Date(Date.parse(plan.inicio) - 5 * 3_600_000).toISOString().split('T');
+    expect(dia).toBe(pasado);
+    expect(hora.slice(0, 5) >= '10:00').toBe(true);
+    // Aparece en la agenda de ese día
+    const agenda = (await http().get(`/api/agenda/mia?desde=${pasado}&hasta=${pasado}`).set(como('aux')).expect(200)).body as { dias: { fecha: string; tareas: { tareaId?: string; id?: string }[] }[] };
+    expect(JSON.stringify(agenda)).toContain(tarea.id);
+    await prisma.trabajo.deleteMany({ where: { id: creado.id } });
+  });
+
   it('programa la primera actividad desde la fecha y hora de inicio, con su tiempo estimado editable', async () => {
     const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string; minutosEstimados: number }[];
     const elaboracion = actividades.find((a) => a.nombre === 'Elaboración')!;
@@ -205,7 +227,6 @@ describe('Cliente directo (e2e)', () => {
     await enviar('prod', { ...base, programacion: { ...programacion, hora: '25:00' } }).expect(400);
     await enviar('prod', { ...base, programacion: { ...programacion, minutosEstimados: 5 } }).expect(400);
     await enviar('prod', { ...base, programacion: { ...programacion, jefeResponsableId: ids.aux } }).expect(400);
-    await enviar('prod', { ...base, trabajo: { ...base.trabajo, fechaInicio: sumarDias(hoy, -3) }, programacion }).expect(400); // en el pasado
     const creado = (await enviar('prod', { ...base, programacion }).expect(201)).body as TrabajoDetalle;
     expect(creado.estado).toBe('asignado');
     expect(creado.entregables).toHaveLength(1);

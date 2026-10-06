@@ -75,7 +75,15 @@ export const aTareaEnCola = (t: { id: string; minutosEstimados: number; fecha: D
     minutos: real > 0 ? Math.max(t.minutosEstimados - real, MINIMO_RESTANTE) : t.minutosEstimados,
     noAntesDe: soloFecha(t.fecha),
     noAntesDeMinuto: t.noAntesDeMinuto ?? null,
+    retroactiva: esRetroactiva(t, real),
   };
+};
+
+/** Con hora de inicio ya pasada y sin tiempo trabajado: sigue programada desde su inicio, como en la agenda de ese día. */
+const esRetroactiva = (t: { fecha: Date; noAntesDeMinuto?: number | null }, real: number, ahora = ahoraEnLima()): boolean => {
+  if (t.noAntesDeMinuto == null || real > 0) return false;
+  const dia = soloFecha(t.fecha);
+  return dia < ahora.fecha || (dia === ahora.fecha && t.noAntesDeMinuto < ahora.minuto);
 };
 
 export interface ColaDeUsuario {
@@ -160,7 +168,7 @@ export class AgendaService {
     const resultado = new Map<string, BaseDeCola>();
     if (usuarioIds.length === 0) return resultado;
     const ahora = ahoraEnLima();
-    const [filas, entradas] = await Promise.all([
+    const [filas, entradasBase] = await Promise.all([
       db.tareaResponsable.findMany({
         where: { usuarioId: { in: usuarioIds }, ...EN_COLA },
         orderBy: [{ ordenCola: 'asc' }, { asignadoEn: 'asc' }],
@@ -168,6 +176,10 @@ export class AgendaService {
       }),
       this.entradas(usuarioIds, ahora.fecha, sumarDias(ahora.fecha, HORIZONTE_DIAS), db),
     ]);
+    // Si alguna tarea arranca retroactivamente, hacen falta también los días desde su inicio.
+    const retro = filas.filter((f) => esRetroactiva(f.tarea, minutosReales(f.tarea.tiempos), ahora)).map((f) => soloFecha(f.tarea.fecha));
+    const desdeRetro = retro.reduce((min, d) => (d < min ? d : min), ahora.fecha);
+    const entradas = desdeRetro < ahora.fecha ? await this.entradas(usuarioIds, desdeRetro, sumarDias(ahora.fecha, HORIZONTE_DIAS), db) : entradasBase;
     for (const usuarioId of usuarioIds) {
       const dias = (entradas.get(usuarioId) ?? []).map((e) => {
         const dia = calcularDia(e);

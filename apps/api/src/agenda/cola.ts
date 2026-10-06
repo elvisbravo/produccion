@@ -24,6 +24,11 @@ export interface TareaEnCola {
   noAntesDe: string;
   /** En ese día, no empieza antes de esta hora (minutos desde las 00:00). */
   noAntesDeMinuto?: number | null;
+  /**
+   * El trabajo ya empezó en ese día y hora (primera actividad de un cliente registrado después): se programa desde ahí,
+   * aunque sea en el pasado, para que aparezca en la agenda. Las demás tareas nunca se programan antes de `ahora`.
+   */
+  retroactiva?: boolean;
 }
 
 export interface Segmento {
@@ -49,13 +54,9 @@ export function huecosDelDia(libres: Intervalo[], ocupados: Intervalo[]): Interv
  * Una tarea larga se reparte en varios días.
  */
 export function planificar(dias: DiaLibre[], tareas: TareaEnCola[], ahora: { fecha: string; minuto: number }): Map<string, PlanCola> {
-  // Copia de los huecos para ir consumiéndolos.
-  const disponibles = dias
-    .filter((d) => d.fecha >= ahora.fecha)
-    .map((d) => ({
-      fecha: d.fecha,
-      huecos: d.fecha === ahora.fecha ? restar(d.huecos, [{ inicio: 0, fin: ahora.minuto }]) : d.huecos.map((h) => ({ ...h })),
-    }));
+  // Copia de los huecos para ir consumiéndolos. Solo se conservan días anteriores a hoy si alguna tarea arranca retroactivamente.
+  const primerDia = tareas.reduce((min, t) => (t.retroactiva && t.noAntesDe < min ? t.noAntesDe : min), ahora.fecha);
+  const disponibles = dias.filter((d) => d.fecha >= primerDia).map((d) => ({ fecha: d.fecha, huecos: d.huecos.map((h) => ({ ...h })) }));
 
   const planes = new Map<string, PlanCola>();
   let indiceDia = 0;
@@ -63,15 +64,24 @@ export function planificar(dias: DiaLibre[], tareas: TareaEnCola[], ahora: { fec
     let restante = tarea.minutos;
     const segmentos: Segmento[] = [];
     let i = indiceDia;
+    // Desde cuándo puede empezar: nunca antes de ahora (salvo una tarea retroactiva, que empieza cuando se dijo).
+    let desde = tarea.noAntesDe;
+    let desdeMinuto = tarea.noAntesDeMinuto ?? null;
+    if (!tarea.retroactiva) {
+      if (desde < ahora.fecha) {
+        desde = ahora.fecha;
+        desdeMinuto = ahora.minuto;
+      } else if (desde === ahora.fecha) desdeMinuto = Math.max(desdeMinuto ?? 0, ahora.minuto);
+    }
     while (restante > 0 && i < disponibles.length) {
       const dia = disponibles[i];
-      if (dia.fecha < tarea.noAntesDe) {
+      if (dia.fecha < desde) {
         i++;
         continue;
       }
       // Con hora de inicio, el día arranca ahí: lo anterior no se usa (la cola es secuencial).
-      if (tarea.noAntesDeMinuto != null && dia.fecha === tarea.noAntesDe) {
-        const minuto = tarea.noAntesDeMinuto;
+      if (desdeMinuto != null && dia.fecha === desde) {
+        const minuto = desdeMinuto;
         while (dia.huecos[0] && dia.huecos[0].fin <= minuto) dia.huecos.shift();
         if (dia.huecos[0] && dia.huecos[0].inicio < minuto) dia.huecos[0].inicio = minuto;
       }

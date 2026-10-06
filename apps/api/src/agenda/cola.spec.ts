@@ -55,6 +55,20 @@ describe('planificar', () => {
     expect(dos.get('c')!.inicio).toEqual({ fecha: '2026-10-05', inicio: h(11), fin: h(12) });
   });
 
+  it('una tarea retroactiva se programa desde su inicio aunque ya haya pasado; las demás, desde ahora', () => {
+    const tarde = { fecha: '2026-10-06', minuto: h(15) };
+    const diasPasados = [{ fecha: '2026-10-05', huecos: [{ inicio: h(9), fin: h(13) }, { inicio: h(15), fin: h(18) }] }, ...dias.filter((d) => d.fecha >= '2026-10-06')];
+    const plan = planificar(
+      diasPasados,
+      [{ id: 'r', minutos: 120, noAntesDe: '2026-10-05', noAntesDeMinuto: h(10), retroactiva: true }, { id: 'n', minutos: 60, noAntesDe: '2026-10-05' }],
+      tarde,
+    );
+    expect(plan.get('r')!.inicio).toEqual({ fecha: '2026-10-05', inicio: h(10), fin: h(12) });
+    // La normal nunca cae antes de ahora (hoy 15:00), aunque su fecha sea anterior
+    const n = plan.get('n')!.inicio!;
+    expect(n.fecha > '2026-10-06' || (n.fecha === '2026-10-06' && n.inicio >= h(15))).toBe(true);
+  });
+
   it('si no alcanza el horizonte, queda sin fin', () => {
     const plan = planificar(dias, [{ id: 'a', minutos: h(40), noAntesDe: '2026-10-05' }], temprano).get('a')!;
     expect(plan.fin).toBeNull();

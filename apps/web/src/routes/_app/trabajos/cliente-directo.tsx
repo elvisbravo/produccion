@@ -593,7 +593,7 @@ function RegistrarClienteDirecto() {
                     </span>
                   </FieldLabel>
                   <Input id="cd-hora" type="time" aria-invalid={Boolean(e.programacion?.hora)} {...register('programacion.hora')} />
-                  <FieldDescription>{fechaInicioForm ? `Arranca el ${formatearFecha(fechaInicioForm)}. Cambia el día en «Fecha de inicio» del trabajo.` : 'Elige la fecha de inicio del trabajo.'}</FieldDescription>
+                  <FieldDescription>{fechaInicioForm ? `Arranca el ${formatearFecha(fechaInicioForm)}. Puede ser una fecha y hora pasadas: se programa desde ahí y se ve en la agenda. El día se cambia en «Fecha de inicio» del trabajo.` : 'Elige la fecha de inicio del trabajo.'}</FieldDescription>
                   <FieldError errors={[e.programacion?.hora]} />
                 </Field>
                 <Field data-invalid={Boolean(e.programacion?.auxiliarPrincipalId)}>
