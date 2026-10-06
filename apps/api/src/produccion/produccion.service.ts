@@ -213,14 +213,15 @@ export class ProduccionService {
       if (trabajo.actividadPlanId && trabajo.minutosPlan) {
         // Si la actividad es una revisión, el trabajo ya llegó para revisarse: el entregable nace "en revisión" (la tarea de revisión
         // no se completa a mano, la cierra quien revisa). En otro caso se elabora primero y luego se envía a revisión.
-        const plan = await tx.actividad.findUnique({ where: { id: trabajo.actividadPlanId }, select: { tipo: { select: { comportamiento: true } } } });
+        const plan = await tx.actividad.findUnique({ where: { id: trabajo.actividadPlanId }, select: { nombre: true, tipo: { select: { comportamiento: true } } } });
         const paraRevisar = plan?.tipo.comportamiento === 'revision';
         const entregable = await tx.entregable.create({
           data: { trabajoId, nombre: 'Entrega final', orden: 1, esFinal: true, fechaLimite: trabajo.fechaLimite, estado: paraRevisar ? 'en_revision' : 'pendiente' },
         });
         await this.crearTareaTx(
           tx,
-          { trabajoId, entregableId: entregable.id, actividadId: trabajo.actividadPlanId, titulo: trabajo.titulo ?? 'Trabajo de proveedor', minutos: trabajo.minutosPlan, ...(inicial && { noAntesDe: inicial.fecha, noAntesDeMinuto: inicial.minuto }) },
+          { trabajoId, entregableId: entregable.id, actividadId: trabajo.actividadPlanId, // Sin título del trabajo: el de un cliente se llama como su actividad; solo un trabajo que no viene de un cliente dice «de proveedor».
+            titulo: trabajo.titulo ?? (trabajo.prospectoId ? (plan?.nombre ?? 'Actividad') : 'Trabajo de proveedor'), minutos: trabajo.minutosPlan, ...(inicial && { noAntesDe: inicial.fecha, noAntesDeMinuto: inicial.minuto }) },
           undefined,
           actor,
           // Va al final de la cola: si el auxiliar no tiene nada, arranca en la fecha y hora indicadas (aunque sean pasadas); si ya tiene actividades, sigue cuando terminan.

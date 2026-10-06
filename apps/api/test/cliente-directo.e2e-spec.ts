@@ -304,6 +304,19 @@ describe('Cliente directo (e2e)', () => {
     await prisma.prospecto.deleteMany({ where: { creadoPor: ids.prod, trabajo: null } });
   });
 
+  it('un cliente sin título del trabajo no hereda «Trabajo de proveedor» en su tarea', async () => {
+    const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string }[];
+    const integrantes = [{ celular: `9${sufijo}82`, nombres: 'Sin', apellidos: 'Titulo', email: `sin.titulo.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `7${sufijo}3`, esTitular: true }];
+    const programacion = { actividadId: actividades.find((a) => a.nombre === 'Elaboración')!.id, minutosEstimados: 60, hora: '10:00', auxiliarPrincipalId: ids.aux, jefeResponsableId: ids.jefe };
+    const base = { integrantes, pagos: [], contrato: undefined, trabajo: { ...(cuerpo.trabajo as object), titulo: undefined, fechaInicio: hoy, fechaLimite: sumarDias(hoy, 30) }, programacion };
+    const creado = (await enviar('prod', base).expect(201)).body as TrabajoDetalle;
+    const titulo = creado.entregables[0].tareas[0].titulo;
+    expect(titulo).toBe('Elaboración');
+    expect(titulo).not.toContain('proveedor');
+    await prisma.trabajo.deleteMany({ where: { id: creado.id } });
+    await prisma.prospecto.deleteMany({ where: { creadoPor: ids.prod, trabajo: null } });
+  });
+
   it('acepta una hora de inicio de hoy que ya pasó: la actividad arranca desde ahora', async () => {
     const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string }[];
     const elaboracion = actividades.find((a) => a.nombre === 'Elaboración')!;
