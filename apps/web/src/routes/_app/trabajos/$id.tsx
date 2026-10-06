@@ -31,6 +31,7 @@ import { AvisoFechasFijas, BotonFijarFechas, MarcaFechasFijas } from '@/features
 import { AvisoEnEspera, BotonPausar } from '@/features/trabajos/components/pausa'
 import { AvisoValoracion, BotonValorar } from '@/features/trabajos/components/valoracion'
 import { CobroPendiente } from '@/features/trabajos/components/cobro'
+import { BotonEditarDatos, BotonReprogramar } from '@/features/trabajos/components/edicion'
 import { ApiError } from '@/lib/api'
 import { diasHasta, duracion, formatearFecha, formatearFechaHora, haceCuanto, nombreCompleto } from '@/lib/formato'
 import { exigirPermiso } from '@/lib/guardas'
@@ -112,6 +113,7 @@ function DetalleTrabajo() {
           </div>
           <div className="flex flex-col items-end gap-1 text-right">
             <BotonPausar t={t} />
+            <BotonReprogramar t={t} />
             <BotonValorar t={t} />
             <BotonFijarFechas t={t} />
             <span className="mt-1 text-sm text-muted-foreground">Entrega final</span>
@@ -422,8 +424,9 @@ function Monto({ etiqueta, valor, destacado, alerta }: { etiqueta: string; valor
 function DatosTrabajo({ t }: { t: TrabajoDetalle }) {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
         <CardTitle>Datos del trabajo</CardTitle>
+        <BotonEditarDatos t={t} />
       </CardHeader>
       <CardContent>
         <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-3">

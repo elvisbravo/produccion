@@ -209,3 +209,25 @@ export function useRegistrarClienteDirecto() {
     },
   })
 }
+
+// ─── Reprogramar la entrega y editar los datos ──────────────
+
+export function useReprogramarTrabajo(trabajoId: string) {
+  const guardar = useGuardarDetalle()
+  const refrescar = useRefrescarCola()
+  return useMutation({
+    mutationFn: (datos: unknown) => api<TrabajoDetalle>(`/trabajos/${trabajoId}/reprogramar`, { method: 'POST', body: datos }),
+    onSuccess: (trabajo) => {
+      guardar(trabajo)
+      refrescar()
+    },
+  })
+}
+
+export function useEditarTrabajo(trabajoId: string) {
+  const guardar = useGuardarDetalle()
+  return useMutation({
+    mutationFn: (datos: unknown) => api<TrabajoDetalle>(`/trabajos/${trabajoId}/datos`, { method: 'PUT', body: datos }),
+    onSuccess: guardar,
+  })
+}

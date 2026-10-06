@@ -265,6 +265,31 @@ export interface FechasFijasItem {
 
 // ─── Trabajo en espera del cliente ──────────────────────────
 
+/** Mover la fecha de entrega del trabajo (con su motivo). */
+export const reprogramarTrabajoSchema = z.object({
+  fechaLimite: z.string().min(1, 'Elige la nueva fecha de entrega').pipe(dia),
+  motivo: z.string().trim().min(3, 'Indica el motivo').max(300, 'Máximo 300 caracteres'),
+})
+export type ReprogramarTrabajoFormulario = z.input<typeof reprogramarTrabajoSchema>
+export type ReprogramarTrabajoDatos = z.output<typeof reprogramarTrabajoSchema>
+
+/** Datos del trabajo que se pueden corregir (las fechas se cambian con «Reprogramar entrega»). */
+export const editarTrabajoSchema = z.object({
+  titulo: texto(300),
+  nivelAcademicoId: z.string({ error: 'Elige el nivel académico' }).min(1, 'Elige el nivel académico').pipe(z.uuid('Elige el nivel académico')),
+  universidadId: z.string({ error: 'Elige la universidad' }).min(1, 'Elige la universidad').pipe(z.uuid('Elige la universidad')),
+  carreraId: z.string({ error: 'Elige la carrera' }).min(1, 'Elige la carrera').pipe(z.uuid('Elige la carrera')),
+  linkDrive: z
+    .string({ error: 'Ingresa el enlace de Drive' })
+    .trim()
+    .min(1, 'Ingresa el enlace de Drive')
+    .pipe(z.url({ protocol: /^https?$/, error: 'Enlace no válido (debe empezar con https://)' }).max(500)),
+  observaciones: texto(5000),
+  detalles: texto(5000),
+})
+export type EditarTrabajoFormulario = z.input<typeof editarTrabajoSchema>
+export type EditarTrabajoDatos = z.output<typeof editarTrabajoSchema>
+
 export const pausarTrabajoSchema = z.object({ motivo: z.string().trim().min(3, 'Indica qué información falta').max(500, 'Máximo 500 caracteres') })
 export const reanudarTrabajoSchema = z.object({ nota: texto(500) })
 
