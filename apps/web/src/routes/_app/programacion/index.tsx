@@ -120,7 +120,7 @@ function AgendaEquipo() {
       )}
 
       <Sheet open={Boolean(elegida)} onOpenChange={(abierto) => !abierto && setElegida(null)}>
-        <SheetContent side="right" className="w-full gap-0 overflow-y-auto sm:max-w-5xl">
+        <SheetContent side="right" className="gap-0 overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-5xl">
           {elegida && <SemanaPersona persona={elegida} lunes={lunes} hoy={hoy} />}
         </SheetContent>
       </Sheet>
