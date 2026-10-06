@@ -22,6 +22,8 @@ export interface TareaEnCola {
   minutos: number;
   /** No empieza antes de este día. */
   noAntesDe: string;
+  /** En ese día, no empieza antes de esta hora (minutos desde las 00:00). */
+  noAntesDeMinuto?: number | null;
 }
 
 export interface Segmento {
@@ -66,6 +68,12 @@ export function planificar(dias: DiaLibre[], tareas: TareaEnCola[], ahora: { fec
       if (dia.fecha < tarea.noAntesDe) {
         i++;
         continue;
+      }
+      // Con hora de inicio, el día arranca ahí: lo anterior no se usa (la cola es secuencial).
+      if (tarea.noAntesDeMinuto != null && dia.fecha === tarea.noAntesDe) {
+        const minuto = tarea.noAntesDeMinuto;
+        while (dia.huecos[0] && dia.huecos[0].fin <= minuto) dia.huecos.shift();
+        if (dia.huecos[0] && dia.huecos[0].inicio < minuto) dia.huecos[0].inicio = minuto;
       }
       const hueco = dia.huecos[0];
       if (!hueco) {

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { EntregableItem, TurnitinConfig } from './produccion.js'
 import { normalizarCelular } from './celular.js'
+import { instanteDesdeLima } from './fechas.js'
 import { TIPOS_DOCUMENTO, validarDocumento, type Opcion, type PersonaResumen, type UsuarioResumen } from './prospectos.js'
 
 // ─── Dinero ─────────────────────────────────────────────────
@@ -620,6 +621,17 @@ export const integranteDirectoSchema = z
   })
   .superRefine(validarDocumento)
 
+/** La primera actividad del trabajo: arranca en la fecha de inicio a la hora indicada, con su equipo. */
+export const programacionInicialSchema = z.object({
+  actividadId: z.string({ error: 'Elige la actividad' }).min(1, 'Elige la actividad').pipe(z.uuid('Elige la actividad')),
+  /** Tiempo estimado: viene del catálogo de actividades, pero se puede ajustar. */
+  minutosEstimados: z.coerce.number('Indica el tiempo estimado').int('Número entero').min(15, 'Mínimo 15 minutos').max(60 * 200, 'Máximo 200 horas'),
+  hora: z.string({ error: 'Indica la hora de inicio' }).regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Hora no válida (HH:mm)'),
+  auxiliarPrincipalId: z.string({ error: 'Elige al auxiliar principal' }).min(1, 'Elige al auxiliar principal').pipe(z.uuid('Elige al auxiliar principal')),
+  jefeResponsableId: z.string({ error: 'Elige al jefe responsable' }).min(1, 'Elige al jefe responsable').pipe(z.uuid('Elige al jefe responsable')),
+})
+export type ProgramacionInicialDatos = z.output<typeof programacionInicialSchema>
+
 /** Un cliente que ya tiene trabajo contratado: se registra directo, con su contrato y los pagos ya recibidos. */
 export const clienteDirectoSchema = z
   .object({
@@ -632,6 +644,8 @@ export const clienteDirectoSchema = z
     /** Opcional: si no se conoce el monto total, se registra después. */
     contrato: contratoConversionSchema.optional(),
     observaciones: texto(5000),
+    /** Opcional: programa la primera actividad desde la fecha de inicio a la hora indicada. */
+    programacion: programacionInicialSchema.optional(),
     /** Opcional: si el trabajo de este cliente lo entregó un proveedor (el proveedor es quien paga). */
     proveedorId: opcional(z.uuid('Proveedor no válido')),
     /** Pagos que el cliente ya hizo (con su fecha real). */
@@ -639,6 +653,14 @@ export const clienteDirectoSchema = z
   })
   .superRefine((d, ctx) => {
     validarConversion({ ...d, pagoInicial: undefined }, ctx)
+    if (d.programacion) {
+      const [h, m] = d.programacion.hora.split(':').map(Number)
+      const ahora = new Date()
+      const instante = instanteDesdeLima(d.trabajo.fechaInicio, d.programacion.hora)
+      if (instante.getTime() < ahora.getTime() - 60_000) ctx.addIssue({ code: 'custom', path: ['programacion', 'hora'], message: 'La fecha y hora de inicio no pueden estar en el pasado: elige hoy más tarde o un día futuro' })
+      if (h * 60 + m < 6 * 60 || h * 60 + m > 22 * 60) ctx.addIssue({ code: 'custom', path: ['programacion', 'hora'], message: 'Elige una hora entre las 06:00 y las 22:00' })
+      if (d.programacion.auxiliarPrincipalId === d.programacion.jefeResponsableId) ctx.addIssue({ code: 'custom', path: ['programacion', 'jefeResponsableId'], message: 'Quien revisa debe ser otra persona que quien elabora' })
+    }
     if (!d.contrato && d.pagos.length > 0) ctx.addIssue({ code: 'custom', path: ['pagos'], message: 'Para registrar pagos indica el contrato (monto total)' })
     const pagado = d.pagos.reduce((s, p) => s + aCentimos(p.monto), 0)
     if (d.contrato && pagado > aCentimos(d.contrato.montoTotal)) {

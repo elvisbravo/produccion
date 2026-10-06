@@ -31,7 +31,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { BotonBuscarDni } from '@/features/consultas/components/boton-buscar-dni'
 import { buscarCatalogo, catalogosProspectoQuery, crearEnCatalogo } from '@/features/prospectos/api'
 import { proveedoresQuery } from '@/features/proveedores/api'
-import { responsablesClienteDirectoQuery, useRegistrarClienteDirecto } from '@/features/trabajos/api'
+import { actividadesQuery } from '@/features/tareas/api'
+import { candidatosEquipoQuery, responsablesClienteDirectoQuery, useRegistrarClienteDirecto } from '@/features/trabajos/api'
+import { duracion, formatearFecha } from '@/lib/formato'
 import { CamposCobro, cobroVacio } from '@/features/trabajos/components/cobro'
 import { aplicarErroresApi } from '@/lib/formularios'
 import { exigirPermiso } from '@/lib/guardas'
@@ -41,6 +43,12 @@ export const Route = createFileRoute('/_app/trabajos/cliente-directo')({
   loader: ({ context }) => Promise.all([context.queryClient.ensureQueryData(catalogosProspectoQuery), context.queryClient.ensureQueryData(responsablesClienteDirectoQuery)]),
   component: RegistrarClienteDirecto,
 })
+
+/** Hora de inicio sugerida: la próxima hora en punto (entre las 07:00 y las 21:00), en hora de Lima. */
+function horaSugerida(): string {
+  const [h] = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'America/Lima' }).format(new Date()).split(':').map(Number)
+  return `${String(Math.min(21, Math.max(7, h + 1))).padStart(2, '0')}:00`
+}
 
 const integranteVacio = (esTitular: boolean) => ({ celular: '', nombres: '', apellidos: '', email: '', tipoDocumento: 'DNI' as TipoDocumento, numeroDocumento: '', esTitular })
 
@@ -77,6 +85,7 @@ function RegistrarClienteDirecto() {
       prioridadId: catalogos.prioridades.find((p) => p.porDefecto)?.id ?? '',
       responsableId: '',
       proveedorId: '',
+      programacion: { actividadId: '', minutosEstimados: '' as unknown as number, hora: horaSugerida(), auxiliarPrincipalId: '', jefeResponsableId: '' },
       trabajo: { titulo: '', fechaInicio: hoy, fechaLimite: '', nivelAcademicoId: '', universidadId: '', carreraId: '', linkDrive: '' },
       contrato: { fechaFirma: hoy, ...cobroVacio(), observaciones: '' },
       observaciones: '',
@@ -85,6 +94,14 @@ function RegistrarClienteDirecto() {
   })
   const { control, register, setValue, getValues, unregister, formState } = form
   const [conContrato, setConContrato] = useState(true)
+  const [conActividad, setConActividad] = useState(true)
+  const { data: actividades = [] } = useQuery({ ...actividadesQuery('cliente'), enabled: conActividad })
+  const { data: candidatos } = useQuery({ ...candidatosEquipoQuery, enabled: conActividad })
+  const alternarActividad = (v: boolean) => {
+    setConActividad(v)
+    if (v) setValue('programacion', { actividadId: '', minutosEstimados: '' as unknown as number, hora: horaSugerida(), auxiliarPrincipalId: '', jefeResponsableId: '' })
+    else unregister('programacion')
+  }
   const [deProveedor, setDeProveedor] = useState(false)
   const { data: proveedores } = useQuery({ ...proveedoresQuery({ estado: 'activos', porPagina: 100 }), enabled: deProveedor })
   const alternarProveedor = (v: boolean) => {
@@ -105,6 +122,8 @@ function RegistrarClienteDirecto() {
   const tipo = catalogos.tiposTrabajo.find((t) => t.id === useWatch({ control, name: 'tipoTrabajoId' }))
   const maxIntegrantes = Math.min(tipo?.maxIntegrantes ?? 5, 5)
   const titular = useWatch({ control, name: 'integrantes' })?.findIndex((i) => i.esTitular) ?? -1
+  const tiempoActividad = Number(useWatch({ control, name: 'programacion.minutosEstimados' })) || 0
+  const fechaInicioForm = useWatch({ control, name: 'trabajo.fechaInicio' })
   const marcarTitular = (indice: number) => getValues('integrantes').forEach((_, i) => setValue(`integrantes.${i}.esTitular`, i === indice, { shouldDirty: true }))
 
   const enviar = form.handleSubmit(async (datos) => {
@@ -115,7 +134,7 @@ function RegistrarClienteDirecto() {
       toast.success(`Cliente registrado: trabajo ${trabajo.codigo}`)
       void navigate({ to: '/trabajos/$id', params: { id: trabajo.id } })
     } catch (err) {
-      setError(aplicarErroresApi(err, form.setError, ['integrantes', 'tipoTrabajoId', 'prioridadId', 'responsableId', 'proveedorId', 'trabajo', 'contrato', 'pagos', 'observaciones']))
+      setError(aplicarErroresApi(err, form.setError, ['integrantes', 'tipoTrabajoId', 'prioridadId', 'responsableId', 'proveedorId', 'programacion', 'trabajo', 'contrato', 'pagos', 'observaciones']))
     }
   })
 
@@ -487,6 +506,133 @@ function RegistrarClienteDirecto() {
                 <Textarea id="cd-obs" rows={3} {...register('observaciones')} />
               </Field>
             </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <div className="space-y-1.5">
+                <CardTitle>Primera actividad</CardTitle>
+                <CardDescription>
+                  {conActividad ? 'La actividad se programa desde la fecha de inicio, a la hora que indiques, con el equipo que la hará.' : 'No se programa nada por ahora: arma el equipo y genera el plan desde la ficha del trabajo.'}
+                </CardDescription>
+              </div>
+              <Label htmlFor="cd-con-actividad" className="flex items-center gap-2 font-normal">
+                <Checkbox id="cd-con-actividad" checked={conActividad} onCheckedChange={(v) => alternarActividad(v === true)} />
+                Programar actividad
+              </Label>
+            </CardHeader>
+            {conActividad && (
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <Field data-invalid={Boolean(e.programacion?.actividadId)} className="sm:col-span-2">
+                  <FieldLabel htmlFor="cd-actividad">
+                    <span>
+                      Actividad <Requerido />
+                    </span>
+                  </FieldLabel>
+                  <Controller
+                    control={control}
+                    name="programacion.actividadId"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value || undefined}
+                        onValueChange={(v) => {
+                          field.onChange(v)
+                          const a = actividades.find((x) => x.id === v)
+                          if (a) setValue('programacion.minutosEstimados', a.minutosEstimados, { shouldValidate: true })
+                        }}
+                      >
+                        <SelectTrigger id="cd-actividad" className="w-full" aria-invalid={Boolean(e.programacion?.actividadId)}>
+                          <SelectValue placeholder="Seleccionar…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {actividades
+                            .filter((a) => !a.requiereHoraFija)
+                            .map((a) => (
+                              <SelectItem key={a.id} value={a.id}>
+                                <span className="size-2 rounded-full" style={{ backgroundColor: a.tipo.color }} aria-hidden="true" />
+                                {a.nombre} · {duracion(a.minutosEstimados)}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  <FieldError errors={[e.programacion?.actividadId]} />
+                </Field>
+                <Field data-invalid={Boolean(e.programacion?.minutosEstimados)}>
+                  <FieldLabel htmlFor="cd-minutos">
+                    <span>
+                      Tiempo estimado (minutos) <Requerido />
+                    </span>
+                  </FieldLabel>
+                  <Input id="cd-minutos" type="number" inputMode="numeric" min={15} step={15} aria-invalid={Boolean(e.programacion?.minutosEstimados)} {...register('programacion.minutosEstimados')} />
+                  <FieldDescription>{tiempoActividad > 0 ? `${duracion(tiempoActividad)} · se propone el del catálogo; puedes cambiarlo.` : 'Se propone el de la actividad; puedes cambiarlo.'}</FieldDescription>
+                  <FieldError errors={[e.programacion?.minutosEstimados]} />
+                </Field>
+                <Field data-invalid={Boolean(e.programacion?.hora)}>
+                  <FieldLabel htmlFor="cd-hora">
+                    <span>
+                      Hora de inicio <Requerido />
+                    </span>
+                  </FieldLabel>
+                  <Input id="cd-hora" type="time" aria-invalid={Boolean(e.programacion?.hora)} {...register('programacion.hora')} />
+                  <FieldDescription>{fechaInicioForm ? `Arranca el ${formatearFecha(fechaInicioForm)}. Cambia el día en «Fecha de inicio» del trabajo.` : 'Elige la fecha de inicio del trabajo.'}</FieldDescription>
+                  <FieldError errors={[e.programacion?.hora]} />
+                </Field>
+                <Field data-invalid={Boolean(e.programacion?.auxiliarPrincipalId)}>
+                  <FieldLabel htmlFor="cd-aux">
+                    <span>
+                      Auxiliar principal <Requerido />
+                    </span>
+                  </FieldLabel>
+                  <Controller
+                    control={control}
+                    name="programacion.auxiliarPrincipalId"
+                    render={({ field }) => (
+                      <Select value={field.value || undefined} onValueChange={field.onChange}>
+                        <SelectTrigger id="cd-aux" className="w-full" aria-invalid={Boolean(e.programacion?.auxiliarPrincipalId)}>
+                          <SelectValue placeholder={candidatos ? 'Seleccionar…' : 'Cargando…'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {candidatos?.auxiliares.map((u) => (
+                            <SelectItem key={u.id} value={u.id}>
+                              {u.nombres} {u.apellidos}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  <FieldError errors={[e.programacion?.auxiliarPrincipalId]} />
+                </Field>
+                <Field data-invalid={Boolean(e.programacion?.jefeResponsableId)}>
+                  <FieldLabel htmlFor="cd-jefe">
+                    <span>
+                      Jefe responsable <Requerido />
+                    </span>
+                  </FieldLabel>
+                  <Controller
+                    control={control}
+                    name="programacion.jefeResponsableId"
+                    render={({ field }) => (
+                      <Select value={field.value || undefined} onValueChange={field.onChange}>
+                        <SelectTrigger id="cd-jefe" className="w-full" aria-invalid={Boolean(e.programacion?.jefeResponsableId)}>
+                          <SelectValue placeholder={candidatos ? 'Seleccionar…' : 'Cargando…'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {candidatos?.jefes.map((u) => (
+                            <SelectItem key={u.id} value={u.id}>
+                              {u.nombres} {u.apellidos}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  <FieldError errors={[e.programacion?.jefeResponsableId]} />
+                </Field>
+              </CardContent>
+            )}
           </Card>
 
           <Card>

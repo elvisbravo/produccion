@@ -68,12 +68,13 @@ export interface BaseDeCola {
 const MINIMO_RESTANTE = 15;
 
 /** Una tarea de la agenda como entrada del planificador (con lo que le falta, si ya se trabajó en ella). */
-export const aTareaEnCola = (t: { id: string; minutosEstimados: number; fecha: Date; tiempos?: { inicio: Date; fin: Date | null; minutos: number | null }[] }): TareaEnCola => {
+export const aTareaEnCola = (t: { id: string; minutosEstimados: number; fecha: Date; noAntesDeMinuto?: number | null; tiempos?: { inicio: Date; fin: Date | null; minutos: number | null }[] }): TareaEnCola => {
   const real = t.tiempos ? minutosReales(t.tiempos) : 0;
   return {
     id: t.id,
     minutos: real > 0 ? Math.max(t.minutosEstimados - real, MINIMO_RESTANTE) : t.minutosEstimados,
     noAntesDe: soloFecha(t.fecha),
+    noAntesDeMinuto: t.noAntesDeMinuto ?? null,
   };
 };
 

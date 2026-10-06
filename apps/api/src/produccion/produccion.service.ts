@@ -203,7 +203,7 @@ export class ProduccionService {
   }
 
   /** Crea los entregables y las tareas desde la plantilla del tipo de trabajo, en la cola del auxiliar principal. */
-  async generarPlan(trabajoId: string, actor: ActorProduccion): Promise<void> {
+  async generarPlan(trabajoId: string, actor: ActorProduccion, inicial?: { fecha: string; minuto: number }): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       const trabajo = await this.trabajoAbierto(tx, trabajoId);
       if (trabajo.entregables.length > 0) throw new ConflictException('El trabajo ya tiene entregables: agrégalos uno por uno');
@@ -220,7 +220,7 @@ export class ProduccionService {
         });
         await this.crearTareaTx(
           tx,
-          { trabajoId, entregableId: entregable.id, actividadId: trabajo.actividadPlanId, titulo: trabajo.titulo ?? 'Trabajo de proveedor', minutos: trabajo.minutosPlan },
+          { trabajoId, entregableId: entregable.id, actividadId: trabajo.actividadPlanId, titulo: trabajo.titulo ?? 'Trabajo de proveedor', minutos: trabajo.minutosPlan, ...(inicial && { noAntesDe: inicial.fecha, noAntesDeMinuto: inicial.minuto }) },
           undefined,
           actor,
           paraRevisar,
@@ -350,7 +350,7 @@ export class ProduccionService {
   /** Crea una tarea de producción en la cola de la persona (al final o, si `alFrente`, primera). */
   private async crearTareaTx(
     tx: Tx,
-    t: { trabajoId: string; entregableId: string; actividadId: string; titulo: string; minutos: number; noAntesDe?: string; notas?: string | null },
+    t: { trabajoId: string; entregableId: string; actividadId: string; titulo: string; minutos: number; noAntesDe?: string; noAntesDeMinuto?: number; notas?: string | null },
     usuarioId: string | undefined,
     actor: ActorProduccion,
     alFrente = false,
@@ -370,6 +370,7 @@ export class ProduccionService {
         entregableId: t.entregableId,
         titulo: t.titulo,
         fecha: aFecha(t.noAntesDe ?? diaEnLima()),
+        noAntesDeMinuto: t.noAntesDeMinuto ?? null,
         minutosEstimados: t.minutos,
         estado: 'pendiente',
         notas: t.notas ?? null,

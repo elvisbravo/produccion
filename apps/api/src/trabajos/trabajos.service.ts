@@ -141,6 +141,8 @@ export class TrabajosService {
       directo?: boolean;
       /** Si el trabajo de este cliente lo entregó un proveedor (el proveedor paga). */
       proveedor?: { id: string; nombres: string; apellidos: string };
+      /** Actividad y tiempo con que se armará la primera tarea al generar el plan. */
+      plan?: { actividadId: string; minutos: number };
     },
     actor: ActorTrabajo,
   ): Promise<string> {
@@ -170,6 +172,8 @@ export class TrabajosService {
         codigo,
         prospectoId,
         proveedorId: p.proveedor?.id ?? null,
+        actividadPlanId: p.plan?.actividadId ?? null,
+        minutosPlan: p.plan?.minutos ?? null,
         tipoTrabajoId: prospecto.tipoTrabajoId,
         titulo: datos.trabajo.titulo ?? prospecto.titulo,
         prioridadId: prospecto.prioridadId,

@@ -44,6 +44,17 @@ describe('planificar', () => {
     expect(plan.get('b')!.inicio).toEqual({ fecha: '2026-10-06', inicio: h(9), fin: h(10) });
   });
 
+  it('con hora de inicio, la tarea no empieza antes de esa hora del día', () => {
+    const plan = planificar(dias, [{ id: 'a', minutos: 60, noAntesDe: '2026-10-05', noAntesDeMinuto: h(10) + 30 }], temprano);
+    expect(plan.get('a')!.inicio).toEqual({ fecha: '2026-10-05', inicio: h(10) + 30, fin: h(11) + 30 });
+    // Una hora dentro del refrigerio pasa a la tarde
+    const almuerzo = planificar(dias, [{ id: 'b', minutos: 60, noAntesDe: '2026-10-05', noAntesDeMinuto: h(13) + 30 }], temprano);
+    expect(almuerzo.get('b')!.inicio).toEqual({ fecha: '2026-10-05', inicio: h(15), fin: h(16) });
+    // La siguiente tarea sigue a continuación
+    const dos = planificar(dias, [{ id: 'a', minutos: 60, noAntesDe: '2026-10-05', noAntesDeMinuto: h(10) }, { id: 'c', minutos: 60, noAntesDe: '2026-10-05' }], temprano);
+    expect(dos.get('c')!.inicio).toEqual({ fecha: '2026-10-05', inicio: h(11), fin: h(12) });
+  });
+
   it('si no alcanza el horizonte, queda sin fin', () => {
     const plan = planificar(dias, [{ id: 'a', minutos: h(40), noAntesDe: '2026-10-05' }], temprano).get('a')!;
     expect(plan.fin).toBeNull();

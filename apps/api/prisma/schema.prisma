@@ -742,6 +742,8 @@ model Tarea {
   titulo              String?     @db.VarChar(150)
   /// Día planificado (hora de Lima). En la cola de trabajo: no empieza antes de este día.
   fecha               DateTime    @db.Date
+  /// Tareas de la cola: no empieza antes de esta hora del día (minutos desde las 00:00) en `fecha`.
+  noAntesDeMinuto     Int?        @map("no_antes_de_minuto") @db.SmallInt
   /// Inicio exacto, si la tarea tiene hora (obligatorio en reuniones).
   inicio              DateTime?   @db.Timestamptz(6)
   minutosEstimados    Int         @map("minutos_estimados")
