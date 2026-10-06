@@ -80,6 +80,19 @@ export class ProspectosService {
 
   // ─── Reasignar responsable ───────────────────────────────
 
+  /** Para el filtro del listado: quienes pueden seguir prospectos y quienes ya figuran como responsables (aunque hoy no tengan el permiso). */
+  async responsablesParaFiltro(actorId: string): Promise<UsuarioResumen[]> {
+    const admins = (await this.permisos.veAdministradores(actorId)) ? [] : await this.permisos.idsAdministradores();
+    const conPermiso = await this.notificaciones.conPermiso('prospectos.ver');
+    const duenos = (await this.prisma.prospecto.findMany({ where: { eliminadoEn: null }, distinct: ['responsableId'], select: { responsableId: true } })).map((p) => p.responsableId);
+    const ids = [...new Set([...conPermiso, ...duenos])].filter((id) => !admins.includes(id));
+    return this.prisma.usuario.findMany({
+      where: { id: { in: ids }, eliminadoEn: null },
+      select: { id: true, nombres: true, apellidos: true },
+      orderBy: [{ nombres: 'asc' }, { apellidos: 'asc' }],
+    });
+  }
+
   /** Personas que pueden seguir prospectos: las que tienen permiso para verlos. */
   async posiblesResponsables(actorId: string): Promise<UsuarioResumen[]> {
     const admins = (await this.permisos.veAdministradores(actorId)) ? [] : await this.permisos.idsAdministradores();
@@ -201,10 +214,12 @@ export class ProspectosService {
   }
 
   async listar(filtros: ListarProspectosConsulta, actor: Actor): Promise<Paginado<ProspectoListadoItem>> {
-    const { q, etapaId, temperatura, tipoTrabajoId, pagina, porPagina } = filtros;
+    const { q, etapaId, temperatura, tipoTrabajoId, responsableId, pagina, porPagina } = filtros;
     const where: Prisma.ProspectoWhereInput = {
       eliminadoEn: null,
       ...this.filtroAlcance(actor),
+      // En un AND aparte: con alcance «propios» no puede pisar el filtro de sus propios prospectos.
+      ...(responsableId && { AND: [{ responsableId }] }),
       ...(etapaId && { etapaId }),
       ...(temperatura && { temperatura }),
       ...(tipoTrabajoId && { tipoTrabajoId }),

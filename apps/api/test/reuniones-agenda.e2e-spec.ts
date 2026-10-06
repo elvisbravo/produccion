@@ -101,6 +101,16 @@ describe('Agenda de reuniones (e2e)', () => {
     await http().get(`/api/reuniones?desde=${dia}&hasta=2000-01-01`).set(como('prod')).expect(400);
   });
 
+  it('el listado de prospectos se filtra por responsable sin romper el alcance «propios»', async () => {
+    const lista = async (q: Quien, consulta: string) => (await http().get(`/api/prospectos?${consulta}`).set(como(q)).expect(200)).body as { total: number; datos: { id: string }[] };
+    expect((await lista('ana', `responsableId=${ids.ana}`)).datos.map((p) => p.id)).toContain(prospecto.id);
+    // Con alcance «propios» no se puede ver lo de otro pidiendo su id
+    expect((await lista('otra', `responsableId=${ids.ana}`)).total).toBe(0);
+    expect((await lista('ana', `responsableId=${ids.otra}`)).total).toBe(0);
+    const responsables = (await http().get('/api/prospectos/responsables').set(como('ana')).expect(200)).body as { id: string }[];
+    expect(responsables.map((u) => u.id)).toContain(ids.ana);
+  });
+
   it('guarda el enlace de la reunión (solo http/https) y quien no la ve no puede cambiarlo', async () => {
     await http().put(`/api/tareas/${tareaId}/enlace-reunion`).set(como('ana')).send({ enlace: 'no es un enlace' }).expect(400);
     const r = await http().put(`/api/tareas/${tareaId}/enlace-reunion`).set(como('ana')).send({ enlace: 'https://meet.google.com/abc-defg-hij' }).expect(200);

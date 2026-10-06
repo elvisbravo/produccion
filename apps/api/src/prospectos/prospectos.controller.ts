@@ -38,6 +38,13 @@ export class ProspectosController {
     return this.prospectos.listar(filtros, actor(req));
   }
 
+  /** Los responsables para el filtro del listado. Va antes de ":id" para que no se tome como un id. */
+  @RequierePermiso('prospectos.ver')
+  @Get('responsables')
+  responsables(@Req() req: SolicitudAutenticada): Promise<UsuarioResumen[]> {
+    return this.prospectos.responsablesParaFiltro(req.usuario!.id);
+  }
+
   /** Quiénes pueden recibir un prospecto. Va antes de ":id" para que no se tome como un id. */
   @RequierePermiso('prospectos.reasignar')
   @Get('posibles-responsables')

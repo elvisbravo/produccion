@@ -150,6 +150,8 @@ export const listarProspectosSchema = z.object({
   etapaId: z.uuid().optional(),
   temperatura: z.enum(TEMPERATURAS).optional(),
   tipoTrabajoId: z.uuid().optional(),
+  /** El responsable (quien sigue al prospecto). */
+  responsableId: z.uuid().optional(),
   pagina: z.coerce.number().int().min(1).default(1),
   porPagina: z.coerce.number().int().min(5).max(100).default(20),
 })

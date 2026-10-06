@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { catalogosProspectoQuery, prospectosQuery } from '@/features/prospectos/api'
+import { catalogosProspectoQuery, prospectosQuery, responsablesProspectosQuery } from '@/features/prospectos/api'
 import { InsigniaEtapa, InsigniaPrioridad, InsigniaTemperatura } from '@/features/prospectos/components/insignias'
 import { useDebounce } from '@/hooks/use-debounce'
 import { haceCuanto, nombreCompleto } from '@/lib/formato'
@@ -24,6 +24,7 @@ const busquedaSchema = z.object({
   etapaId: z.uuid().optional().catch(undefined),
   temperatura: z.enum(TEMPERATURAS).optional().catch(undefined),
   tipoTrabajoId: z.uuid().optional().catch(undefined),
+  responsableId: z.uuid().optional().catch(undefined),
   pagina: z.coerce.number().int().min(1).optional().catch(undefined),
 })
 
@@ -41,6 +42,8 @@ function ListadoProspectos() {
   const navigate = useNavigate({ from: Route.fullPath })
   const alcance = useAlcance('prospectos.ver')
   const { data: catalogos } = useQuery(catalogosProspectoQuery)
+  // Con alcance «propios» solo se ven los suyos: el filtro no tiene sentido.
+  const { data: responsables = [] } = useQuery({ ...responsablesProspectosQuery, enabled: alcance === 'todos' })
   const { data, isPending, isFetching } = useQuery(prospectosQuery(filtros))
 
   const [texto, setTexto] = useState(filtros.q ?? '')
@@ -54,7 +57,7 @@ function ListadoProspectos() {
 
   const pagina = data?.pagina ?? 1
   const totalPaginas = data ? Math.max(1, Math.ceil(data.total / data.porPagina)) : 1
-  const hayFiltros = Boolean(filtros.q || filtros.etapaId || filtros.temperatura || filtros.tipoTrabajoId)
+  const hayFiltros = Boolean(filtros.q || filtros.etapaId || filtros.temperatura || filtros.tipoTrabajoId || filtros.responsableId)
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-8">
@@ -129,6 +132,21 @@ function ListadoProspectos() {
             ))}
           </SelectContent>
         </Select>
+        {alcance === 'todos' && (
+          <Select value={filtros.responsableId ?? TODOS} onValueChange={(v) => filtrar({ responsableId: v === TODOS ? undefined : v })}>
+            <SelectTrigger aria-label="Responsable" className="w-52">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS}>Todos los responsables</SelectItem>
+              {responsables.map((u) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {nombreCompleto(u)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         {hayFiltros && (
           <Button
             variant="ghost"

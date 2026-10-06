@@ -87,6 +87,13 @@ export const crearEnCatalogo = (catalogo: CatalogoBuscable, nombre: string) =>
   api<Opcion>(`/catalogos/${catalogo}`, { method: 'POST', body: { nombre } })
 
 /** Quiénes pueden recibir un prospecto (personas activas con permiso para verlos). */
+/** Los responsables para filtrar el listado de prospectos. */
+export const responsablesProspectosQuery = queryOptions({
+  queryKey: [...clavesProspectos.todo, 'responsables'] as const,
+  queryFn: () => api<UsuarioResumen[]>('/prospectos/responsables'),
+  staleTime: 60_000,
+})
+
 export const posiblesResponsablesQuery = queryOptions({
   queryKey: [...clavesProspectos.todo, 'posibles-responsables'] as const,
   queryFn: () => api<UsuarioResumen[]>('/prospectos/posibles-responsables'),
