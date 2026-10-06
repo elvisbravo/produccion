@@ -2,7 +2,7 @@ import { diaEnLima, enlaceWhatsapp, ESTADOS_ACTIVOS, formatearCelular, NOMBRE_ES
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { CalendarClock, CalendarRange, ChevronLeft, ChevronRight, ExternalLink, MessageCircle, Pencil, UserRoundPen, Video, XCircle } from 'lucide-react'
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useState } from 'react'
 import { z } from 'zod'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -58,11 +58,13 @@ function AgendaReuniones() {
   const { data, isPending } = useQuery(reunionesQuery({ desde, hasta, estado: filtros.estado, responsableId: filtros.responsableId }))
   const { data: asistentes = [] } = useQuery(asistentesQuery)
 
-  const porDia = useMemo(() => {
+  // En la vista de semana salen los siete días (de lunes a domingo), con o sin reuniones; en la de día, solo ese día.
+  const porDia = ((): [string, ReunionFila[]][] => {
     const grupos = new Map<string, ReunionFila[]>()
     for (const f of data ?? []) grupos.set(f.tarea.fecha, [...(grupos.get(f.tarea.fecha) ?? []), f])
+    if (vista === 'semana') return Array.from({ length: 7 }, (_, i) => sumarDias(desde, i)).map((d) => [d, grupos.get(d) ?? []])
     return [...grupos.entries()]
-  }, [data])
+  })()
 
   const ir = (cambio: Partial<{ dia: string | undefined; vista: 'dia' | 'semana' | undefined; estado: (typeof ESTADOS)[number] | undefined; responsableId: string | undefined }>) =>
     void navigate({ search: (s) => ({ ...s, ...cambio }), replace: true })
@@ -86,6 +88,12 @@ function AgendaReuniones() {
           <Button variant="outline" size="icon" aria-label={vista === 'semana' ? 'Semana siguiente' : 'Día siguiente'} onClick={() => ir({ dia: sumarDias(dia, paso) })}>
             <ChevronRight />
           </Button>
+          {vista === 'semana' && (
+            <span className="inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm font-medium whitespace-nowrap">
+              <CalendarRange className="size-4" />
+              Semana del {formatearFecha(desde)} al {formatearFecha(hasta)}
+            </span>
+          )}
           <Button variant="outline" onClick={() => ir({ dia: undefined })} disabled={dia === hoy}>
             Hoy
           </Button>
@@ -124,13 +132,13 @@ function AgendaReuniones() {
 
       {isPending ? (
         <Skeleton className="h-64" />
-      ) : porDia.length === 0 ? (
+      ) : vista === 'dia' && porDia.length === 0 ? (
         <Empty className="border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <CalendarRange />
             </EmptyMedia>
-            <EmptyTitle>{vista === 'semana' ? 'No hay reuniones esta semana' : 'No hay reuniones este día'}</EmptyTitle>
+            <EmptyTitle>No hay reuniones este día</EmptyTitle>
             <EmptyDescription>Prueba con otro día o quita los filtros.</EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -140,6 +148,9 @@ function AgendaReuniones() {
             <h2 className="text-base font-semibold">
               {tituloDia(fecha)} <span className="text-sm font-normal text-muted-foreground">· {filas.length} {filas.length === 1 ? 'reunión' : 'reuniones'}</span>
             </h2>
+            {filas.length === 0 ? (
+              <p className="rounded-xl border border-dashed px-4 py-3 text-sm text-muted-foreground">Sin reuniones este día.</p>
+            ) : (
             <div className="overflow-x-auto rounded-xl border bg-card">
               <Table className="min-w-[96rem]">
                 <TableHeader>
@@ -168,6 +179,7 @@ function AgendaReuniones() {
                 </TableBody>
               </Table>
             </div>
+            )}
           </section>
         ))
       )}
