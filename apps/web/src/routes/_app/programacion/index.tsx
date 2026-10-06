@@ -116,7 +116,7 @@ function AgendaEquipo() {
       ) : data.personas.length === 0 ? (
         <p className="text-sm text-muted-foreground">No hay personas con ese rol.</p>
       ) : (
-        <TablaEquipo personas={data.personas} hoy={hoy} onElegir={setElegida} />
+        <TablaEquipo personas={data.personas} porAsignar={data.porAsignar} hoy={hoy} onElegir={setElegida} />
       )}
 
       <Sheet open={Boolean(elegida)} onOpenChange={(abierto) => !abierto && setElegida(null)}>

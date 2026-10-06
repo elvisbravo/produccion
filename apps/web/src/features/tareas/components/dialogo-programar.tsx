@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { diaEnLima, programarTareaSchema, type ActividadCatalogo, type ProgramarTareaDatos, type ProgramarTareaFormulario } from '@grupoes/shared'
+import { diaEnLima, programarTareaSchema, type ActividadCatalogo, type ProgramarTareaDatos, type ProgramarTareaFormulario, type TareaItem } from '@grupoes/shared'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { FormProvider, useForm } from 'react-hook-form'
@@ -17,11 +17,13 @@ interface Props {
   /** A un cliente (un trabajo): solo reuniones. */
   trabajoId?: string
   actividades: ActividadCatalogo[]
+  /** Se llama con la reunión recién creada (p. ej. para elegir de una vez quién la da). */
+  onProgramada?: (tarea: TareaItem) => void
   abierto: boolean
   onAbiertoChange: (abierto: boolean) => void
 }
 
-export function DialogoProgramar({ prospectoId, trabajoId, actividades, abierto, onAbiertoChange }: Props) {
+export function DialogoProgramar({ prospectoId, trabajoId, actividades, onProgramada, abierto, onAbiertoChange }: Props) {
   const programarProspecto = useProgramarTarea(prospectoId ?? '')
   const programarTrabajo = useProgramarReunionDeTrabajo(trabajoId ?? '')
   const programar = trabajoId ? programarTrabajo : programarProspecto
@@ -38,6 +40,7 @@ export function DialogoProgramar({ prospectoId, trabajoId, actividades, abierto,
       toast.success(`${tarea.actividad.nombre} programado${tarea.estado === 'por_asignar' ? ' · por asignar' : ''}`)
       form.reset()
       onAbiertoChange(false)
+      onProgramada?.(tarea)
     } catch (e) {
       setError(aplicarErroresApi(e, form.setError, ['actividadId', 'fecha', 'hora', 'modalidad', 'notas']))
     }

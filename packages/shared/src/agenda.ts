@@ -247,10 +247,18 @@ export interface AgendaPersona {
   dias: DiaAgenda[]
 }
 
+/** Una reunión con día y hora que aún espera responsable: se ve en el calendario del equipo sin ser de nadie todavía. */
+export interface ReunionPorAsignarAgenda {
+  fecha: string
+  tarea: TareaAgenda
+}
+
 export interface AgendaEquipo {
   desde: string
   hasta: string
   personas: AgendaPersona[]
+  /** Reuniones que esperan responsable en esos días. */
+  porAsignar: ReunionPorAsignarAgenda[]
 }
 
 /** Disponibilidad de una persona para una tarea concreta (al asignar). */

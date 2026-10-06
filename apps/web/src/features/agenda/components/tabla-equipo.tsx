@@ -1,4 +1,6 @@
-import { NOMBRE_ESTADO_DIA, type AgendaPersona, type DiaAgenda } from '@grupoes/shared'
+import { NOMBRE_ESTADO_DIA, type AgendaPersona, type DiaAgenda, type ReunionPorAsignarAgenda } from '@grupoes/shared'
+import { Link } from '@tanstack/react-router'
+import { CalendarClock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { nombreCompleto } from '@/lib/formato'
 import { cabeceraDia, horas } from '../semanas'
@@ -6,12 +8,14 @@ import { COLOR_ESTADO_DIA } from './insignias'
 
 interface Props {
   personas: AgendaPersona[]
+  /** Reuniones con día y hora que aún esperan responsable. */
+  porAsignar?: ReunionPorAsignarAgenda[]
   hoy: string
   onElegir: (persona: AgendaPersona) => void
 }
 
 /** Carga de cada persona día por día. Al tocar una fila se abre su semana. */
-export function TablaEquipo({ personas, hoy, onElegir }: Props) {
+export function TablaEquipo({ personas, porAsignar = [], hoy, onElegir }: Props) {
   const dias = personas[0]?.dias.map((d) => d.fecha) ?? []
   return (
     <div className="overflow-x-auto rounded-xl border bg-card">
@@ -27,6 +31,37 @@ export function TablaEquipo({ personas, hoy, onElegir }: Props) {
           </tr>
         </thead>
         <tbody>
+          {porAsignar.length > 0 && (
+            <tr className="border-b bg-amber-50/60 dark:bg-amber-950/20">
+              <td className="px-3 py-2">
+                <Link to="/reuniones" className="flex flex-col hover:underline">
+                  <span className="font-medium">Por asignar</span>
+                  <span className="text-xs text-muted-foreground">Reuniones sin responsable</span>
+                </Link>
+              </td>
+              {dias.map((d) => {
+                const delDia = porAsignar.filter((r) => r.fecha === d)
+                return (
+                  <td key={d} className={cn('p-1 align-top', d === hoy && 'bg-primary/5')}>
+                    {delDia.length > 0 && (
+                      <Link
+                        to="/reuniones"
+                        className="flex flex-col gap-1 rounded-md border border-amber-300 bg-amber-100 px-2 py-1.5 text-xs text-amber-950 hover:bg-amber-200 dark:border-amber-800 dark:bg-amber-900/40 dark:text-amber-50"
+                        title="Programar quién la hace"
+                      >
+                        {delDia.map((r) => (
+                          <span key={r.tarea.id} className="flex items-center gap-1 whitespace-nowrap tabular-nums">
+                            <CalendarClock className="size-3 shrink-0" />
+                            {r.tarea.inicio !== null ? `${String(Math.floor(r.tarea.inicio / 60)).padStart(2, '0')}:${String(r.tarea.inicio % 60).padStart(2, '0')}` : ''} {r.tarea.actividad}
+                          </span>
+                        ))}
+                      </Link>
+                    )}
+                  </td>
+                )
+              })}
+            </tr>
+          )}
           {personas.map((p) => (
             <tr key={p.usuario.id} className="border-b last:border-b-0">
               <td className="px-3 py-2">

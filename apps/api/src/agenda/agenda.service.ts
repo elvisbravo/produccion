@@ -234,7 +234,17 @@ export class AgendaService {
 
   /** Agenda del personal (todos menos quienes solo son administradores), opcionalmente de un rol. */
   async equipo(desde: string, hasta: string, rol?: string): Promise<AgendaEquipo> {
-    return { desde, hasta, personas: await this.personas(this.filtroPersonal(rol), desde, hasta) };
+    return { desde, hasta, personas: await this.personas(this.filtroPersonal(rol), desde, hasta), porAsignar: await this.reunionesPorAsignar(desde, hasta) };
+  }
+
+  /** Las reuniones con hora que aún no tienen responsable (de prospectos o de clientes): se muestran en el calendario del equipo como «por asignar». */
+  private async reunionesPorAsignar(desde: string, hasta: string): Promise<AgendaEquipo['porAsignar']> {
+    const filas = await this.prisma.tarea.findMany({
+      where: { estado: 'por_asignar', inicio: { not: null }, fecha: { gte: aFecha(desde), lte: aFecha(hasta) }, actividad: { tipo: { comportamiento: 'reunion' } } },
+      include: INCLUIR_TAREA_AGENDA,
+      orderBy: [{ fecha: 'asc' }, { inicio: 'asc' }],
+    });
+    return filas.map((t) => ({ fecha: soloFecha(t.fecha), tarea: aTareaAgenda(t) }));
   }
 
   filtroPersonal(rol?: string): Prisma.UsuarioWhereInput {

@@ -138,6 +138,30 @@ describe('Agenda de reuniones (e2e)', () => {
     }
   });
 
+  it('una reunión por asignar ya se ve en el calendario del equipo, en su día y hora', async () => {
+    const catalogos = (await http().get('/api/catalogos/prospecto').set(como('ana')).expect(200)).body as CatalogosProspecto;
+    const actividades = (await http().get('/api/actividades?aplicaA=prospecto').set(como('ana')).expect(200)).body as { id: string; nombre: string }[];
+    const nuevo = (
+      await http()
+        .post('/api/prospectos')
+        .set(como('ana'))
+        .send({
+          tipoTrabajoId: catalogos.tiposTrabajo[0].id,
+          prioridadId: catalogos.prioridades[0].id,
+          origenId: catalogos.origenes[0].id,
+          contactos: [{ celular: celular(2), nombres: 'Pía', apellidos: 'PorAsignar', esPrincipal: true }],
+          primeraActividad: { actividadId: actividades.find((a) => a.nombre === 'Enfoque')!.id, fecha: dia, hora: '16:00', modalidad: 'virtual' },
+        })
+        .expect(201)
+    ).body as ProspectoDetalle;
+    const idPorAsignar = nuevo.tareas[0].id;
+    const equipo = (await http().get(`/api/agenda/equipo?desde=${dia}&hasta=${dia}`).set(como('prod')).expect(200)).body as { porAsignar: { fecha: string; tarea: { id: string; inicio: number | null; actividad: string } }[] };
+    const r = equipo.porAsignar.find((x) => x.tarea.id === idPorAsignar)!;
+    expect(r).toMatchObject({ fecha: dia, tarea: { actividad: 'Enfoque', inicio: 16 * 60 } });
+    // Una reunión ya asignada no aparece como «por asignar»
+    expect(equipo.porAsignar.some((x) => x.tarea.id === tareaId)).toBe(false);
+  });
+
   it('guarda el enlace de la reunión (solo http/https) y quien no la ve no puede cambiarlo', async () => {
     await http().put(`/api/tareas/${tareaId}/enlace-reunion`).set(como('ana')).send({ enlace: 'no es un enlace' }).expect(400);
     const r = await http().put(`/api/tareas/${tareaId}/enlace-reunion`).set(como('ana')).send({ enlace: 'https://meet.google.com/abc-defg-hij' }).expect(200);

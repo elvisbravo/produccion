@@ -5,11 +5,16 @@ import { useState } from 'react'
 import { Can } from '@/components/can'
 import { Button } from '@/components/ui/button'
 import { actividadesQuery } from '@/features/tareas/api'
+import { DialogoEquipoReunion } from '@/features/tareas/components/dialogo-equipo-reunion'
 import { DialogoProgramar } from '@/features/tareas/components/dialogo-programar'
+import { usePermiso } from '@/lib/permisos'
 
 /** Botón de la ficha: programar una reunión (enfoque…) con el cliente de este trabajo. */
 export function BotonProgramarReunion({ t }: { t: TrabajoDetalle }) {
   const [abierto, setAbierto] = useState(false)
+  // Quien puede asignar elige de una vez quién la da; si no, la reunión queda por asignar y se ve igual en el calendario del equipo.
+  const puedeAsignar = usePermiso('tareas.asignar')
+  const [recien, setRecien] = useState<{ tareaId: string; actividad: string } | null>(null)
   const { data: actividades = [] } = useQuery({ ...actividadesQuery('cliente'), enabled: abierto })
   if (['finalizado', 'cancelado'].includes(t.estado)) return null
   // Solo reuniones; las que se asignan al responsable del trabajo no se programan desde aquí.
@@ -20,7 +25,18 @@ export function BotonProgramarReunion({ t }: { t: TrabajoDetalle }) {
         <Video />
         Programar reunión
       </Button>
-      {abierto && <DialogoProgramar trabajoId={t.id} actividades={reuniones} abierto onAbiertoChange={setAbierto} />}
+      {abierto && (
+        <DialogoProgramar
+          trabajoId={t.id}
+          actividades={reuniones}
+          abierto
+          onAbiertoChange={setAbierto}
+          onProgramada={(tarea) => {
+            if (puedeAsignar && tarea.estado === 'por_asignar') setRecien({ tareaId: tarea.id, actividad: tarea.actividad.nombre })
+          }}
+        />
+      )}
+      {recien && <DialogoEquipoReunion tareaId={recien.tareaId} actividad={recien.actividad} jefeId={null} auxiliarId={null} onCerrar={() => setRecien(null)} />}
     </Can>
   )
 }
