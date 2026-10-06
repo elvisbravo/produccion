@@ -560,12 +560,29 @@ function RegistrarClienteDirecto() {
                   <FieldError errors={[e.programacion?.actividadId]} />
                 </Field>
                 <Field data-invalid={Boolean(e.programacion?.minutosEstimados)}>
-                  <FieldLabel htmlFor="cd-minutos">
+                  <FieldLabel htmlFor="cd-horas">
                     <span>
-                      Tiempo estimado (minutos) <Requerido />
+                      Tiempo estimado <Requerido />
                     </span>
                   </FieldLabel>
-                  <Input id="cd-minutos" type="number" inputMode="numeric" min={15} step={15} aria-invalid={Boolean(e.programacion?.minutosEstimados)} {...register('programacion.minutosEstimados')} />
+                  <Controller
+                    control={control}
+                    name="programacion.minutosEstimados"
+                    render={({ field }) => {
+                      const total = field.value as unknown as number | ''
+                      const horas = total === '' || total === undefined ? '' : String(Math.floor(Number(total) / 60))
+                      const mins = total === '' || total === undefined ? '' : String(Number(total) % 60)
+                      const cambiar = (h: string, m: string) => field.onChange(h === '' && m === '' ? '' : (Number(h) || 0) * 60 + (Number(m) || 0))
+                      return (
+                        <div className="flex items-center gap-2">
+                          <Input id="cd-horas" type="number" inputMode="numeric" min={0} max={999} placeholder="0" className="w-20" value={horas} onChange={(ev) => cambiar(ev.target.value, mins)} aria-invalid={Boolean(e.programacion?.minutosEstimados)} />
+                          <span className="text-sm text-muted-foreground">h</span>
+                          <Input id="cd-minutos" type="number" inputMode="numeric" min={0} max={59} step={5} placeholder="0" className="w-20" value={mins} onChange={(ev) => cambiar(horas, ev.target.value)} aria-label="Minutos" aria-invalid={Boolean(e.programacion?.minutosEstimados)} />
+                          <span className="text-sm text-muted-foreground">min</span>
+                        </div>
+                      )
+                    }}
+                  />
                   <FieldDescription>{tiempoActividad > 0 ? `${duracion(tiempoActividad)} · se propone el del catálogo; puedes cambiarlo.` : 'Se propone el de la actividad; puedes cambiarlo.'}</FieldDescription>
                   <FieldError errors={[e.programacion?.minutosEstimados]} />
                 </Field>

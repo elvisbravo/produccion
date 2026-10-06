@@ -181,6 +181,17 @@ describe('Cliente directo (e2e)', () => {
     await prisma.proveedor.deleteMany({ where: { id: { in: [proveedor.id, inactivo.id] } } });
   });
 
+  it('acepta una hora de inicio de hoy que ya pasó: la actividad arranca desde ahora', async () => {
+    const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string }[];
+    const elaboracion = actividades.find((a) => a.nombre === 'Elaboración')!;
+    const integrantes = [{ celular: `9${sufijo}75`, nombres: 'Con', apellidos: 'HoraPasada', email: `con.pasada.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `3${sufijo}1`, esTitular: true }];
+    const programacion = { actividadId: elaboracion.id, minutosEstimados: 90, hora: '06:00', auxiliarPrincipalId: ids.aux, jefeResponsableId: ids.jefe };
+    const base = { integrantes, trabajo: { ...(cuerpo.trabajo as object), fechaInicio: hoy, fechaLimite: sumarDias(hoy, 30) }, contrato: undefined, pagos: [] };
+    const creado = (await enviar('prod', { ...base, programacion }).expect(201)).body as TrabajoDetalle;
+    expect(creado.entregables[0].tareas[0]).toMatchObject({ minutos: 90 });
+    await prisma.trabajo.deleteMany({ where: { id: creado.id } });
+  });
+
   it('programa la primera actividad desde la fecha y hora de inicio, con su tiempo estimado editable', async () => {
     const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string; minutosEstimados: number }[];
     const elaboracion = actividades.find((a) => a.nombre === 'Elaboración')!;
