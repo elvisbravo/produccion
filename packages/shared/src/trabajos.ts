@@ -633,6 +633,11 @@ export const programacionInicialSchema = z.object({
   hora: z.string({ error: 'Indica la hora de inicio' }).regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Hora no válida (HH:mm)'),
   auxiliarPrincipalId: z.string({ error: 'Elige al auxiliar principal' }).min(1, 'Elige al auxiliar principal').pipe(z.uuid('Elige al auxiliar principal')),
   jefeResponsableId: z.string({ error: 'Elige al jefe responsable' }).min(1, 'Elige al jefe responsable').pipe(z.uuid('Elige al jefe responsable')),
+  /**
+   * secuencial: sigue a continuación de lo que ya tiene el auxiliar (la fecha y hora son «no antes de»).
+   * fijo: empieza exactamente a esa fecha y hora, siempre que no se cruce con otra actividad suya.
+   */
+  modoInicio: z.enum(['secuencial', 'fijo']).default('secuencial'),
 })
 export type ProgramacionInicialDatos = z.output<typeof programacionInicialSchema>
 
@@ -680,3 +685,27 @@ export const clienteDirectoSchema = z
   })
 export type ClienteDirectoFormulario = z.input<typeof clienteDirectoSchema>
 export type ClienteDirectoDatos = z.output<typeof clienteDirectoSchema>
+
+/** Cómo quedaría la primera actividad de un auxiliar según su cola actual (para elegir entre seguir a continuación o fijar la hora). */
+export const vistaPreviaInicioSchema = z.object({
+  auxiliarId: z.uuid('Elige al auxiliar'),
+  fecha: z.iso.date('Fecha no válida'),
+  hora: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Hora no válida (HH:mm)'),
+  minutos: z.coerce.number().int().min(15).max(60 * 200),
+  fijo: z.preprocess((v) => v === true || v === 'true' || v === '1', z.boolean()),
+})
+export type VistaPreviaInicioConsulta = z.output<typeof vistaPreviaInicioSchema>
+
+export interface VistaPreviaInicio {
+  /** El auxiliar ya tiene actividades pendientes en su cola. */
+  tieneActividades: boolean
+  /** Cuándo empezaría y terminaría la actividad (ISO), según el modo pedido. */
+  inicio: string | null
+  fin: string | null
+  /** En modo secuencial: la actividad de la que sigue a continuación. */
+  despuesDe: string | null
+  /** En modo fijo: la hora pedida está libre y no se cruza con nada. */
+  cabe: boolean
+  cruces: { titulo: string; inicio: string; fin: string }[]
+  mensaje: string | null
+}

@@ -12,6 +12,7 @@ import type {
   TrabajoDetalle,
   TrabajoListadoItem,
   UsuarioResumen,
+  VistaPreviaInicio,
   ValorarTrabajoDatos,
 } from '@grupoes/shared'
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -262,3 +263,11 @@ export function useGuardarNotaEntrega(trabajoId: string) {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['trabajos'] }),
   })
 }
+
+/** Cómo quedaría la primera actividad del auxiliar: a continuación de lo que tiene o a hora fija sin cruces. */
+export const vistaPreviaInicioQuery = (p: { auxiliarId: string; fecha: string; hora: string; minutos: number; fijo: boolean }) =>
+  queryOptions({
+    queryKey: ['trabajos', 'cliente-directo', 'vista-previa-inicio', p] as const,
+    queryFn: ({ signal }) => api<VistaPreviaInicio>(`/trabajos/cliente-directo/vista-previa-inicio?${new URLSearchParams({ auxiliarId: p.auxiliarId, fecha: p.fecha, hora: p.hora, minutos: String(p.minutos), fijo: String(p.fijo) })}`, { signal }),
+    staleTime: 0,
+  })

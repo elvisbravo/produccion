@@ -320,6 +320,56 @@ describe('Cliente directo (e2e)', () => {
     await prisma.prospecto.deleteMany({ where: { creadoPor: ids.prod, trabajo: null } });
   });
 
+  it('si el auxiliar ya tiene actividades: sigue a continuación o fija la hora sin cruzarse', async () => {
+    const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string }[];
+    const elaboracion = actividades.find((a) => a.nombre === 'Elaboración')!.id;
+    const dia = await proximoDiaHabil(prisma, sumarDias(hoy, 2));
+    const previa = async (hora: string, fijo: boolean, minutos = 180) =>
+      (await http().get(`/api/trabajos/cliente-directo/vista-previa-inicio?auxiliarId=${ids.aux}&fecha=${dia}&hora=${hora}&minutos=${minutos}&fijo=${fijo}`).set(como('prod')).expect(200)).body as { tieneActividades: boolean; inicio: string | null; fin: string | null; despuesDe: string | null; cabe: boolean; cruces: unknown[]; mensaje: string | null };
+    const registrar = (n: number, hora: string, modoInicio: 'secuencial' | 'fijo') => {
+      const integrantes = [{ celular: `9${sufijo}9${n}`, nombres: 'Cola', apellidos: `Num${n}`, email: `cola.${n}.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `${n}${sufijo}7`, esTitular: true }];
+      const programacion = { actividadId: elaboracion, minutosEstimados: 180, hora, auxiliarPrincipalId: ids.aux, jefeResponsableId: ids.jefe, modoInicio };
+      return enviar('prod', { integrantes, pagos: [], contrato: undefined, trabajo: { ...(cuerpo.trabajo as object), titulo: `Cola ${n}`, fechaInicio: dia, fechaLimite: sumarDias(dia, 30) }, programacion });
+    };
+    const horaDe = (iso: string | null) => new Date(Date.parse(iso!) - 5 * 3_600_000).toISOString().slice(11, 16);
+    const creados: string[] = [];
+    try {
+      // Sin actividades: respeta el día y la hora pedidos
+      const libre = await previa('10:00', false);
+      expect(libre.tieneActividades).toBe(false);
+      expect(horaDe(libre.inicio)).toBe('10:00');
+      expect((await previa('10:00', true)).cabe).toBe(true);
+      const primero = (await registrar(1, '10:00', 'secuencial').expect(201)).body as TrabajoDetalle;
+      creados.push(primero.id);
+
+      // Con actividades: a continuación (no antes de lo que termina) o fijo
+      const sec = await previa('10:00', false);
+      expect(sec.tieneActividades).toBe(true);
+      expect(Date.parse(sec.inicio!)).toBeGreaterThan(Date.parse(`${dia}T12:00:00-05:00`) - 3_600_000);
+      expect(sec.despuesDe).not.toBeNull();
+      // Fijo a una hora que se cruza con la actividad anterior: no cabe, y no se deja registrar
+      const cruza = await previa('11:00', true);
+      expect(cruza.cabe).toBe(false);
+      expect(cruza.mensaje).toContain('Se cruza con');
+      const rechazo = await registrar(2, '11:00', 'fijo').expect(400);
+      expect(JSON.stringify(rechazo.body)).toContain('Se cruza con');
+      // Fijo a una hora libre: empieza exactamente ahí
+      const libreTarde = await previa('17:00', true, 60);
+      expect(libreTarde.cabe).toBe(true);
+      const fijo = (await registrar(3, '17:00', 'fijo').expect(201)).body as TrabajoDetalle;
+      creados.push(fijo.id);
+      const cola = (await http().get('/api/produccion/colas/mia').set(como('aux')).expect(200)).body as { items: { tareaId: string; orden: number; plan: { inicio: string } | null }[] };
+      const suyo = cola.items.find((i) => i.tareaId === fijo.entregables[0].tareas[0].id)!;
+      expect(horaDe(suyo.plan!.inicio)).toBe('17:00');
+      // Y no se cruzan: ninguna actividad empieza antes de que termine la anterior
+      const ordenadas = cola.items.filter((i) => i.plan).sort((x, y) => x.orden - y.orden);
+      for (let i = 1; i < ordenadas.length; i++) expect(Date.parse(ordenadas[i].plan!.inicio)).toBeGreaterThanOrEqual(Date.parse(ordenadas[i - 1].plan!.inicio));
+    } finally {
+      await prisma.trabajo.deleteMany({ where: { id: { in: creados } } });
+      await prisma.prospecto.deleteMany({ where: { creadoPor: ids.prod, trabajo: null } });
+    }
+  });
+
   it('acepta una hora de inicio de hoy que ya pasó: la actividad arranca desde ahora', async () => {
     const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string }[];
     const elaboracion = actividades.find((a) => a.nombre === 'Elaboración')!;

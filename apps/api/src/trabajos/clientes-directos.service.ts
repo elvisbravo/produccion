@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
-import { ROLES_BASE, type ClienteDirectoDatos, ConvertirProspectoDatos, TrabajoDetalle, UsuarioResumen } from '@grupoes/shared';
+import { ROLES_BASE, type VistaPreviaInicio, type VistaPreviaInicioConsulta, type ClienteDirectoDatos, ConvertirProspectoDatos, TrabajoDetalle, UsuarioResumen } from '@grupoes/shared';
 import { siguienteCodigo } from '../common/correlativo.js';
 import { ProduccionService } from '../produccion/produccion.service.js';
 import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
@@ -35,6 +35,11 @@ export class ClientesDirectosService {
     return this.prisma.usuario.findMany({ where: { id: { in: ids }, activo: true, eliminadoEn: null }, select: { id: true, nombres: true, apellidos: true }, orderBy: [{ nombres: 'asc' }, { apellidos: 'asc' }] });
   }
 
+  /** Cómo quedaría la primera actividad del auxiliar (a continuación o a hora fija), para mostrarlo antes de guardar. */
+  vistaPreviaInicio(consulta: VistaPreviaInicioConsulta): Promise<VistaPreviaInicio> {
+    return this.produccion.vistaPreviaInicio(consulta.auxiliarId, { fecha: consulta.fecha, hora: consulta.hora, minutos: consulta.minutos, fijo: consulta.fijo });
+  }
+
   async registrar(datos: ClienteDirectoDatos, actor: ActorTrabajo): Promise<TrabajoDetalle> {
     const efectivos = await this.permisos.efectivos(actor.usuarioId);
     if (datos.pagos.length > 0 && !('contratos.registrar_pago' in efectivos) && !('trabajos.registrar_cliente_directo' in efectivos)) {
@@ -68,6 +73,12 @@ export class ClientesDirectosService {
     if (!ganada) throw new BadRequestException('No hay una etapa "Convertido" configurada en el embudo');
     if (!inicial) throw new BadRequestException('No hay una etapa inicial configurada en el embudo');
     if (datos.integrantes.length > tipo.maxIntegrantes) throw errorCampo('integrantes', `${tipo.nombre} admite hasta ${tipo.maxIntegrantes} integrante(s)`);
+
+    // Con hora fija debe estar libre: no se cruza con otras actividades del auxiliar ni cae fuera de su horario.
+    if (datos.programacion?.modoInicio === 'fijo') {
+      const v = await this.produccion.vistaPreviaInicio(datos.programacion.auxiliarPrincipalId, { fecha: datos.trabajo.fechaInicio, hora: datos.programacion.hora, minutos: datos.programacion.minutosEstimados, fijo: true });
+      if (!v.cabe) throw errorCampo('programacion.hora', v.mensaje ?? 'Esa hora no está libre');
+    }
 
     const id = await this.prisma.$transaction(async (tx) => {
       // Cada integrante es una persona (se identifica por su celular); si ya existía, se completan sus datos.
@@ -135,7 +146,7 @@ export class ClientesDirectosService {
       try {
         await this.trabajos.armarEquipo(id, { auxiliarPrincipalId: datos.programacion.auxiliarPrincipalId, auxiliaresApoyo: [], jefeResponsableId: datos.programacion.jefeResponsableId, motivo: 'Equipo al registrar el cliente' }, actor);
         // Desde la fecha y hora indicadas, aunque ya hayan pasado: el trabajo ya empezó y debe verse así en la agenda.
-        await this.produccion.generarPlan(id, actor, { fecha: datos.trabajo.fechaInicio, minuto: h * 60 + m });
+        await this.produccion.generarPlan(id, actor, { fecha: datos.trabajo.fechaInicio, minuto: h * 60 + m, fijo: datos.programacion.modoInicio === 'fijo' });
       } catch (err) {
         const cod = (await this.prisma.trabajo.findUniqueOrThrow({ where: { id }, select: { codigo: true } })).codigo;
         throw new BadRequestException(`El cliente quedó registrado (${cod}) pero no se pudo programar la actividad: ${err instanceof Error ? err.message : 'error'}. Arma el equipo y genera el plan desde su ficha.`);

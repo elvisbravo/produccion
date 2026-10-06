@@ -13,6 +13,7 @@ import {
   type EntregarDatos,
   type OmitirTurnitinDatos,
   type PlanTarea,
+  type VistaPreviaInicio,
   type RespuestaClienteDatos,
   type ResultadoTurnitinDatos,
   type RevisarEntregableDatos,
@@ -23,8 +24,8 @@ import {
   type TurnitinItem,
   type VistaBandeja,
 } from '@grupoes/shared';
-import { AgendaService, type ColaDeUsuario } from '../agenda/agenda.service.js';
-import { holgura, type PlanCola } from '../agenda/cola.js';
+import { AgendaService, aTareaEnCola, type ColaDeUsuario } from '../agenda/agenda.service.js';
+import { holgura, planificar, type PlanCola, type Segmento, type TareaEnCola } from '../agenda/cola.js';
 import { AuditoriaService } from '../common/auditoria.service.js';
 import { errorFechasFijas } from '../trabajos/fechas-fijas.error.js';
 import type { Prisma } from '../generated/prisma/client.js';
@@ -203,7 +204,7 @@ export class ProduccionService {
   }
 
   /** Crea los entregables y las tareas desde la plantilla del tipo de trabajo, en la cola del auxiliar principal. */
-  async generarPlan(trabajoId: string, actor: ActorProduccion, inicial?: { fecha: string; minuto: number }): Promise<void> {
+  async generarPlan(trabajoId: string, actor: ActorProduccion, inicial?: { fecha: string; minuto: number; fijo?: boolean }): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       const trabajo = await this.trabajoAbierto(tx, trabajoId);
       if (trabajo.entregables.length > 0) throw new ConflictException('El trabajo ya tiene entregables: agrégalos uno por uno');
@@ -221,7 +222,7 @@ export class ProduccionService {
         await this.crearTareaTx(
           tx,
           { trabajoId, entregableId: entregable.id, actividadId: trabajo.actividadPlanId, // Sin título del trabajo: el de un cliente se llama como su actividad; solo un trabajo que no viene de un cliente dice «de proveedor».
-            titulo: trabajo.titulo ?? (trabajo.prospectoId ? (plan?.nombre ?? 'Actividad') : 'Trabajo de proveedor'), minutos: trabajo.minutosPlan, ...(inicial && { noAntesDe: inicial.fecha, noAntesDeMinuto: inicial.minuto }) },
+            titulo: trabajo.titulo ?? (trabajo.prospectoId ? (plan?.nombre ?? 'Actividad') : 'Trabajo de proveedor'), minutos: trabajo.minutosPlan, ...(inicial && { noAntesDe: inicial.fecha, noAntesDeMinuto: inicial.minuto, ...(inicial.fijo && { colocarEn: { fecha: inicial.fecha, minuto: inicial.minuto } }) }) },
           undefined,
           actor,
           // Va al final de la cola: si el auxiliar no tiene nada, arranca en la fecha y hora indicadas (aunque sean pasadas); si ya tiene actividades, sigue cuando terminan.
@@ -352,7 +353,7 @@ export class ProduccionService {
   /** Crea una tarea de producción en la cola de la persona (al final o, si `alFrente`, primera). */
   private async crearTareaTx(
     tx: Tx,
-    t: { trabajoId: string; entregableId: string; actividadId: string; titulo: string; minutos: number; noAntesDe?: string; noAntesDeMinuto?: number; notas?: string | null },
+    t: { trabajoId: string; entregableId: string; actividadId: string; titulo: string; minutos: number; noAntesDe?: string; noAntesDeMinuto?: number; notas?: string | null; colocarEn?: { fecha: string; minuto: number } },
     usuarioId: string | undefined,
     actor: ActorProduccion,
     alFrente = false,
@@ -364,7 +365,8 @@ export class ProduccionService {
     if (!actividad || actividad.aplicaA === 'prospecto') throw errorCampo('actividadId', 'Esta actividad no aplica a trabajos');
     if (actividad.requiereHoraFija) throw errorCampo('actividadId', 'Las actividades con hora fija se programan desde la agenda');
     const r = await this.resolverResponsable(tx, actividad, equipo, usuarioId);
-    const ordenCola = await this.posicionEnCola(tx, r.usuarioId, alFrente);
+    // Con hora fija entra en la cola justo donde le toca por su hora de inicio (después de lo que empieza antes); si no, al final o al frente.
+    const ordenCola = t.colocarEn ? await this.ordenParaInicio(tx, r.usuarioId, t.colocarEn.fecha, t.colocarEn.minuto) : await this.posicionEnCola(tx, r.usuarioId, alFrente);
     const tarea = await tx.tarea.create({
       data: {
         actividadId: actividad.id,
@@ -382,6 +384,66 @@ export class ProduccionService {
       },
     });
     return tarea.id;
+  }
+
+  /** Posición en la cola para que la actividad empiece a esa hora: después de todo lo que su plan actual empieza antes; lo demás se corre un lugar. */
+  private async ordenParaInicio(tx: Tx, usuarioId: string, fecha: string, minuto: number): Promise<number> {
+    const base = (await this.agenda.basesDeCola([usuarioId], tx, fecha)).get(usuarioId)!;
+    const plan = planificar(base.dias, base.items.map(({ tarea }) => aTareaEnCola(tarea)), base.ahora);
+    let antes = 0;
+    for (const { tarea } of base.items) {
+      const inicio = plan.get(tarea.id)?.inicio;
+      if (inicio && (inicio.fecha < fecha || (inicio.fecha === fecha && inicio.inicio < minuto))) antes++;
+      else break;
+    }
+    const orden = antes === 0 ? (base.items[0]?.ordenCola ?? 1) : base.items[antes - 1].ordenCola + 1;
+    await tx.tareaResponsable.updateMany({ where: { usuarioId, ordenCola: { gte: orden } }, data: { ordenCola: { increment: 1 } } });
+    return orden;
+  }
+
+  /**
+   * Cómo quedaría la primera actividad de un auxiliar: a continuación de lo que ya tiene (secuencial) o exactamente a la hora pedida (fijo),
+   * comprobando que en ese caso no se cruce con otra actividad suya ni caiga fuera de su horario.
+   */
+  async vistaPreviaInicio(auxiliarId: string, d: { fecha: string; hora: string; minutos: number; fijo: boolean }): Promise<VistaPreviaInicio> {
+    const base = (await this.agenda.basesDeCola([auxiliarId], this.prisma, d.fecha)).get(auxiliarId);
+    if (!base) throw new NotFoundException('El auxiliar no existe');
+    const [h, m] = d.hora.split(':').map(Number);
+    const minuto = h * 60 + m;
+    const existentes = base.items.map(({ tarea }) => aTareaEnCola(tarea));
+    const retroactiva = d.fecha < base.ahora.fecha || (d.fecha === base.ahora.fecha && minuto < base.ahora.minuto);
+    const nueva: TareaEnCola = { id: 'nueva', minutos: d.minutos, noAntesDe: d.fecha, noAntesDeMinuto: minuto, retroactiva };
+    const iso = (fecha: string, min: number) => new Date(new Date(`${fecha}T00:00:00-05:00`).getTime() + min * 60_000).toISOString();
+    const aIso = (s: Segmento | null | undefined, finDeSegmento = false) => (s ? iso(s.fecha, finDeSegmento ? s.fin : s.inicio) : null);
+    const hhmm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+    const ultimo = base.items.at(-1)?.tarea;
+    const tieneActividades = existentes.length > 0;
+
+    if (!d.fijo) {
+      const plan = planificar(base.dias, [...existentes, nueva], base.ahora).get('nueva');
+      return { tieneActividades, inicio: aIso(plan?.inicio), fin: aIso(plan?.fin, true), despuesDe: tieneActividades ? (ultimo?.titulo ?? ultimo?.actividad.nombre ?? null) : null, cabe: true, cruces: [], mensaje: null };
+    }
+
+    // Hora fija: dónde entraría en la cola y si el plan la respeta.
+    const actual = planificar(base.dias, existentes, base.ahora);
+    const antes = base.items.filter(({ tarea }) => {
+      const inicio = actual.get(tarea.id)?.inicio;
+      return inicio && (inicio.fecha < d.fecha || (inicio.fecha === d.fecha && inicio.inicio < minuto));
+    }).length;
+    const plan = planificar(base.dias, [...existentes.slice(0, antes), nueva, ...existentes.slice(antes)], base.ahora).get('nueva');
+    const finPedido = Math.min(minuto + d.minutos, 22 * 60);
+    const crudos = base.items.flatMap(({ tarea }) =>
+      (actual.get(tarea.id)?.segmentos ?? []).filter((sg) => sg.fecha === d.fecha && sg.inicio < finPedido && sg.fin > minuto).map((sg) => ({ titulo: tarea.titulo ?? tarea.actividad.nombre, desde: sg.inicio, hasta: sg.fin })),
+    );
+    const cruces = crudos.map((c) => ({ titulo: c.titulo, inicio: iso(d.fecha, c.desde), fin: iso(d.fecha, c.hasta) }));
+    const respeta = plan?.inicio?.fecha === d.fecha && plan.inicio.inicio === minuto;
+    const mensaje =
+      crudos.length > 0
+        ? `Se cruza con ${crudos.map((c) => `«${c.titulo}» (${hhmm(c.desde)}–${hhmm(c.hasta)})`).join(', ')}. Elige otra hora o marca «seguir a continuación».`
+        : !respeta
+          ? `Esa hora cae fuera del horario del auxiliar o en un día que no trabaja${plan?.inicio ? `: empezaría el ${plan.inicio.fecha} a las ${hhmm(plan.inicio.inicio)}` : ''}.`
+          : null;
+    return { tieneActividades, inicio: aIso(plan?.inicio), fin: aIso(plan?.fin, true), despuesDe: null, cabe: cruces.length === 0 && respeta, cruces, mensaje };
   }
 
   private async posicionEnCola(tx: Tx, usuarioId: string, alFrente: boolean): Promise<number> {

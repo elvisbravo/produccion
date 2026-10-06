@@ -164,7 +164,7 @@ export class AgendaService {
    * sus huecos libres desde ahora (horario − días no laborables − tareas con hora) y sus tareas en cola, en orden.
    * Sirve para planificar y para simular cambios en memoria (reasignar, insertar urgentes).
    */
-  async basesDeCola(usuarioIds: string[], db: Cliente = this.prisma): Promise<Map<string, BaseDeCola>> {
+  async basesDeCola(usuarioIds: string[], db: Cliente = this.prisma, desde?: string): Promise<Map<string, BaseDeCola>> {
     const resultado = new Map<string, BaseDeCola>();
     if (usuarioIds.length === 0) return resultado;
     const ahora = ahoraEnLima();
@@ -178,7 +178,8 @@ export class AgendaService {
     ]);
     // Si alguna tarea arranca retroactivamente, hacen falta también los días desde su inicio.
     const retro = filas.filter((f) => esRetroactiva(f.tarea, minutosReales(f.tarea.tiempos), ahora)).map((f) => soloFecha(f.tarea.fecha));
-    const desdeRetro = retro.reduce((min, d) => (d < min ? d : min), ahora.fecha);
+    // `desde` permite incluir días pasados al simular una actividad nueva que arrancaría retroactivamente.
+    const desdeRetro = [...retro, ...(desde ? [desde] : [])].reduce((min, d) => (d < min ? d : min), ahora.fecha);
     const entradas = desdeRetro < ahora.fecha ? await this.entradas(usuarioIds, desdeRetro, sumarDias(ahora.fecha, HORIZONTE_DIAS), db) : entradasBase;
     for (const usuarioId of usuarioIds) {
       const dias = (entradas.get(usuarioId) ?? []).map((e) => {

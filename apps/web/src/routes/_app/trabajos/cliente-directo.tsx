@@ -32,8 +32,9 @@ import { BotonBuscarDni } from '@/features/consultas/components/boton-buscar-dni
 import { buscarCatalogo, catalogosProspectoQuery, crearEnCatalogo } from '@/features/prospectos/api'
 import { proveedoresQuery } from '@/features/proveedores/api'
 import { actividadesQuery } from '@/features/tareas/api'
-import { candidatosEquipoQuery, responsablesClienteDirectoQuery, useRegistrarClienteDirecto } from '@/features/trabajos/api'
-import { duracion, formatearFecha } from '@/lib/formato'
+import { candidatosEquipoQuery, responsablesClienteDirectoQuery, useRegistrarClienteDirecto, vistaPreviaInicioQuery } from '@/features/trabajos/api'
+import { useDebounce } from '@/hooks/use-debounce'
+import { duracion, formatearFecha, formatearFechaHora } from '@/lib/formato'
 import { CamposCobro, cobroVacio } from '@/features/trabajos/components/cobro'
 import { aplicarErroresApi } from '@/lib/formularios'
 import { exigirPermiso } from '@/lib/guardas'
@@ -85,7 +86,7 @@ function RegistrarClienteDirecto() {
       prioridadId: catalogos.prioridades.find((p) => p.porDefecto)?.id ?? '',
       responsableId: '',
       proveedorId: '',
-      programacion: { actividadId: '', minutosEstimados: '' as unknown as number, hora: horaSugerida(), auxiliarPrincipalId: '', jefeResponsableId: '' },
+      programacion: { actividadId: '', minutosEstimados: '' as unknown as number, hora: horaSugerida(), auxiliarPrincipalId: '', jefeResponsableId: '', modoInicio: 'secuencial' as const },
       trabajo: { titulo: '', fechaInicio: hoy, fechaLimite: '', nivelAcademicoId: '', universidadId: '', carreraId: '', linkDrive: '' },
       contrato: { fechaFirma: hoy, ...cobroVacio(), observaciones: '' },
       observaciones: '',
@@ -99,7 +100,7 @@ function RegistrarClienteDirecto() {
   const { data: candidatos } = useQuery({ ...candidatosEquipoQuery, enabled: conActividad })
   const alternarActividad = (v: boolean) => {
     setConActividad(v)
-    if (v) setValue('programacion', { actividadId: '', minutosEstimados: '' as unknown as number, hora: horaSugerida(), auxiliarPrincipalId: '', jefeResponsableId: '' })
+    if (v) setValue('programacion', { actividadId: '', minutosEstimados: '' as unknown as number, hora: horaSugerida(), auxiliarPrincipalId: '', jefeResponsableId: '', modoInicio: 'secuencial' as const })
     else unregister('programacion')
   }
   const [deProveedor, setDeProveedor] = useState(false)
@@ -654,6 +655,7 @@ function RegistrarClienteDirecto() {
                   />
                   <FieldError errors={[e.programacion?.jefeResponsableId]} />
                 </Field>
+                <PlanInicio />
               </CardContent>
             )}
           </Card>
@@ -763,6 +765,66 @@ function RegistrarClienteDirecto() {
           </div>
         </form>
       </FormProvider>
+    </div>
+  )
+}
+
+/**
+ * Cuándo empezaría la primera actividad: si el auxiliar no tiene nada, en la fecha y hora indicadas; si ya tiene actividades, a continuación
+ * de la última (recomendado) o, desmarcando, a la hora exacta, comprobando que no se cruce con otra actividad suya.
+ */
+function PlanInicio() {
+  const { control, setValue } = useFormContext<ClienteDirectoFormulario>()
+  const [auxiliarId, fecha, hora, minutosForm, modo] = useWatch({
+    control,
+    name: ['programacion.auxiliarPrincipalId', 'trabajo.fechaInicio', 'programacion.hora', 'programacion.minutosEstimados', 'programacion.modoInicio'],
+  })
+  const minutos = Number(useDebounce(String(minutosForm ?? ''), 400)) || 0
+  const fijo = modo === 'fijo'
+  const listo = Boolean(auxiliarId && fecha && /^\d{2}:\d{2}$/.test(hora ?? '') && minutos >= 15)
+  const { data, isFetching } = useQuery({ ...vistaPreviaInicioQuery({ auxiliarId: auxiliarId ?? '', fecha: fecha ?? '', hora: hora ?? '', minutos, fijo }), enabled: listo })
+  if (!listo) return <p className="text-sm text-muted-foreground sm:col-span-2">Elige el auxiliar, la hora y el tiempo para ver cuándo empezaría.</p>
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3 text-sm sm:col-span-2" aria-live="polite">
+      {!data ? (
+        <span className="text-muted-foreground">Calculando…</span>
+      ) : !data.tieneActividades ? (
+        <span>
+          El auxiliar no tiene actividades pendientes: empieza <strong>{data.inicio ? formatearFechaHora(data.inicio) : 'en su próximo horario libre'}</strong>
+          {data.fin && <> y termina {formatearFechaHora(data.fin)}</>}.
+        </span>
+      ) : (
+        <>
+          <label className="flex items-start gap-2">
+            <Checkbox checked={!fijo} onCheckedChange={(v) => setValue('programacion.modoInicio', v === true ? 'secuencial' : 'fijo', { shouldDirty: true })} className="mt-0.5" />
+            <span>
+              <span className="font-medium">Seguir a continuación de lo que ya tiene el auxiliar</span>
+              <span className="block text-xs text-muted-foreground">Recomendado. Desmárcalo para fijar la hora de inicio exacta; se comprueba que no se cruce con otras actividades.</span>
+            </span>
+          </label>
+          {!fijo ? (
+            <span className={isFetching ? 'opacity-60' : undefined}>
+              {data.inicio ? (
+                <>
+                  Empezaría <strong>{formatearFechaHora(data.inicio)}</strong>
+                  {data.fin && <> y terminaría {formatearFechaHora(data.fin)}</>}
+                  {data.despuesDe && <>, a continuación de «{data.despuesDe}»</>}.
+                </>
+              ) : (
+                'No entra en la agenda de los próximos meses.'
+              )}
+            </span>
+          ) : data.cabe ? (
+            <span className={isFetching ? 'text-green-800 opacity-60 dark:text-green-300' : 'text-green-800 dark:text-green-300'}>
+              La hora está libre: empieza <strong>{data.inicio ? formatearFechaHora(data.inicio) : ''}</strong>
+              {data.fin && <> y termina {formatearFechaHora(data.fin)}</>}, sin cruzarse con otras actividades.
+            </span>
+          ) : (
+            <span className="text-destructive">{data.mensaje ?? 'Esa hora no está libre.'}</span>
+          )}
+        </>
+      )}
     </div>
   )
 }

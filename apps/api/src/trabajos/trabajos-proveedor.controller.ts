@@ -1,5 +1,5 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
-import { clienteDirectoSchema, cobroSchema, trabajoProveedorSchema, type ClienteDirectoDatos, type CobroDatos, type TrabajoDetalle, type TrabajoProveedorDatos, type UsuarioResumen } from '@grupoes/shared';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
+import { clienteDirectoSchema, cobroSchema, trabajoProveedorSchema, vistaPreviaInicioSchema, type VistaPreviaInicio, type VistaPreviaInicioConsulta, type ClienteDirectoDatos, type CobroDatos, type TrabajoDetalle, type TrabajoProveedorDatos, type UsuarioResumen } from '@grupoes/shared';
 import type { SolicitudAutenticada } from '../auth/tipos.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { RequierePermiso } from '../permisos/requiere-permiso.decorator.js';
@@ -28,6 +28,13 @@ export class TrabajosProveedorController {
   @Get('cliente-directo/responsables')
   responsables(@Req() req: SolicitudAutenticada): Promise<UsuarioResumen[]> {
     return this.directos.posiblesResponsables(req.usuario!.id);
+  }
+
+  /** Cómo quedaría la primera actividad del auxiliar: a continuación de lo que tiene o a hora fija sin cruces. */
+  @RequierePermiso('trabajos.registrar_cliente_directo')
+  @Get('cliente-directo/vista-previa-inicio')
+  vistaPreviaInicio(@Query(new ZodValidationPipe(vistaPreviaInicioSchema)) consulta: VistaPreviaInicioConsulta): Promise<VistaPreviaInicio> {
+    return this.directos.vistaPreviaInicio(consulta);
   }
 
   @RequierePermiso('trabajos.registrar_de_proveedor')
