@@ -6,6 +6,7 @@ import type {
   CatalogosProspecto,
   CompletarTareaDatos,
   EnlaceReunionDatos,
+  EquipoReunionDatos,
   ListarReunionesFiltros,
   ProgramarTareaDatos,
   ProspectoDetalle,
@@ -173,6 +174,15 @@ export function useGuardarEnlaceReunion(tareaId: string) {
   const refrescar = useRefrescar()
   return useMutation({
     mutationFn: (datos: EnlaceReunionDatos) => api<TareaItem>(`/tareas/${tareaId}/enlace-reunion`, { method: 'PUT', body: datos }),
+    onSuccess: refrescar,
+  })
+}
+
+/** El jefe de producción y el auxiliar de apoyo (opcional) de una reunión. */
+export function useEquipoReunion(tareaId: string) {
+  const refrescar = useRefrescar()
+  return useMutation({
+    mutationFn: (datos: EquipoReunionDatos) => api<TareaItem>(`/tareas/${tareaId}/equipo-reunion`, { method: 'PUT', body: datos }),
     onSuccess: refrescar,
   })
 }

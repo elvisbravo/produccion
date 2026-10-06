@@ -257,7 +257,7 @@ interface ActividadSemilla {
   modo: 'creador' | 'directa' | 'coordinada' | 'responsable_trabajo';
   coordinador?: RolBase;
   seguimiento?: boolean;
-  participaciones: { nombre: string; obligatoria: boolean; roles: [RolBase, Prioridad][] }[];
+  participaciones: { nombre: string; obligatoria: boolean; cantidad?: number; roles: [RolBase, Prioridad][] }[];
 }
 
 /** Catálogo de actividades base (el administrador podrá ajustarlo desde el sistema). */
@@ -308,6 +308,8 @@ async function sembrarActividades() {
         {
           nombre: 'Quien da el enfoque',
           obligatoria: true,
+          // El jefe de producción y, si hace falta, un auxiliar de apoyo.
+          cantidad: 2,
           roles: [['JEFE_PROD', 'Principal'], ['AUXILIAR', 'Principal'], ['ASIST_PROD', 'Secundaria']],
         },
         { nombre: 'Acompañante', obligatoria: false, roles: [['ASIST_ADM', 'Principal']] },
@@ -413,6 +415,7 @@ async function sembrarActividades() {
           create: a.participaciones.map((p, i) => ({
             nombre: p.nombre,
             obligatoria: p.obligatoria,
+            cantidad: p.cantidad ?? 1,
             orden: i + 1,
             roles: { create: p.roles.map(([rol, prioridad]) => ({ rolId: idRol(rol), prioridadRolId: idPrioridad(prioridad) })) },
           })),

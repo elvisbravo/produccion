@@ -10,6 +10,7 @@ import {
   type CompletarTareaDatos,
   type ConflictoAgenda,
   type EnlaceReunionDatos,
+  type EquipoReunionDatos,
   type EstadoDisponibilidad,
   type ListarReunionesConsulta,
   type PermisoCodigo,
@@ -477,6 +478,44 @@ export class TareasService {
         motivo: t.motivoCancelacion ?? (t.estado === 'no_asistio' ? 'El cliente no asistió' : null),
       };
     });
+  }
+
+  /**
+   * Elige el jefe de producción y, opcionalmente, el auxiliar de apoyo de una reunión. Cada uno ocupa la participación de la actividad que admite
+   * su rol; lo demás (p. ej. quien acompaña desde administración) se conserva. Usa la misma asignación y avisos que «Asignar».
+   */
+  async cambiarEquipoReunion(tareaId: string, datos: EquipoReunionDatos, actor: ActorTarea): Promise<TareaItem> {
+    const tarea = await this.obtenerVisible(tareaId, actor.usuarioId, 'tareas.asignar');
+    if (tarea.actividad.tipo.comportamiento !== 'reunion') throw new BadRequestException('Solo las reuniones tienen jefe y auxiliar de apoyo');
+    if (!esActiva(tarea.estado)) throw new BadRequestException('La reunión ya está cerrada');
+    if (!datos.jefeId && !datos.auxiliarId) throw errorCampo('jefeId', 'Elige al menos al jefe de producción o a un auxiliar');
+    if (datos.jefeId && datos.jefeId === datos.auxiliarId) throw errorCampo('auxiliarId', 'El auxiliar de apoyo debe ser otra persona que el jefe');
+
+    const participaciones = tarea.actividad.participaciones;
+    const paraRol = (codigo: string) => participaciones.find((p) => p.roles.some((r) => r.rol.codigo === codigo));
+    const lugarJefe = paraRol(ROLES_BASE.JEFE_PROD);
+    const lugarAuxiliar = paraRol(ROLES_BASE.AUXILIAR);
+    if (datos.jefeId && !lugarJefe) throw errorCampo('jefeId', 'Esta reunión no admite jefe de producción: revisa sus participaciones en Catálogos');
+    if (datos.auxiliarId && !lugarAuxiliar) throw errorCampo('auxiliarId', 'Esta reunión no admite auxiliar: revisa sus participaciones en Catálogos');
+    if (datos.jefeId && datos.auxiliarId && lugarJefe!.id === lugarAuxiliar!.id && lugarJefe!.cantidad < 2) {
+      throw errorCampo('auxiliarId', `«${lugarJefe!.nombre}» admite una sola persona. En Catálogos → Actividades → ${tarea.actividad.nombre}, sube «Personas» a 2 (o crea una participación para el auxiliar de apoyo).`);
+    }
+
+    // Cada uno debe tener el rol que se le pide (la participación puede admitir varios).
+    const roles = await this.prisma.usuarioRol.findMany({ where: { usuarioId: { in: [datos.jefeId, datos.auxiliarId].filter((x): x is string => Boolean(x)) }, rol: { activo: true } }, select: { usuarioId: true, rol: { select: { codigo: true } } } });
+    const tiene = (id: string, codigo: string) => roles.some((r) => r.usuarioId === id && r.rol.codigo === codigo);
+    if (datos.jefeId && !tiene(datos.jefeId, ROLES_BASE.JEFE_PROD)) throw errorCampo('jefeId', 'Debe ser un jefe de producción activo');
+    if (datos.auxiliarId && !tiene(datos.auxiliarId, ROLES_BASE.AUXILIAR)) throw errorCampo('auxiliarId', 'Debe ser un auxiliar de producción activo');
+
+    // Se conserva a quien no es jefe ni auxiliar (p. ej. quien acompaña desde administración).
+    const actuales = await this.prisma.tareaResponsable.findMany({ where: { tareaId }, select: { usuarioId: true, participacionId: true, rol: { select: { codigo: true } } } });
+    const conservados = actuales.filter((r) => ![ROLES_BASE.JEFE_PROD, ROLES_BASE.AUXILIAR].includes(r.rol.codigo as never)).map((r) => ({ participacionId: r.participacionId, usuarioId: r.usuarioId }));
+    const responsables = [
+      ...conservados,
+      ...(datos.jefeId ? [{ participacionId: lugarJefe!.id, usuarioId: datos.jefeId }] : []),
+      ...(datos.auxiliarId ? [{ participacionId: lugarAuxiliar!.id, usuarioId: datos.auxiliarId }] : []),
+    ];
+    return this.asignar(tareaId, { responsables, motivoForzado: datos.motivoForzado }, actor);
   }
 
   /** Guarda (o quita) el enlace de la videollamada de una reunión. */

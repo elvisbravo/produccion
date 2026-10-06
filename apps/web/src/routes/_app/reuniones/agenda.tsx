@@ -1,7 +1,7 @@
 import { diaEnLima, enlaceWhatsapp, ESTADOS_ACTIVOS, formatearCelular, NOMBRE_ESTADO_TAREA, NOMBRE_MODALIDAD, sumarDias, type ReunionFila } from '@grupoes/shared'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { CalendarClock, CalendarRange, ChevronLeft, ChevronRight, ExternalLink, MessageCircle, Pencil, Video, XCircle } from 'lucide-react'
+import { CalendarClock, CalendarRange, ChevronLeft, ChevronRight, ExternalLink, MessageCircle, Pencil, UserRoundPen, Video, XCircle } from 'lucide-react'
 import { Fragment, useMemo, useState } from 'react'
 import { z } from 'zod'
 import { Badge } from '@/components/ui/badge'
@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { reunionesQuery } from '@/features/tareas/api'
 import { DialogoEnlaceReunion } from '@/features/tareas/components/dialogo-enlace'
+import { DialogoEquipoReunion } from '@/features/tareas/components/dialogo-equipo-reunion'
 import { DialogoCancelar, DialogoReprogramar } from '@/features/tareas/components/dialogos-simples'
 import { asistentesQuery } from '@/features/trabajos/api'
 import { duracion, formatearFecha, formatearHora, nombreCompleto } from '@/lib/formato'
@@ -179,8 +180,9 @@ const SIN = <span className="text-muted-foreground">—</span>
 function Fila({ fila: f }: { fila: ReunionFila }) {
   const t = f.tarea
   const puedeEditar = usePermiso('tareas.editar')
+  const puedeAsignar = usePermiso('tareas.asignar')
   const activa = ESTADOS_ACTIVOS.includes(t.estado)
-  const [dialogo, setDialogo] = useState<'hora' | 'enlace' | 'cancelar' | null>(null)
+  const [dialogo, setDialogo] = useState<'hora' | 'enlace' | 'cancelar' | 'equipo' | null>(null)
   const nombre = nombreCompleto(f.cliente)
 
   return (
@@ -259,8 +261,17 @@ function Fila({ fila: f }: { fila: ReunionFila }) {
             )}
           </span>
         </TableCell>
-        <TableCell>{nombreCompleto(f.jefe) ?? SIN}</TableCell>
-        <TableCell>{nombreCompleto(f.auxiliar) ?? SIN}</TableCell>
+        <TableCell className="whitespace-nowrap">
+          <span className="inline-flex items-center gap-1">
+            {nombreCompleto(f.jefe) ?? SIN}
+            {puedeAsignar && activa && (
+              <Button variant="ghost" size="icon-xs" aria-label="Elegir el jefe de producción y el auxiliar de apoyo" onClick={() => setDialogo('equipo')}>
+                <UserRoundPen />
+              </Button>
+            )}
+          </span>
+        </TableCell>
+        <TableCell className="whitespace-nowrap">{nombreCompleto(f.auxiliar) ?? SIN}</TableCell>
         <TableCell>{nombreCompleto(f.asistente) ?? SIN}</TableCell>
         <TableCell>
           <Badge variant={f.condicion === 'cliente' ? 'default' : 'secondary'}>{f.condicion === 'cliente' ? 'Cliente' : 'Potencial cliente'}</Badge>
@@ -277,6 +288,7 @@ function Fila({ fila: f }: { fila: ReunionFila }) {
       </TableRow>
       {dialogo === 'hora' && <DialogoReprogramar tarea={t} abierto onAbiertoChange={(v) => !v && setDialogo(null)} />}
       {dialogo === 'cancelar' && <DialogoCancelar tarea={t} abierto onAbiertoChange={(v) => !v && setDialogo(null)} />}
+      {dialogo === 'equipo' && <DialogoEquipoReunion tareaId={t.id} actividad={t.actividad.nombre} jefeId={f.jefe?.id ?? null} auxiliarId={f.auxiliar?.id ?? null} onCerrar={() => setDialogo(null)} />}
       {dialogo === 'enlace' && <DialogoEnlaceReunion tareaId={t.id} enlace={f.enlace} onCerrar={() => setDialogo(null)} />}
     </Fragment>
   )

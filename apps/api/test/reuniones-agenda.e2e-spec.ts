@@ -111,6 +111,33 @@ describe('Agenda de reuniones (e2e)', () => {
     expect(responsables.map((u) => u.id)).toContain(ids.ana);
   });
 
+  it('se elige el jefe de producción y, opcionalmente, un auxiliar de apoyo', async () => {
+    const equipo = (q: Quien, cuerpo: Record<string, unknown>) => http().put(`/api/tareas/${tareaId}/equipo-reunion`).set(como(q)).send({ motivoForzado: 'prueba', ...cuerpo });
+    await equipo('aux', { jefeId: ids.jefe }).expect(403);
+    await equipo('prod', {}).expect(400); // al menos uno
+    await equipo('prod', { jefeId: ids.jefe, auxiliarId: ids.jefe }).expect(400); // otra persona
+    await equipo('prod', { jefeId: ids.aux }).expect(400); // un auxiliar no puede ir como jefe
+    // Con una sola plaza en «Quien da el enfoque», jefe y auxiliar a la vez piden subir «Personas»
+    const plaza = await prisma.actividadParticipacion.findFirstOrThrow({ where: { nombre: 'Quien da el enfoque', actividad: { nombre: 'Enfoque' } } });
+    await prisma.actividadParticipacion.update({ where: { id: plaza.id }, data: { cantidad: 1 } });
+    const r = await equipo('prod', { jefeId: ids.jefe, auxiliarId: ids.aux }).expect(400);
+    expect(JSON.stringify(r.body)).toContain('Personas');
+    await prisma.actividadParticipacion.update({ where: { id: plaza.id }, data: { cantidad: 2 } });
+    try {
+      await equipo('prod', { jefeId: ids.jefe, auxiliarId: ids.aux }).expect(200);
+      let f = (await reuniones('prod')).find((x) => x.tarea.id === tareaId)!;
+      expect(f.jefe?.id).toBe(ids.jefe);
+      expect(f.auxiliar?.id).toBe(ids.aux);
+      // El auxiliar es opcional: se puede quitar dejando solo al jefe
+      await equipo('prod', { jefeId: ids.jefe }).expect(200);
+      f = (await reuniones('prod')).find((x) => x.tarea.id === tareaId)!;
+      expect(f.jefe?.id).toBe(ids.jefe);
+      expect(f.auxiliar).toBeNull();
+    } finally {
+      await prisma.actividadParticipacion.update({ where: { id: plaza.id }, data: { cantidad: plaza.cantidad } });
+    }
+  });
+
   it('guarda el enlace de la reunión (solo http/https) y quien no la ve no puede cambiarlo', async () => {
     await http().put(`/api/tareas/${tareaId}/enlace-reunion`).set(como('ana')).send({ enlace: 'no es un enlace' }).expect(400);
     const r = await http().put(`/api/tareas/${tareaId}/enlace-reunion`).set(como('ana')).send({ enlace: 'https://meet.google.com/abc-defg-hij' }).expect(200);

@@ -59,6 +59,15 @@ export const asignarTareaSchema = z.object({
 })
 export type AsignarTareaDatos = z.output<typeof asignarTareaSchema>
 
+/** El equipo de una reunión: el jefe de producción y, si hace falta, un auxiliar de apoyo (opcional). */
+export const equipoReunionSchema = z.object({
+  jefeId: opcional(z.uuid('Elige al jefe de producción')),
+  auxiliarId: opcional(z.uuid('Elige al auxiliar')),
+  /** Obligatorio si alguna persona tiene un choque de horario. */
+  motivoForzado: texto(300),
+})
+export type EquipoReunionDatos = z.output<typeof equipoReunionSchema>
+
 export const reprogramarTareaSchema = z.object({
   fecha: z.string().min(1, 'Elige el día').pipe(dia),
   hora: opcional(hora),

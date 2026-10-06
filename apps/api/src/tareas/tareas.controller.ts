@@ -4,6 +4,7 @@ import {
   cancelarTareaSchema,
   completarTareaSchema,
   enlaceReunionSchema,
+  equipoReunionSchema,
   listarReunionesSchema,
   programarTareaSchema,
   reprogramarTareaSchema,
@@ -12,6 +13,7 @@ import {
   type CandidatosTarea,
   type CompletarTareaDatos,
   type EnlaceReunionDatos,
+  type EquipoReunionDatos,
   type ListarReunionesConsulta,
   type ReunionFila,
   type ProgramarTareaDatos,
@@ -129,6 +131,13 @@ export class TareasController {
   @Get('reuniones')
   reuniones(@Query(new ZodValidationPipe(listarReunionesSchema)) consulta: ListarReunionesConsulta, @Req() req: SolicitudAutenticada): Promise<ReunionFila[]> {
     return this.tareas.reuniones(consulta, req.usuario!.id);
+  }
+
+  /** El jefe de producción y el auxiliar de apoyo (opcional) de una reunión. */
+  @RequierePermiso('tareas.asignar')
+  @Put('tareas/:id/equipo-reunion')
+  equipoReunion(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(equipoReunionSchema)) datos: EquipoReunionDatos, @Req() req: SolicitudAutenticada): Promise<TareaItem> {
+    return this.tareas.cambiarEquipoReunion(id, datos, actor(req));
   }
 
   @RequierePermiso('tareas.editar')
