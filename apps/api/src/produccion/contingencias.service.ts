@@ -3,6 +3,11 @@ import {
   horaEnLima,
   ROLES_BASE,
   type AplicarReasignacionDatos,
+  type BloqueCarga,
+  type CargaPersona,
+  type ImpactoCarga,
+  type RepartoCargaDatos,
+  type TrabajoCarga,
   type CandidatoReasignacion,
   MAX_PERSONAS_URGENTE,
   type EjecutarUrgenteDatos,
@@ -24,6 +29,7 @@ import type { Prisma } from '../generated/prisma/client.js';
 import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
 import { PermisosService } from '../permisos/permisos.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { minutosReales } from '../tareas/mapeo.js';
 import { type ActorProduccion } from './produccion.service.js';
 
 type Tx = Prisma.TransactionClient;
@@ -77,6 +83,29 @@ interface GrupoReparto {
   bloques: BloqueInterno[];
   filas: FilaUrgente[];
 }
+
+/** Lo necesario de una tarea de la cola para repartirla: su entregable, su trabajo y lo ya trabajado. */
+const INCLUIR_CARGA = {
+  actividad: { include: { tipo: true } },
+  entregable: { select: { id: true, nombre: true, fechaLimite: true } },
+  trabajo: { select: { id: true, codigo: true, titulo: true, fechaLimite: true } },
+  tiempos: { select: { usuarioId: true, inicio: true, fin: true, minutos: true } },
+} as const satisfies Prisma.TareaInclude;
+type FilaCarga = Prisma.TareaResponsableGetPayload<{ include: { tarea: { include: typeof INCLUIR_CARGA } } }>;
+interface BloqueInternoCarga {
+  clave: string;
+  trabajoId: string;
+  entregableId: string | null;
+  filas: FilaCarga[];
+  /** Minutos que faltan (descontando lo trabajado) y minutos ya trabajados. */
+  minutos: number;
+  hechos: number;
+  elabora: boolean;
+}
+const limiteCarga = (t: FilaCarga['tarea']) => {
+  const f = t.entregable?.fechaLimite ?? t.trabajo?.fechaLimite;
+  return f ? soloFecha(f) : null;
+};
 
 const INCLUIR_URGENTE = {
   trabajo: { select: { id: true, codigo: true, titulo: true, fechaLimite: true, prioridad: { select: { nombre: true, color: true } } } },
@@ -313,7 +342,14 @@ export class ContingenciasService {
       where: { id: responsable.id },
       data: { usuarioId: p.aUsuarioId, ...rol, asignadoPorId: actor.usuarioId, asignadoEn: new Date(), ordenCola: enCola ? ultimo + 1 : null, forzado: false, motivoForzado: null },
     });
-    if (t.estado === 'en_proceso') await tx.tarea.update({ where: { id: t.id }, data: { estado: 'pendiente' } });
+    if (t.estado === 'en_proceso') {
+      await tx.tarea.update({ where: { id: t.id }, data: { estado: 'pendiente' } });
+      // Lo avanzado queda a nombre de quien lo hizo: se cierra su tramo abierto y el resto lo continúa la otra persona.
+      const ahora = new Date();
+      for (const x of await tx.registroTiempo.findMany({ where: { tareaId: t.id, fin: null } })) {
+        await tx.registroTiempo.update({ where: { id: x.id }, data: { fin: ahora, minutos: Math.max(0, Math.round((ahora.getTime() - x.inicio.getTime()) / 60_000)) } });
+      }
+    }
     const destino = await tx.usuario.findUniqueOrThrow({ where: { id: p.aUsuarioId }, select: CAMPOS_USUARIO });
     const titulo = t.titulo ?? t.actividad.nombre;
     const detalle = `"${titulo}" pasó de ${nombreDe(responsable.usuario)} a ${nombreDe(destino)} — ${p.motivo}`;
@@ -337,6 +373,204 @@ export class ContingenciasService {
       { tipo: 'tarea.reasignada', titulo: `Recibiste una tarea de ${r.deNombre}`, mensaje: r.titulo, enlace: '/tareas?vista=cola' },
       actor.usuarioId,
     );
+  }
+
+  // ─── Reasignar la carga de un auxiliar ───────────────────
+
+  private async filasDeCarga(usuarioId: string): Promise<FilaCarga[]> {
+    return this.prisma.tareaResponsable.findMany({
+      where: { usuarioId, ordenCola: { not: null }, tarea: { estado: { in: [...ACTIVAS] }, inicio: null, trabajoId: { not: null } } },
+      orderBy: { ordenCola: 'asc' },
+      include: { tarea: { include: INCLUIR_CARGA } },
+    });
+  }
+
+  /** Sus tareas en cola agrupadas por trabajo y entregable (lo que se reparte junto a una misma persona). */
+  private bloquesDeCarga(filas: FilaCarga[]): BloqueInternoCarga[] {
+    const bloques = new Map<string, BloqueInternoCarga>();
+    for (const f of filas) {
+      const t = f.tarea;
+      const clave = `${t.trabajoId}|${t.entregableId ?? ''}`;
+      const b = bloques.get(clave) ?? { clave, trabajoId: t.trabajoId!, entregableId: t.entregableId, filas: [], minutos: 0, hechos: 0, elabora: false };
+      b.filas.push(f);
+      b.minutos += aTareaEnCola(t).minutos;
+      b.hechos += minutosReales(t.tiempos);
+      b.elabora ||= ['produccion', 'correccion'].includes(t.actividad.tipo.comportamiento);
+      bloques.set(clave, b);
+    }
+    return [...bloques.values()];
+  }
+
+  private async contextoCarga(usuarioId: string, filas: FilaCarga[]) {
+    const trabajoIds = [...new Set(filas.map((f) => f.tarea.trabajoId!))];
+    const [personal, permitidos, equipo] = await Promise.all([
+      this.personal([ROLES_BASE.AUXILIAR, ROLES_BASE.JEFE_PROD]),
+      this.permitidosPorParticipacion(filas.map((f) => f.participacionId)),
+      this.prisma.trabajoEquipo.findMany({ where: { trabajoId: { in: trabajoIds }, hasta: null }, select: { trabajoId: true, usuarioId: true, funcion: true } }),
+    ]);
+    return { candidatos: personal.filter((c) => c.id !== usuarioId), permitidos, equipo };
+  }
+
+  private puedeBloque(c: Candidato, b: BloqueInternoCarga, ctx: Awaited<ReturnType<ContingenciasService['contextoCarga']>>): boolean {
+    const jefe = ctx.equipo.find((e) => e.trabajoId === b.trabajoId && e.funcion === 'jefe_responsable')?.usuarioId ?? null;
+    return this.puedeTomar(c, b, ctx.permitidos, jefe);
+  }
+
+  /**
+   * Reparto sugerido: cada trabajo completo a una sola persona (la que lo termina a tiempo y antes, contando lo que ya se le dio;
+   * a igual día, un auxiliar antes que un jefe y quien ya es del equipo). Si nadie puede con todo el trabajo, se reparte por entregable.
+   * Lo que se pasa queda al final de su cola, como al reasignar una tarea.
+   */
+  private async sugerirCarga(bloques: BloqueInternoCarga[], ctx: Awaited<ReturnType<ContingenciasService['contextoCarga']>>): Promise<Map<string, string>> {
+    const sugerencia = new Map<string, string>();
+    if (ctx.candidatos.length === 0) return sugerencia;
+    const bases = await this.agenda.basesDeCola(ctx.candidatos.map((c) => c.id));
+    const porTrabajo = new Map<string, BloqueInternoCarga[]>();
+    for (const b of bloques) porTrabajo.set(b.trabajoId, [...(porTrabajo.get(b.trabajoId) ?? []), b]);
+    const unidades: BloqueInternoCarga[][] = [];
+    for (const bs of porTrabajo.values()) {
+      if (ctx.candidatos.some((c) => bs.every((b) => this.puedeBloque(c, b, ctx)))) unidades.push(bs);
+      else unidades.push(...bs.map((b) => [b]));
+    }
+    unidades.sort((x, y) => y.reduce((s, b) => s + b.minutos, 0) - x.reduce((s, b) => s + b.minutos, 0));
+
+    const dados = new Map<string, FilaCarga['tarea'][]>();
+    for (const u of unidades) {
+      let mejor: { c: Candidato; clave: string } | null = null;
+      for (const c of ctx.candidatos) {
+        if (!u.every((b) => this.puedeBloque(c, b, ctx))) continue;
+        const base = bases.get(c.id)!;
+        const nuevas = u.flatMap((b) => b.filas.map((f) => f.tarea));
+        const plan = planificar(base.dias, [...base.items.map(({ tarea }) => aTareaEnCola(tarea)), ...[...(dados.get(c.id) ?? []), ...nuevas].map(aTareaEnCola)], base.ahora);
+        const fines = nuevas.map((t) => plan.get(t.id)?.fin);
+        const completo = fines.every(Boolean);
+        const fin = completo ? fines.map((x) => `${x!.fecha}${String(x!.fin).padStart(4, '0')}`).sort().at(-1)! : '9999-99-990000';
+        const enRojo = nuevas.filter((t) => enRiesgo(resultado(plan.get(t.id), limiteCarga(t)))).length;
+        const esAuxiliar = c.roles.some((r) => r.rol.codigo === ROLES_BASE.AUXILIAR);
+        const delEquipo = ctx.equipo.some((e) => e.trabajoId === u[0].trabajoId && e.usuarioId === c.id);
+        const clave = [String(enRojo).padStart(3, '0'), fin.slice(0, 10), esAuxiliar ? '0' : '1', delEquipo ? '0' : '1', fin].join('|');
+        if (!mejor || clave < mejor.clave) mejor = { c, clave };
+      }
+      if (!mejor) continue;
+      dados.set(mejor.c.id, [...(dados.get(mejor.c.id) ?? []), ...u.flatMap((b) => b.filas.map((f) => f.tarea))]);
+      for (const b of u) sugerencia.set(b.clave, mejor.c.id);
+    }
+    return sugerencia;
+  }
+
+  /** Los trabajos (y entregables) que la persona tiene en su cola, cuánto falta de cada uno y a quién podrían pasar. */
+  async cargaDe(usuarioId: string): Promise<CargaPersona> {
+    const usuario = await this.prisma.usuario.findFirst({ where: { id: usuarioId, eliminadoEn: null }, select: CAMPOS_USUARIO });
+    if (!usuario) throw new NotFoundException('La persona no existe');
+    const filas = await this.filasDeCarga(usuarioId);
+    const bloques = this.bloquesDeCarga(filas);
+    if (bloques.length === 0) return { usuario, trabajos: [] };
+    const ctx = await this.contextoCarga(usuarioId, filas);
+    const sugerencia = await this.sugerirCarga(bloques, ctx);
+    const base = (await this.agenda.basesDeCola([usuarioId])).get(usuarioId)!;
+    const plan = planificar(base.dias, base.items.map(({ tarea }) => aTareaEnCola(tarea)), base.ahora);
+    const resumen = (c: Candidato) => ({ id: c.id, nombres: c.nombres, apellidos: c.apellidos });
+    const entregables = new Map(filas.filter((f) => f.tarea.entregable).map((f) => [f.tarea.entregableId!, f.tarea.entregable!]));
+
+    const trabajos = new Map<string, TrabajoCarga>();
+    for (const b of bloques) {
+      const t = b.filas[0].tarea;
+      const e = b.entregableId ? entregables.get(b.entregableId) : null;
+      const peor = b.filas.map((f) => resultado(plan.get(f.tareaId), limiteCarga(f.tarea)).semaforo).sort((x, y) => RANGO[y] - RANGO[x])[0];
+      const sugerido = sugerencia.get(b.clave);
+      const bloque: BloqueCarga = {
+        entregableId: b.entregableId,
+        nombre: e?.nombre ?? 'Tareas sueltas del trabajo',
+        fechaLimite: soloFecha(e?.fechaLimite ?? t.trabajo!.fechaLimite),
+        tareas: b.filas.length,
+        minutosFaltan: b.minutos,
+        minutosHechos: b.hechos,
+        enProceso: b.filas.some((f) => f.tarea.estado === 'en_proceso'),
+        semaforo: peor,
+        elegibles: ctx.candidatos.filter((c) => this.puedeBloque(c, b, ctx)).map(resumen),
+        sugerido: sugerido ? resumen(ctx.candidatos.find((c) => c.id === sugerido)!) : null,
+      };
+      const actual = trabajos.get(b.trabajoId) ?? { trabajo: { id: t.trabajo!.id, codigo: t.trabajo!.codigo, titulo: t.trabajo!.titulo, fechaLimite: soloFecha(t.trabajo!.fechaLimite) }, bloques: [], elegibles: [], sugerido: null };
+      actual.bloques.push(bloque);
+      trabajos.set(b.trabajoId, actual);
+    }
+    for (const tr of trabajos.values()) {
+      const [primero, ...resto] = tr.bloques;
+      tr.elegibles = primero.elegibles.filter((c) => resto.every((b) => b.elegibles.some((x) => x.id === c.id)));
+      const ids = new Set(tr.bloques.map((b) => b.sugerido?.id ?? ''));
+      tr.sugerido = ids.size === 1 && primero.sugerido ? primero.sugerido : null;
+    }
+    return { usuario, trabajos: [...trabajos.values()] };
+  }
+
+  /** Comprueba el reparto (bloques que existen, personas que pueden con ellos) y lo agrupa por quien lo recibe, en el orden de su cola. */
+  private async resolverCarga(usuarioId: string, reparto: RepartoCargaDatos['reparto']) {
+    const error = (mensaje: string) => new BadRequestException({ message: mensaje, errores: [{ campo: 'reparto', mensaje }] });
+    const filas = await this.filasDeCarga(usuarioId);
+    const bloques = this.bloquesDeCarga(filas);
+    const ctx = await this.contextoCarga(usuarioId, filas);
+    const vistos = new Set<string>();
+    const porUsuario = new Map<string, { usuario: { id: string; nombres: string; apellidos: string }; filas: FilaCarga[] }>();
+    for (const r of reparto) {
+      const clave = `${r.trabajoId}|${r.entregableId ?? ''}`;
+      const b = bloques.find((x) => x.clave === clave);
+      if (!b) throw error('Uno de los trabajos ya no está en la cola de esa persona: vuelve a cargar la pantalla');
+      if (vistos.has(clave)) throw error('Un mismo entregable aparece dos veces en el reparto');
+      vistos.add(clave);
+      if (r.usuarioId === usuarioId) throw error('No tiene sentido pasarle el trabajo a la misma persona');
+      const usuario = await this.validarAuxiliar(r.usuarioId);
+      const c = ctx.candidatos.find((x) => x.id === r.usuarioId);
+      const titulo = `${b.filas[0].tarea.trabajo!.codigo}${b.entregableId ? ` · ${b.filas[0].tarea.entregable!.nombre}` : ''}`;
+      if (!c || !this.puedeBloque(c, b, ctx)) throw error(`${nombreDe(usuario)} no puede tomar ${titulo}: sin un rol permitido o es el jefe que luego lo revisa`);
+      const g = porUsuario.get(r.usuarioId) ?? { usuario, filas: [] };
+      g.filas.push(...b.filas);
+      porUsuario.set(r.usuarioId, g);
+    }
+    for (const g of porUsuario.values()) g.filas.sort((a, b) => a.ordenCola! - b.ordenCola!);
+    return { porUsuario };
+  }
+
+  /** Cómo quedaría la cola de quien recibe: lo que se le pasa va al final de lo suyo. */
+  async simularCarga(usuarioId: string, reparto: RepartoCargaDatos['reparto']): Promise<ImpactoCarga> {
+    const { porUsuario } = await this.resolverCarga(usuarioId, reparto);
+    const bases = await this.agenda.basesDeCola([...porUsuario.keys()]);
+    const personas = [...porUsuario.entries()].map(([id, g]) => {
+      const base = bases.get(id)!;
+      const nuevas = g.filas.map((f) => f.tarea);
+      const plan = planificar(base.dias, [...base.items.map(({ tarea }) => aTareaEnCola(tarea)), ...nuevas.map(aTareaEnCola)], base.ahora);
+      const tareas = nuevas.map((t) => ({ tareaId: t.id, titulo: t.titulo ?? t.actividad.nombre, trabajoCodigo: t.trabajo!.codigo, resultado: resultado(plan.get(t.id), limiteCarga(t)) }));
+      return { usuario: g.usuario, minutos: nuevas.reduce((s, t) => s + aTareaEnCola(t).minutos, 0), tareas, sinLlegar: tareas.filter((t) => enRiesgo(t.resultado)).length };
+    });
+    return { personas, sinLlegar: personas.reduce((n, p) => n + p.sinLlegar, 0) };
+  }
+
+  /** Pasa los trabajos elegidos a quien se indicó, tarea por tarea y en su orden; lo ya avanzado queda a nombre de quien lo hizo. */
+  async aplicarCarga(usuarioId: string, datos: RepartoCargaDatos, actor: ActorProduccion): Promise<number> {
+    const { porUsuario } = await this.resolverCarga(usuarioId, datos.reparto);
+    const motivo = datos.motivo ?? 'Cambio de actividades del responsable';
+    const origen = await this.prisma.usuario.findUniqueOrThrow({ where: { id: usuarioId }, select: CAMPOS_USUARIO });
+    let total = 0;
+    await this.prisma.$transaction(
+      async (tx) => {
+        for (const [aId, g] of porUsuario) {
+          for (const f of g.filas) {
+            await this.trasladarTx(tx, { tareaId: f.tareaId, deUsuarioId: usuarioId, aUsuarioId: aId, motivo }, actor);
+            total++;
+          }
+        }
+        await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'reasignar_carga', entidad: 'usuario', entidadId: usuarioId, despues: datos, ip: actor.ip }, tx);
+      },
+      { timeout: 60_000 },
+    );
+    for (const [aId, g] of porUsuario) {
+      await this.notificaciones.notificar(
+        [aId],
+        { tipo: 'tarea.reasignada', titulo: `Recibiste ${g.filas.length} ${g.filas.length === 1 ? 'tarea' : 'tareas'} de ${nombreDe(origen)}`, mensaje: motivo, enlace: '/tareas?vista=cola' },
+        actor.usuarioId,
+      );
+    }
+    await this.notificaciones.notificar([usuarioId], { tipo: 'tarea.reasignada', titulo: 'Te quitaron tareas de tu cola', mensaje: `${total} ${total === 1 ? 'tarea pasó' : 'tareas pasaron'} a otras personas — ${motivo}`, enlace: '/tareas?vista=cola' }, actor.usuarioId);
+    return total;
   }
 
   // ─── Inserción urgente ───────────────────────────────────
@@ -460,7 +694,7 @@ export class ContingenciasService {
   }
 
   /** ¿Puede esta persona tomar todo el bloque? Con un rol permitido para cada tarea y, si se elabora, sin ser el jefe que luego lo revisa. */
-  private puedeTomar(c: Candidato, b: BloqueInterno, permitidos: Map<string, Set<string>>, jefeId: string | null): boolean {
+  private puedeTomar(c: Candidato, b: { filas: { participacionId: string }[]; elabora: boolean }, permitidos: Map<string, Set<string>>, jefeId: string | null): boolean {
     const roles = new Set(c.roles.filter((r) => r.rol.activo).map((r) => r.rol.codigo));
     if (b.elabora && c.id === jefeId) return false;
     return b.filas.every((f) => [...(permitidos.get(f.participacionId) ?? [])].some((codigo) => roles.has(codigo)));

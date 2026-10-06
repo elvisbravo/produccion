@@ -1,6 +1,9 @@
 import type {
   ApoyoTarea,
   AplicarReasignacionDatos,
+  CargaPersona,
+  ImpactoCarga,
+  RepartoCargaDatos,
   EjecutarUrgenteDatos,
   HoraExtraItem,
   ImpactoReparto,
@@ -106,3 +109,17 @@ export const useReasignarTarea = (tareaId: string) =>
 
 export const useProponerApoyo = (tareaId: string) =>
   useAccion((datos: ProponerApoyoFormulario) => api<HoraExtraItem>(`/produccion/tareas/${tareaId}/apoyo`, { method: 'POST', body: datos }))
+
+/** Los trabajos que una persona tiene en su cola, cuánto falta de cada uno y a quién podrían pasar. */
+export const cargaQuery = (usuarioId: string) => queryOptions({ queryKey: ['produccion', 'carga', usuarioId], queryFn: () => api<CargaPersona>(`/produccion/carga/${usuarioId}`), staleTime: 0 })
+
+/** Simulación: cómo queda la cola de quien recibe. No cambia nada. */
+export const impactoCargaQuery = (usuarioId: string, reparto: RepartoCargaDatos['reparto']) =>
+  queryOptions({
+    queryKey: ['produccion', 'carga', usuarioId, 'simular', reparto],
+    queryFn: () => api<ImpactoCarga>(`/produccion/carga/${usuarioId}/simular`, { method: 'POST', body: { reparto } }),
+    staleTime: 0,
+  })
+
+export const useAplicarCarga = (usuarioId: string) =>
+  useAccion((datos: RepartoCargaDatos) => api<{ tareas: number }>(`/produccion/carga/${usuarioId}/aplicar`, { method: 'POST', body: datos }))

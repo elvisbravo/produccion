@@ -71,6 +71,7 @@ Para publicarlo en un VPS con Ubuntu (Nginx, HTTPS, systemd, respaldos y actuali
 | POST | `/api/prospectos/:id/tareas` | Programar una actividad para el prospecto |
 | GET | `/api/actividades` | Catálogo de actividades con participaciones, roles y prioridades |
 | GET | `/api/tareas/mias`, `/api/tareas/por-asignar` | Mis tareas y bandeja del coordinador |
+| GET/POST | `/api/produccion/carga/:usuarioId`, `…/simular`, `…/aplicar` | Reasignar la carga de un auxiliar que pasa a otras actividades (Programación → Colas → «Reasignar carga», permiso `programacion.reasignar`). Muestra sus trabajos por entregable con lo que falta y lo ya trabajado, sugiere a quién pasar cada trabajo completo (a una sola persona; se puede dividir por entregable), simula la cola de quien recibe y, al aplicar, traslada las tareas al final de su cola. El tramo de cronómetro abierto se cierra a nombre de quien lo hizo y quien recibe solo programa lo que falta |
 | — | Pantalla `/reuniones` (permiso `reuniones.ver`) | Reuniones por programar: las tareas con hora fija que esperan responsable. «Confirmar esa hora y asignar» o «Proponer otra hora» (avisa a quien la pidió). La notificación llega solo si la actividad está en modo «queda por asignar al coordinador» (Catálogos → Actividades) |
 | GET/POST | `/api/tareas/:id/candidatos`, `/api/tareas/:id/asignar` | Candidatos por prioridad y disponibilidad; asignación (con motivo si hay choque) |
 | POST | `/api/tareas/:id/completar`, `…/reprogramar`, `…/cancelar` | Cierre con resultado y siguiente paso; reprogramación; cancelación |

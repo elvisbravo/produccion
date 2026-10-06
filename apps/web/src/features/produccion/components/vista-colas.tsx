@@ -1,6 +1,6 @@
 import type { ColaPersona } from '@grupoes/shared'
 import { useQuery } from '@tanstack/react-query'
-import { ListOrdered, Loader2, TriangleAlert, Wand2 } from 'lucide-react'
+import { ListOrdered, Loader2, Shuffle, TriangleAlert, Wand2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import { duracion, formatearFechaHora, nombreCompleto } from '@/lib/formato'
 import { usePermiso } from '@/lib/permisos'
 import { cn } from '@/lib/utils'
 import { colasQuery, useOrdenSugerido } from '../api'
+import { DialogoCarga } from './dialogo-carga'
 import { ListaCola } from './lista-cola'
 
 /** Colas de trabajo del personal de producción: resumen por persona y la cola de la elegida. */
@@ -17,6 +18,7 @@ export function VistaColas() {
   const { data, isPending } = useQuery(colasQuery)
   const [elegidaId, setElegidaId] = useState<string | null>(null)
   const puedeProgramar = usePermiso('programacion.programar')
+  const puedeReasignar = usePermiso('programacion.reasignar')
 
   if (isPending || !data) return <Skeleton className="h-80" />
   const elegida = data.find((c) => c.usuario.id === elegidaId) ?? data.find((c) => c.items.length > 0) ?? data[0]
@@ -53,13 +55,14 @@ export function VistaColas() {
           </li>
         ))}
       </ul>
-      <Cola cola={elegida} puedeProgramar={puedeProgramar} />
+      <Cola cola={elegida} puedeProgramar={puedeProgramar} puedeReasignar={puedeReasignar} />
     </div>
   )
 }
 
-function Cola({ cola, puedeProgramar }: { cola: ColaPersona; puedeProgramar: boolean }) {
+function Cola({ cola, puedeProgramar, puedeReasignar }: { cola: ColaPersona; puedeProgramar: boolean; puedeReasignar: boolean }) {
   const sugerir = useOrdenSugerido(cola.usuario.id)
+  const [repartiendo, setRepartiendo] = useState(false)
   const aplicar = async () => {
     try {
       await sugerir.mutateAsync()
@@ -78,12 +81,20 @@ function Cola({ cola, puedeProgramar }: { cola: ColaPersona; puedeProgramar: boo
             {puedeProgramar ? 'Arrastra para cambiar el orden: las fechas se recalculan solas.' : 'Las tareas se hacen en este orden.'} Las reuniones con hora no se mueven.
           </p>
         </div>
-        {puedeProgramar && cola.items.length > 1 && (
-          <Button variant="outline" size="sm" onClick={() => void aplicar()} disabled={sugerir.isPending}>
-            {sugerir.isPending ? <Loader2 className="animate-spin" /> : <Wand2 />}
-            Orden sugerido
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {puedeReasignar && cola.items.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setRepartiendo(true)}>
+              <Shuffle />
+              Reasignar carga
+            </Button>
+          )}
+          {puedeProgramar && cola.items.length > 1 && (
+            <Button variant="outline" size="sm" onClick={() => void aplicar()} disabled={sugerir.isPending}>
+              {sugerir.isPending ? <Loader2 className="animate-spin" /> : <Wand2 />}
+              Orden sugerido
+            </Button>
+          )}
+        </div>
       </div>
       {cola.items.length === 0 ? (
         <Empty className="border">
@@ -98,6 +109,7 @@ function Cola({ cola, puedeProgramar }: { cola: ColaPersona; puedeProgramar: boo
       ) : (
         <ListaCola usuarioId={cola.usuario.id} items={cola.items} ordenable={puedeProgramar} />
       )}
+      {repartiendo && <DialogoCarga usuarioId={cola.usuario.id} onCerrar={() => setRepartiendo(false)} />}
     </section>
   )
 }

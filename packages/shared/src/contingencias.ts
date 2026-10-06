@@ -330,3 +330,54 @@ export const proponerApoyoSchema = z
   .superRefine(validarExtra)
 export type ProponerApoyoFormulario = z.input<typeof proponerApoyoSchema>
 export type ProponerApoyoDatos = z.output<typeof proponerApoyoSchema>
+
+// ─── Reasignar la carga de un auxiliar ──────────────────────
+
+/** Un entregable (o las tareas sueltas) de un trabajo que la persona tiene en su cola. */
+export interface BloqueCarga {
+  entregableId: string | null
+  nombre: string
+  fechaLimite: string
+  tareas: number
+  /** Lo que falta por hacer (descontando lo ya trabajado) y lo que ya se trabajó, en minutos. */
+  minutosFaltan: number
+  minutosHechos: number
+  /** Alguna tarea suya está en proceso. */
+  enProceso: boolean
+  /** Peor semáforo de sus tareas hoy, en la cola actual. */
+  semaforo: Semaforo
+  elegibles: UsuarioResumen[]
+  sugerido: UsuarioResumen | null
+}
+
+export interface TrabajoCarga {
+  trabajo: { id: string; codigo: string; titulo: string | null; fechaLimite: string }
+  bloques: BloqueCarga[]
+  /** Quienes pueden tomar el trabajo completo. */
+  elegibles: UsuarioResumen[]
+  /** Quien lo tomaría completo, si una sola persona puede con todos sus entregables. */
+  sugerido: UsuarioResumen | null
+}
+
+export interface CargaPersona {
+  usuario: UsuarioResumen
+  trabajos: TrabajoCarga[]
+}
+
+export const repartoCargaSchema = z.object({
+  reparto: z
+    .array(z.object({ trabajoId: z.uuid(), entregableId: z.uuid().nullish(), usuarioId: z.string().min(1, 'Elige a la persona').pipe(z.uuid()) }))
+    .min(1, 'Elige al menos un trabajo'),
+  motivo: texto(300),
+})
+export type RepartoCargaDatos = z.output<typeof repartoCargaSchema>
+
+export interface ImpactoCarga {
+  personas: {
+    usuario: UsuarioResumen
+    minutos: number
+    tareas: { tareaId: string; titulo: string; trabajoCodigo: string; resultado: ResultadoPlan }[]
+    sinLlegar: number
+  }[]
+  sinLlegar: number
+}
