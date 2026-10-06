@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
-import type { ClienteDirectoDatos, ConvertirProspectoDatos, TrabajoDetalle, UsuarioResumen } from '@grupoes/shared';
+import { ROLES_BASE, type ClienteDirectoDatos, ConvertirProspectoDatos, TrabajoDetalle, UsuarioResumen } from '@grupoes/shared';
 import { siguienteCodigo } from '../common/correlativo.js';
 import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
 import { PermisosService } from '../permisos/permisos.service.js';
@@ -25,10 +25,11 @@ export class ClientesDirectosService {
     private readonly notificaciones: NotificacionesService,
   ) {}
 
-  /** Quienes pueden figurar como responsable del cliente: personas activas que ven prospectos (sin los administradores ocultos). */
+  /** Quienes pueden figurar como responsable del cliente: personas activas que ven prospectos (asistentes administrativos…) y los jefes de producción; sin los administradores ocultos. */
   async posiblesResponsables(actorId: string): Promise<UsuarioResumen[]> {
     const ocultos = (await this.permisos.veAdministradores(actorId)) ? [] : await this.permisos.idsAdministradores();
-    const ids = (await this.notificaciones.conPermiso('prospectos.ver')).filter((id) => !ocultos.includes(id));
+    const jefes = (await this.prisma.usuarioRol.findMany({ where: { rol: { codigo: ROLES_BASE.JEFE_PROD, activo: true } }, select: { usuarioId: true } })).map((r) => r.usuarioId);
+    const ids = [...new Set([...(await this.notificaciones.conPermiso('prospectos.ver')), ...jefes])].filter((id) => !ocultos.includes(id));
     return this.prisma.usuario.findMany({ where: { id: { in: ids }, activo: true, eliminadoEn: null }, select: { id: true, nombres: true, apellidos: true }, orderBy: [{ nombres: 'asc' }, { apellidos: 'asc' }] });
   }
 
@@ -109,6 +110,7 @@ export class ClientesDirectosService {
           ganadaId: ganada.id,
           datos: conversion,
           pagos: datos.pagos,
+          directo: true,
         },
         actor,
       );

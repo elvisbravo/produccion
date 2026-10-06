@@ -72,7 +72,7 @@ describe('Cliente directo (e2e)', () => {
 
   it('ofrece como responsables a quienes pueden seguir clientes', async () => {
     const lista = (await http().get('/api/trabajos/cliente-directo/responsables').set(como('prod')).expect(200)).body as UsuarioResumen[];
-    expect(lista.map((u) => u.id)).toEqual(expect.arrayContaining([ids.ana, ids.prod]));
+    expect(lista.map((u) => u.id)).toEqual(expect.arrayContaining([ids.ana, ids.prod, ids.jefe]));
     expect(lista.map((u) => u.id)).not.toContain(ids.aux);
   });
 

@@ -137,6 +137,8 @@ export class TrabajosService {
       ganadaId: string;
       datos: ConvertirProspectoDatos;
       pagos: PagoDatos[];
+      /** Cliente registrado directo (no viene de un seguimiento comercial). */
+      directo?: boolean;
     },
     actor: ActorTrabajo,
   ): Promise<string> {
@@ -191,7 +193,7 @@ export class TrabajosService {
         },
         eventos: {
           create: [
-            { tipo: 'creado', detalle: `Trabajo creado desde el prospecto ${prospecto.codigo}`, usuarioId: actor.usuarioId },
+            { tipo: 'creado', detalle: p.directo ? 'Cliente registrado directamente (ya trabajaba con nosotros)' : `Trabajo creado desde el prospecto ${prospecto.codigo}`, usuarioId: actor.usuarioId },
             {
               tipo: 'contrato',
               detalle: `Contrato firmado por ${formatearSoles(datos.contrato.montoTotal)} (${datos.contrato.formaPago === 'contado' ? 'al contado' : `${datos.contrato.cuotas.length} cuotas`})`,
