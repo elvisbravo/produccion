@@ -105,7 +105,7 @@ export class TrabajosService {
     const ganada = await this.prisma.etapaProspecto.findFirst({ where: { clase: 'ganada', activa: true } });
     if (!ganada) throw new BadRequestException('No hay una etapa "Convertido" configurada en el embudo');
 
-    const { nivelAcademicoId, universidadId, carreraId, linkDrive } = datos.trabajo;
+    const { nivelAcademicoId, universidadId, carreraId } = datos.trabajo;
     const [nivel, universidad, carrera] = await Promise.all([
       this.prisma.nivelAcademico.count({ where: { id: nivelAcademicoId } }),
       this.prisma.universidad.count({ where: { id: universidadId } }),
@@ -115,106 +115,132 @@ export class TrabajosService {
     if (!universidad) throw errorCampo('trabajo.universidadId', 'Universidad no válida');
     if (!carrera) throw errorCampo('trabajo.carreraId', 'Carrera no válida');
 
-    const id = await this.prisma.$transaction(async (tx) => {
-      // Lo que se completó al convertir también queda en el prospecto.
-      await tx.prospecto.update({ where: { id: prospectoId }, data: { nivelAcademicoId, universidadId, carreraId, linkDrive, actualizadoPor: actor.usuarioId } });
-      // Los datos completos de cada integrante actualizan su ficha de persona.
-      for (const i of datos.integrantes) {
-        await this.personas.resolver(
-          tx,
-          {
-            celular: contactos.get(i.personaId)!.celular,
-            nombres: i.nombres,
-            apellidos: i.apellidos,
-            email: i.email,
-            tipoDocumento: i.tipoDocumento,
-            numeroDocumento: i.numeroDocumento,
-            esPrincipal: i.esTitular,
-          },
-          actor.usuarioId,
-        );
-      }
+    const id = await this.prisma.$transaction((tx) =>
+      this.crearTrabajoDeProspectoTx(
+        tx,
+        { prospectoId, prospecto, celulares: new Map(prospecto.contactos.map((c) => [c.personaId, c.persona.celular])), ganadaId: ganada.id, datos, pagos: datos.pagoInicial ? [datos.pagoInicial] : [] },
+        actor,
+      ),
+    );
 
-      const codigo = await siguienteCodigo(tx, 'T');
-      const trabajo = await tx.trabajo.create({
-        data: {
-          codigo,
-          prospectoId,
-          tipoTrabajoId: prospecto.tipoTrabajoId,
-          titulo: datos.trabajo.titulo ?? prospecto.titulo,
-          prioridadId: prospecto.prioridadId,
-          universidadId: datos.trabajo.universidadId,
-          carreraId: datos.trabajo.carreraId,
-          nivelAcademicoId: datos.trabajo.nivelAcademicoId,
-          linkDrive: datos.trabajo.linkDrive,
-          observaciones: prospecto.observaciones,
-          detalles: prospecto.detalles,
-          fechaInicio: dia(datos.trabajo.fechaInicio),
-          fechaLimite: dia(datos.trabajo.fechaLimite),
-          creadoPor: actor.usuarioId,
-          integrantes: { create: datos.integrantes.map((i, orden) => ({ personaId: i.personaId, esTitular: i.esTitular, orden })) },
-          contrato: {
-            create: {
-              fechaFirma: dia(datos.contrato.fechaFirma),
-              montoTotal: datos.contrato.montoTotal,
-              formaPago: datos.contrato.formaPago,
-              diasGarantia: prospecto.tipoTrabajo.diasGarantia,
-              observaciones: datos.contrato.observaciones ?? null,
-              creadoPor: actor.usuarioId,
-              cuotas: { create: datos.contrato.cuotas.map((c, i) => ({ numero: i + 1, monto: c.monto, vencimiento: dia(c.vencimiento) })) },
-            },
-          },
-          eventos: {
-            create: [
-              { tipo: 'creado', detalle: `Trabajo creado desde el prospecto ${prospecto.codigo}`, usuarioId: actor.usuarioId },
-              {
-                tipo: 'contrato',
-                detalle: `Contrato firmado por ${formatearSoles(datos.contrato.montoTotal)} (${datos.contrato.formaPago === 'contado' ? 'al contado' : `${datos.contrato.cuotas.length} cuotas`})`,
-                usuarioId: actor.usuarioId,
-              },
-            ],
+    await this.avisarTrabajoNuevo(id, actor);
+    return this.obtener(id, actor.usuarioId);
+  }
+
+  /** Crea el trabajo con sus integrantes, el contrato, los pagos y pasa el prospecto a "Convertido" (dentro de una transacción). */
+  async crearTrabajoDeProspectoTx(
+    tx: Prisma.TransactionClient,
+    p: {
+      prospectoId: string;
+      prospecto: { codigo: string; etapaId: string; tipoTrabajoId: string; titulo: string | null; prioridadId: string; observaciones: string | null; detalles: string | null; tipoTrabajo: { diasGarantia: number } };
+      celulares: Map<string, string>;
+      ganadaId: string;
+      datos: ConvertirProspectoDatos;
+      pagos: PagoDatos[];
+    },
+    actor: ActorTrabajo,
+  ): Promise<string> {
+    const { prospectoId, prospecto, datos } = p;
+    // Lo que se completó al convertir también queda en el prospecto.
+    await tx.prospecto.update({ where: { id: prospectoId }, data: { nivelAcademicoId: datos.trabajo.nivelAcademicoId, universidadId: datos.trabajo.universidadId, carreraId: datos.trabajo.carreraId, linkDrive: datos.trabajo.linkDrive, actualizadoPor: actor.usuarioId } });
+    // Los datos completos de cada integrante actualizan su ficha de persona.
+    for (const i of datos.integrantes) {
+      await this.personas.resolver(
+        tx,
+        {
+          celular: p.celulares.get(i.personaId)!,
+          nombres: i.nombres,
+          apellidos: i.apellidos,
+          email: i.email,
+          tipoDocumento: i.tipoDocumento,
+          numeroDocumento: i.numeroDocumento,
+          esPrincipal: i.esTitular,
+        },
+        actor.usuarioId,
+      );
+    }
+
+    const codigo = await siguienteCodigo(tx, 'T');
+    const trabajo = await tx.trabajo.create({
+      data: {
+        codigo,
+        prospectoId,
+        tipoTrabajoId: prospecto.tipoTrabajoId,
+        titulo: datos.trabajo.titulo ?? prospecto.titulo,
+        prioridadId: prospecto.prioridadId,
+        universidadId: datos.trabajo.universidadId,
+        carreraId: datos.trabajo.carreraId,
+        nivelAcademicoId: datos.trabajo.nivelAcademicoId,
+        linkDrive: datos.trabajo.linkDrive,
+        observaciones: prospecto.observaciones,
+        detalles: prospecto.detalles,
+        fechaInicio: dia(datos.trabajo.fechaInicio),
+        fechaLimite: dia(datos.trabajo.fechaLimite),
+        creadoPor: actor.usuarioId,
+        integrantes: { create: datos.integrantes.map((i, orden) => ({ personaId: i.personaId, esTitular: i.esTitular, orden })) },
+        contrato: {
+          create: {
+            fechaFirma: dia(datos.contrato.fechaFirma),
+            montoTotal: datos.contrato.montoTotal,
+            formaPago: datos.contrato.formaPago,
+            diasGarantia: prospecto.tipoTrabajo.diasGarantia,
+            observaciones: datos.contrato.observaciones ?? null,
+            creadoPor: actor.usuarioId,
+            cuotas: { create: datos.contrato.cuotas.map((c, i) => ({ numero: i + 1, monto: c.monto, vencimiento: dia(c.vencimiento) })) },
           },
         },
-        include: { contrato: { select: { id: true } } },
-      });
-
-      if (datos.pagoInicial) await this.registrarPagoTx(tx, trabajo.contrato!.id, datos.pagoInicial, actor);
-
-      // El prospecto pasa a "Convertido" y sus actividades comerciales pendientes ya no aplican.
-      await tx.tarea.updateMany({
-        where: { prospectoId, estado: { in: ['por_asignar', 'pendiente', 'en_proceso'] } },
-        data: { estado: 'cancelada', motivoCancelacion: `Convertido en cliente (${codigo})` },
-      });
-      await tx.prospecto.update({
-        where: { id: prospectoId },
-        data: {
-          etapaId: ganada.id,
-          actualizadoPor: actor.usuarioId,
-          eventos: {
-            create: {
-              tipo: 'cambio_etapa',
-              detalle: `Convertido en cliente: trabajo ${codigo}`,
-              datos: { desde: prospecto.etapaId, hacia: ganada.id, trabajoId: trabajo.id },
+        eventos: {
+          create: [
+            { tipo: 'creado', detalle: `Trabajo creado desde el prospecto ${prospecto.codigo}`, usuarioId: actor.usuarioId },
+            {
+              tipo: 'contrato',
+              detalle: `Contrato firmado por ${formatearSoles(datos.contrato.montoTotal)} (${datos.contrato.formaPago === 'contado' ? 'al contado' : `${datos.contrato.cuotas.length} cuotas`})`,
               usuarioId: actor.usuarioId,
             },
-          },
+          ],
         },
-      });
-
-      await this.auditoria.registrar(
-        { usuarioId: actor.usuarioId, accion: 'convertir', entidad: 'prospecto', entidadId: prospectoId, despues: { ...datos, codigoTrabajo: codigo }, ip: actor.ip },
-        tx,
-      );
-      return trabajo.id;
+      },
+      include: { contrato: { select: { id: true } } },
     });
 
+    for (const pago of p.pagos) await this.registrarPagoTx(tx, trabajo.contrato!.id, pago, actor);
+
+    // El prospecto pasa a "Convertido" y sus actividades comerciales pendientes ya no aplican.
+    await tx.tarea.updateMany({
+      where: { prospectoId, estado: { in: ['por_asignar', 'pendiente', 'en_proceso'] } },
+      data: { estado: 'cancelada', motivoCancelacion: `Convertido en cliente (${codigo})` },
+    });
+    await tx.prospecto.update({
+      where: { id: prospectoId },
+      data: {
+        etapaId: p.ganadaId,
+        actualizadoPor: actor.usuarioId,
+        eventos: {
+          create: {
+            tipo: 'cambio_etapa',
+            detalle: `Convertido en cliente: trabajo ${codigo}`,
+            datos: { desde: prospecto.etapaId, hacia: p.ganadaId, trabajoId: trabajo.id },
+            usuarioId: actor.usuarioId,
+          },
+        },
+      },
+    });
+
+    await this.auditoria.registrar(
+      { usuarioId: actor.usuarioId, accion: 'convertir', entidad: 'prospecto', entidadId: prospectoId, despues: { ...datos, codigoTrabajo: codigo }, ip: actor.ip },
+      tx,
+    );
+    return trabajo.id;
+  }
+
+  /** Avisa a quienes arman equipos que hay un trabajo nuevo por asignar. */
+  async avisarTrabajoNuevo(id: string, actor: ActorTrabajo): Promise<void> {
     const nuevo = await this.prisma.trabajo.findUniqueOrThrow({ where: { id }, select: { codigo: true, titulo: true, tipoTrabajo: { select: { nombre: true } } } });
     await this.notificaciones.notificar(
       await this.notificaciones.conPermiso('trabajos.armar_equipo'),
       { tipo: 'trabajo.nuevo', titulo: `Nuevo trabajo por asignar: ${nuevo.codigo}`, mensaje: [nuevo.tipoTrabajo.nombre, nuevo.titulo].filter(Boolean).join(' · '), enlace: `/trabajos/${id}` },
       actor.usuarioId,
     );
-    return this.obtener(id, actor.usuarioId);
   }
 
   // ─── Consultas ───────────────────────────────────────────

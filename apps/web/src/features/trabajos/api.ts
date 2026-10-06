@@ -193,3 +193,19 @@ export function useRegistrarCobro(trabajoId: string) {
     onSuccess: guardar,
   })
 }
+
+// ─── Cliente que ya trabaja con nosotros (alta directa) ─────
+
+export const responsablesClienteDirectoQuery = queryOptions({ queryKey: ['trabajos', 'cliente-directo', 'responsables'], queryFn: () => api<UsuarioResumen[]>('/trabajos/cliente-directo/responsables'), staleTime: 60_000 })
+
+export function useRegistrarClienteDirecto() {
+  const guardar = useGuardarDetalle()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (datos: unknown) => api<TrabajoDetalle>('/trabajos/cliente-directo', { method: 'POST', body: datos }),
+    onSuccess: (trabajo) => {
+      guardar(trabajo)
+      void queryClient.invalidateQueries({ queryKey: clavesProspectos.todo })
+    },
+  })
+}

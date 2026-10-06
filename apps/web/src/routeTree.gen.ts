@@ -39,6 +39,7 @@ import { Route as AppSeguimientoIndexRouteImport } from './routes/_app/seguimien
 import { Route as AppTareasIndexRouteImport } from './routes/_app/tareas/index'
 import { Route as AppTrabajosIndexRouteImport } from './routes/_app/trabajos/index'
 import { Route as AppTrabajosIdRouteImport } from './routes/_app/trabajos/$id'
+import { Route as AppTrabajosClienteDirectoRouteImport } from './routes/_app/trabajos/cliente-directo'
 import { Route as AppTrabajosDeProveedorRouteImport } from './routes/_app/trabajos/de-proveedor'
 import { Route as AppUsuariosIndexRouteImport } from './routes/_app/usuarios/index'
 import { Route as AppUsuariosIdRouteImport } from './routes/_app/usuarios/$id'
@@ -198,6 +199,12 @@ const AppTrabajosIdRoute = AppTrabajosIdRouteImport.update({
   path: '/trabajos/$id',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTrabajosClienteDirectoRoute =
+  AppTrabajosClienteDirectoRouteImport.update({
+    id: '/trabajos/cliente-directo',
+    path: '/trabajos/cliente-directo',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppTrabajosDeProveedorRoute = AppTrabajosDeProveedorRouteImport.update({
   id: '/trabajos/de-proveedor',
   path: '/trabajos/de-proveedor',
@@ -255,6 +262,7 @@ export interface FileRoutesByFullPath {
   '/proveedores/$id': typeof AppProveedoresIdRoute
   '/roles/$id': typeof AppRolesIdRoute
   '/trabajos/$id': typeof AppTrabajosIdRoute
+  '/trabajos/cliente-directo': typeof AppTrabajosClienteDirectoRoute
   '/trabajos/de-proveedor': typeof AppTrabajosDeProveedorRoute
   '/usuarios/$id': typeof AppUsuariosIdRoute
   '/imprimir/contrato/$id': typeof ImprimirContratoIdRoute
@@ -295,6 +303,7 @@ export interface FileRoutesByTo {
   '/proveedores/$id': typeof AppProveedoresIdRoute
   '/roles/$id': typeof AppRolesIdRoute
   '/trabajos/$id': typeof AppTrabajosIdRoute
+  '/trabajos/cliente-directo': typeof AppTrabajosClienteDirectoRoute
   '/trabajos/de-proveedor': typeof AppTrabajosDeProveedorRoute
   '/usuarios/$id': typeof AppUsuariosIdRoute
   '/imprimir/contrato/$id': typeof ImprimirContratoIdRoute
@@ -337,6 +346,7 @@ export interface FileRoutesById {
   '/_app/proveedores/$id': typeof AppProveedoresIdRoute
   '/_app/roles/$id': typeof AppRolesIdRoute
   '/_app/trabajos/$id': typeof AppTrabajosIdRoute
+  '/_app/trabajos/cliente-directo': typeof AppTrabajosClienteDirectoRoute
   '/_app/trabajos/de-proveedor': typeof AppTrabajosDeProveedorRoute
   '/_app/usuarios/$id': typeof AppUsuariosIdRoute
   '/imprimir/contrato/$id': typeof ImprimirContratoIdRoute
@@ -379,6 +389,7 @@ export interface FileRouteTypes {
     | '/proveedores/$id'
     | '/roles/$id'
     | '/trabajos/$id'
+    | '/trabajos/cliente-directo'
     | '/trabajos/de-proveedor'
     | '/usuarios/$id'
     | '/imprimir/contrato/$id'
@@ -419,6 +430,7 @@ export interface FileRouteTypes {
     | '/proveedores/$id'
     | '/roles/$id'
     | '/trabajos/$id'
+    | '/trabajos/cliente-directo'
     | '/trabajos/de-proveedor'
     | '/usuarios/$id'
     | '/imprimir/contrato/$id'
@@ -460,6 +472,7 @@ export interface FileRouteTypes {
     | '/_app/proveedores/$id'
     | '/_app/roles/$id'
     | '/_app/trabajos/$id'
+    | '/_app/trabajos/cliente-directo'
     | '/_app/trabajos/de-proveedor'
     | '/_app/usuarios/$id'
     | '/imprimir/contrato/$id'
@@ -709,6 +722,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTrabajosIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/trabajos/cliente-directo': {
+      id: '/_app/trabajos/cliente-directo'
+      path: '/trabajos/cliente-directo'
+      fullPath: '/trabajos/cliente-directo'
+      preLoaderRoute: typeof AppTrabajosClienteDirectoRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/trabajos/de-proveedor': {
       id: '/_app/trabajos/de-proveedor'
       path: '/trabajos/de-proveedor'
@@ -783,6 +803,7 @@ interface AppRouteChildren {
   AppProveedoresIdRoute: typeof AppProveedoresIdRoute
   AppRolesIdRoute: typeof AppRolesIdRoute
   AppTrabajosIdRoute: typeof AppTrabajosIdRoute
+  AppTrabajosClienteDirectoRoute: typeof AppTrabajosClienteDirectoRoute
   AppTrabajosDeProveedorRoute: typeof AppTrabajosDeProveedorRoute
   AppUsuariosIdRoute: typeof AppUsuariosIdRoute
   AppAgendaIndexRoute: typeof AppAgendaIndexRoute
@@ -819,6 +840,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppProveedoresIdRoute: AppProveedoresIdRoute,
   AppRolesIdRoute: AppRolesIdRoute,
   AppTrabajosIdRoute: AppTrabajosIdRoute,
+  AppTrabajosClienteDirectoRoute: AppTrabajosClienteDirectoRoute,
   AppTrabajosDeProveedorRoute: AppTrabajosDeProveedorRoute,
   AppUsuariosIdRoute: AppUsuariosIdRoute,
   AppAgendaIndexRoute: AppAgendaIndexRoute,

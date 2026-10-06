@@ -9,6 +9,7 @@ import { FechasFijasController } from './fechas-fijas.controller.js';
 import { FechasFijasService } from './fechas-fijas.service.js';
 import { PausasController } from './pausas.controller.js';
 import { PausasService } from './pausas.service.js';
+import { ClientesDirectosService } from './clientes-directos.service.js';
 import { TrabajosProveedorController } from './trabajos-proveedor.controller.js';
 import { TrabajosProveedorService } from './trabajos-proveedor.service.js';
 import { TrabajosController } from './trabajos.controller.js';
@@ -19,7 +20,7 @@ import { ValoracionesService } from './valoraciones.service.js';
 @Module({
   imports: [PersonasModule, ProduccionModule],
   controllers: [TrabajosProveedorController, TrabajosController, AdicionalesController, PausasController, FechasFijasController, ValoracionesController, EntregablesController, ContingenciasController],
-  providers: [TrabajosService, AdicionalesService, PausasService, FechasFijasService, ValoracionesService, TrabajosProveedorService],
+  providers: [TrabajosService, AdicionalesService, PausasService, FechasFijasService, ValoracionesService, TrabajosProveedorService, ClientesDirectosService],
   exports: [TrabajosService],
 })
 export class TrabajosModule {}

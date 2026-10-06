@@ -79,6 +79,7 @@ export const MODULOS = [
     codigo: 'trabajos', nombre: 'Trabajos', padre: 'produccion', ruta: '/trabajos', icono: 'BriefcaseBusiness', orden: 22,
     acciones: [ver(true), crear, editar(true), exportar, { codigo: 'armar_equipo', nombre: 'Armar equipo' }, { codigo: 'pausar', nombre: 'Pausar o reanudar (falta información del cliente)' }, { codigo: 'valorar', nombre: 'Valorar el trabajo (tiempo estimado en una reunión)' },
       { codigo: 'registrar_de_proveedor', nombre: 'Registrar trabajos de proveedores' },
+      { codigo: 'registrar_cliente_directo', nombre: 'Registrar clientes que ya trabajan con nosotros (sin prospecto)' },
       { codigo: 'fijar_fechas', nombre: 'Fijar o liberar fechas inamovibles' }],
   },
   {

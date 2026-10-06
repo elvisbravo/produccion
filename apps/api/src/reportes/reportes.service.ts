@@ -387,7 +387,7 @@ export class ReportesService {
   async conversion(p: Periodo): Promise<ReporteConversion> {
     const [prospectos, etapas] = await Promise.all([
       this.prisma.prospecto.findMany({
-        where: { eliminadoEn: null, creadoEn: { gte: instanteDesdeLima(p.desde, '00:00'), lt: instanteDesdeLima(sumarDias(p.hasta, 1), '00:00') } },
+        where: { eliminadoEn: null, clienteDirecto: false, creadoEn: { gte: instanteDesdeLima(p.desde, '00:00'), lt: instanteDesdeLima(sumarDias(p.hasta, 1), '00:00') } },
         select: {
           creadoEn: true,
           etapaId: true,

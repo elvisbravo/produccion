@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { EntregableItem, TurnitinConfig } from './produccion.js'
+import { normalizarCelular } from './celular.js'
 import { TIPOS_DOCUMENTO, validarDocumento, type Opcion, type PersonaResumen, type UsuarioResumen } from './prospectos.js'
 
 // ─── Dinero ─────────────────────────────────────────────────
@@ -133,63 +134,76 @@ export const integranteConversionSchema = z
   })
   .superRefine(validarDocumento)
 
+interface ConversionBase {
+  integrantes: { esTitular: boolean; email?: string }[]
+  trabajo: { fechaInicio: string; fechaLimite: string }
+  contrato: { montoTotal: number; formaPago: string; cuotas: { monto: number; vencimiento: string }[] }
+  pagoInicial?: { monto: number }
+}
+
+/** Reglas que valen al convertir un prospecto y al registrar un cliente directo. */
+function validarConversion(d: ConversionBase, ctx: z.RefinementCtx) {
+  const titulares = d.integrantes.filter((i) => i.esTitular).length
+  if (titulares !== 1) ctx.addIssue({ code: 'custom', path: ['integrantes'], message: 'Marca a un integrante como titular' })
+  if (!d.integrantes.some((i) => i.email)) {
+    ctx.addIssue({ code: 'custom', path: ['integrantes'], message: 'Al menos uno de los integrantes debe tener un correo' })
+  }
+  if (d.trabajo.fechaLimite < d.trabajo.fechaInicio) {
+    ctx.addIssue({ code: 'custom', path: ['trabajo', 'fechaLimite'], message: 'Debe ser posterior a la fecha de inicio' })
+  }
+  const { montoTotal, cuotas, formaPago } = d.contrato
+  if (formaPago === 'contado' && cuotas.length !== 1) {
+    ctx.addIssue({ code: 'custom', path: ['contrato', 'cuotas'], message: 'Al contado es un solo pago' })
+  }
+  const suma = cuotas.reduce((s, c) => s + aCentimos(c.monto), 0)
+  if (suma !== aCentimos(montoTotal)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['contrato', 'cuotas'],
+      message: `Las cuotas suman ${formatearSoles(deCentimos(suma))} y el total es ${formatearSoles(montoTotal)}`,
+    })
+  }
+  cuotas.forEach((c, i) => {
+    if (i > 0 && c.vencimiento < cuotas[i - 1].vencimiento) {
+      ctx.addIssue({ code: 'custom', path: ['contrato', 'cuotas', i, 'vencimiento'], message: 'Debe ser igual o posterior a la cuota anterior' })
+    }
+  })
+  if (d.pagoInicial && aCentimos(d.pagoInicial.monto) > aCentimos(montoTotal)) {
+    ctx.addIssue({ code: 'custom', path: ['pagoInicial', 'monto'], message: 'No puede superar el total del contrato' })
+  }
+}
+
+const trabajoConversionSchema = z.object({
+  titulo: texto(300),
+  fechaInicio: z.string().min(1, 'Elige la fecha de inicio').pipe(dia),
+  fechaLimite: z.string().min(1, 'Elige la fecha límite de entrega').pipe(dia),
+  /** Se copian del prospecto, pero deben estar completos para convertirlo. */
+  nivelAcademicoId: z.string({ error: 'Elige el nivel académico' }).min(1, 'Elige el nivel académico').pipe(z.uuid('Elige el nivel académico')),
+  universidadId: z.string({ error: 'Elige la universidad' }).min(1, 'Elige la universidad').pipe(z.uuid('Elige la universidad')),
+  carreraId: z.string({ error: 'Elige la carrera' }).min(1, 'Elige la carrera').pipe(z.uuid('Elige la carrera')),
+  linkDrive: z
+    .string({ error: 'Ingresa el enlace de Drive' })
+    .trim()
+    .min(1, 'Ingresa el enlace de Drive')
+    .pipe(z.url({ protocol: /^https?$/, error: 'Enlace no válido (debe empezar con https://)' }).max(500)),
+})
+const contratoConversionSchema = z.object({
+  fechaFirma: z.string().min(1, 'Elige la fecha de firma').pipe(dia),
+  montoTotal: monto('Ingresa el monto total'),
+  formaPago: z.enum(FORMAS_PAGO),
+  cuotas: z.array(z.object({ monto: monto(), vencimiento: z.string().min(1, 'Elige la fecha').pipe(dia) })).min(1, 'Agrega al menos una cuota'),
+  observaciones: texto(1000),
+})
+
 export const convertirProspectoSchema = z
   .object({
     integrantes: z.array(integranteConversionSchema).min(1, 'Elige al menos un integrante'),
-    trabajo: z.object({
-      titulo: texto(300),
-      fechaInicio: z.string().min(1, 'Elige la fecha de inicio').pipe(dia),
-      fechaLimite: z.string().min(1, 'Elige la fecha límite de entrega').pipe(dia),
-      /** Se copian del prospecto, pero deben estar completos para convertirlo. */
-      nivelAcademicoId: z.string({ error: 'Elige el nivel académico' }).min(1, 'Elige el nivel académico').pipe(z.uuid('Elige el nivel académico')),
-      universidadId: z.string({ error: 'Elige la universidad' }).min(1, 'Elige la universidad').pipe(z.uuid('Elige la universidad')),
-      carreraId: z.string({ error: 'Elige la carrera' }).min(1, 'Elige la carrera').pipe(z.uuid('Elige la carrera')),
-      linkDrive: z
-        .string({ error: 'Ingresa el enlace de Drive' })
-        .trim()
-        .min(1, 'Ingresa el enlace de Drive')
-        .pipe(z.url({ protocol: /^https?$/, error: 'Enlace no válido (debe empezar con https://)' }).max(500)),
-    }),
-    contrato: z.object({
-      fechaFirma: z.string().min(1, 'Elige la fecha de firma').pipe(dia),
-      montoTotal: monto('Ingresa el monto total'),
-      formaPago: z.enum(FORMAS_PAGO),
-      cuotas: z.array(z.object({ monto: monto(), vencimiento: z.string().min(1, 'Elige la fecha').pipe(dia) })).min(1, 'Agrega al menos una cuota'),
-      observaciones: texto(1000),
-    }),
+    trabajo: trabajoConversionSchema,
+    contrato: contratoConversionSchema,
     /** Pago recibido al firmar (opcional). */
     pagoInicial: pagoSchema.optional(),
   })
-  .superRefine((d, ctx) => {
-    const titulares = d.integrantes.filter((i) => i.esTitular).length
-    if (titulares !== 1) ctx.addIssue({ code: 'custom', path: ['integrantes'], message: 'Marca a un integrante como titular' })
-    if (!d.integrantes.some((i) => i.email)) {
-      ctx.addIssue({ code: 'custom', path: ['integrantes'], message: 'Al menos uno de los integrantes debe tener un correo' })
-    }
-    if (d.trabajo.fechaLimite < d.trabajo.fechaInicio) {
-      ctx.addIssue({ code: 'custom', path: ['trabajo', 'fechaLimite'], message: 'Debe ser posterior a la fecha de inicio' })
-    }
-    const { montoTotal, cuotas, formaPago } = d.contrato
-    if (formaPago === 'contado' && cuotas.length !== 1) {
-      ctx.addIssue({ code: 'custom', path: ['contrato', 'cuotas'], message: 'Al contado es un solo pago' })
-    }
-    const suma = cuotas.reduce((s, c) => s + aCentimos(c.monto), 0)
-    if (suma !== aCentimos(montoTotal)) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['contrato', 'cuotas'],
-        message: `Las cuotas suman ${formatearSoles(deCentimos(suma))} y el total es ${formatearSoles(montoTotal)}`,
-      })
-    }
-    cuotas.forEach((c, i) => {
-      if (i > 0 && c.vencimiento < cuotas[i - 1].vencimiento) {
-        ctx.addIssue({ code: 'custom', path: ['contrato', 'cuotas', i, 'vencimiento'], message: 'Debe ser igual o posterior a la cuota anterior' })
-      }
-    })
-    if (d.pagoInicial && aCentimos(d.pagoInicial.monto) > aCentimos(montoTotal)) {
-      ctx.addIssue({ code: 'custom', path: ['pagoInicial', 'monto'], message: 'No puede superar el total del contrato' })
-    }
-  })
+  .superRefine(validarConversion)
 export type ConvertirProspectoFormulario = z.input<typeof convertirProspectoSchema>
 export type ConvertirProspectoDatos = z.output<typeof convertirProspectoSchema>
 
@@ -549,3 +563,59 @@ export interface ResumenCobranza {
   totales: { vencido: number; porVencer7Dias: number; pendienteTotal: number }
   cuotas: CuotaPorCobrar[]
 }
+
+// ─── Cliente que ya trabaja con nosotros (alta directa, sin pasar por prospecto) ───
+
+export const integranteDirectoSchema = z
+  .object({
+    celular: z
+      .string({ error: 'Ingresa el celular' })
+      .trim()
+      .min(1, 'Ingresa el celular')
+      .transform((v, ctx) => {
+        const n = normalizarCelular(v)
+        if (!n) {
+          ctx.addIssue({ code: 'custom', message: 'Celular no válido (ej. 987 654 321 o +51 987 654 321)' })
+          return z.NEVER
+        }
+        return n
+      }),
+    nombres: z.string().trim().min(1, 'Ingresa los nombres').max(100),
+    apellidos: z.string().trim().min(1, 'Ingresa los apellidos').max(100),
+    email: opcional(z.string().trim().toLowerCase().pipe(z.email('Correo no válido').max(150))),
+    tipoDocumento: z.enum(TIPOS_DOCUMENTO, { error: 'Elige el tipo de documento' }),
+    numeroDocumento: z.string({ error: 'Ingresa el número de documento' }).trim().toUpperCase().min(1, 'Ingresa el número de documento').max(20),
+    esTitular: z.boolean().default(false),
+  })
+  .superRefine(validarDocumento)
+
+/** Un cliente que ya tiene trabajo contratado: se registra directo, con su contrato y los pagos ya recibidos. */
+export const clienteDirectoSchema = z
+  .object({
+    integrantes: z.array(integranteDirectoSchema).min(1, 'Agrega al menos un integrante').max(5, 'Máximo 5 integrantes'),
+    tipoTrabajoId: z.string({ error: 'Elige el tipo de trabajo' }).min(1, 'Elige el tipo de trabajo').pipe(z.uuid('Elige el tipo de trabajo')),
+    prioridadId: z.string({ error: 'Elige la prioridad' }).min(1, 'Elige la prioridad').pipe(z.uuid('Elige la prioridad')),
+    /** Quien sigue al cliente: la asistente administrativa que lo captó, el jefe de producción, etc. */
+    responsableId: z.string({ error: 'Elige al responsable' }).min(1, 'Elige al responsable').pipe(z.uuid('Elige al responsable')),
+    trabajo: trabajoConversionSchema,
+    contrato: contratoConversionSchema,
+    observaciones: texto(5000),
+    /** Pagos que el cliente ya hizo (con su fecha real). */
+    pagos: z.array(pagoSchema).default([]),
+  })
+  .superRefine((d, ctx) => {
+    validarConversion({ ...d, pagoInicial: undefined }, ctx)
+    const pagado = d.pagos.reduce((s, p) => s + aCentimos(p.monto), 0)
+    if (pagado > aCentimos(d.contrato.montoTotal)) {
+      ctx.addIssue({ code: 'custom', path: ['pagos'], message: `Los pagos (${formatearSoles(deCentimos(pagado))}) superan el total del contrato` })
+    }
+    d.pagos.forEach((p, i) => {
+      if (p.fecha < d.contrato.fechaFirma) ctx.addIssue({ code: 'custom', path: ['pagos', i, 'fecha'], message: 'No puede ser anterior a la firma del contrato' })
+    })
+    const documentos = d.integrantes.map((i) => `${i.tipoDocumento}${i.numeroDocumento}`)
+    if (new Set(documentos).size !== documentos.length) ctx.addIssue({ code: 'custom', path: ['integrantes'], message: 'Hay dos integrantes con el mismo documento' })
+    const celulares = d.integrantes.map((i) => i.celular)
+    if (new Set(celulares).size !== celulares.length) ctx.addIssue({ code: 'custom', path: ['integrantes'], message: 'Hay dos integrantes con el mismo celular' })
+  })
+export type ClienteDirectoFormulario = z.input<typeof clienteDirectoSchema>
+export type ClienteDirectoDatos = z.output<typeof clienteDirectoSchema>

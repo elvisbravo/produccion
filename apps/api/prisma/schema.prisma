@@ -476,6 +476,8 @@ enum Temperatura {
 }
 
 model Prospecto {
+  /// Cliente que ya trabajaba con nosotros: se registró directo, sin pasar por el embudo (no cuenta en los reportes de conversión).
+  clienteDirecto        Boolean      @default(false) @map("cliente_directo")
   id                    String       @id @default(uuid(7)) @db.Uuid
   codigo                String       @unique @db.VarChar(20)
   tipoTrabajoId         String       @map("tipo_trabajo_id") @db.Uuid

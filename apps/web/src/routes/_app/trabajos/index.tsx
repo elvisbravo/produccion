@@ -40,6 +40,8 @@ function ListadoTrabajos() {
   const navigate = useNavigate({ from: Route.fullPath })
   const alcance = useAlcance('trabajos.ver')
   const verMontos = usePermiso('contratos.ver_montos')
+  const puedeClienteDirecto = usePermiso('trabajos.registrar_cliente_directo')
+  const puedeProveedor = usePermiso('trabajos.registrar_de_proveedor')
   const { data, isPending } = useQuery(trabajosQuery(filtros))
   const [texto, setTexto] = useState(filtros.q ?? '')
   const q = useDebounce(texto.trim(), 350)
@@ -54,11 +56,25 @@ function ListadoTrabajos() {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-8">
-      <div className="space-y-1">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Trabajos</h1>
         <p className="text-sm text-muted-foreground">
           {alcance === 'todos' ? 'Todos los trabajos de clientes.' : 'Los trabajos donde participas.'} Ordenados por fecha de entrega.
         </p>
+        </div>
+        <div className="flex gap-2">
+          {puedeClienteDirecto && (
+            <Button variant="outline" asChild>
+              <Link to="/trabajos/cliente-directo">Registrar cliente existente</Link>
+            </Button>
+          )}
+          {puedeProveedor && (
+            <Button variant="outline" asChild>
+              <Link to="/trabajos/de-proveedor">Registrar trabajo de proveedor</Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
