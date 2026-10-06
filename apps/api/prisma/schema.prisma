@@ -748,6 +748,8 @@ model Tarea {
   inicio              DateTime?   @db.Timestamptz(6)
   minutosEstimados    Int         @map("minutos_estimados")
   modalidad           Modalidad?
+  /// Reuniones virtuales: el enlace de la videollamada (Meet, Zoom…).
+  enlaceReunion       String?     @map("enlace_reunion") @db.VarChar(500)
   estado              EstadoTarea
   notas               String?
   resultadoContactoId String?     @map("resultado_contacto_id") @db.Uuid

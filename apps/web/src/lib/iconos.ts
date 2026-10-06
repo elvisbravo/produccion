@@ -5,6 +5,7 @@ import {
   CalendarCog,
   CalendarDays,
   CalendarOff,
+  CalendarRange,
   ChartColumn,
   Clock,
   FileCog,
@@ -31,6 +32,7 @@ import {
  */
 const ICONOS: Record<string, LucideIcon> = {
   CalendarCheck2,
+  CalendarRange,
   Blocks,
   Handshake,
   BriefcaseBusiness,

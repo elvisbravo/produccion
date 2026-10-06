@@ -9,11 +9,14 @@ import {
   type CandidatosTarea,
   type CompletarTareaDatos,
   type ConflictoAgenda,
+  type EnlaceReunionDatos,
   type EstadoDisponibilidad,
+  type ListarReunionesConsulta,
   type PermisoCodigo,
   type ProgramarTareaDatos,
   type ReprogramarTareaDatos,
   type ResultadoCompletar,
+  type ReunionFila,
   type TareaItem,
 } from '@grupoes/shared';
 import { AgendaService } from '../agenda/agenda.service.js';
@@ -27,7 +30,8 @@ import { NotificacionesService } from '../notificaciones/notificaciones.service.
 import { ProduccionService } from '../produccion/produccion.service.js';
 import { EmbudoService } from './embudo.service.js';
 import { cerrarTramos } from './tramos.js';
-import { aTareaItem, esActiva, finDe, INCLUIR_TAREA, ORDEN_TAREAS } from './mapeo.js';
+import { CAMPOS_PERSONA } from '../personas/personas.service.js';
+import { aTareaItem, esActiva, finDe, INCLUIR_TAREA, ORDEN_TAREAS, type TareaCompleta } from './mapeo.js';
 
 export interface ActorTarea {
   usuarioId: string;
@@ -337,6 +341,85 @@ export class TareasService {
       })
       .join('. ');
     throw errorCampo(campo, mensaje);
+  }
+
+  // ─── Agenda de reuniones (tabla por días) ─────────────────
+
+  /** Las reuniones de un rango de días con los datos del cliente y de quienes participan; con alcance «propios», las suyas. */
+  async reuniones(consulta: ListarReunionesConsulta, usuarioId: string): Promise<ReunionFila[]> {
+    const desde = consulta.desde ?? diaEnLima();
+    const hasta = consulta.hasta ?? desde;
+    if (hasta < desde) throw errorCampo('hasta', 'Debe ser igual o posterior al primer día');
+    if (Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`) > 31 * 86_400_000) throw errorCampo('hasta', 'Máximo 31 días a la vez');
+    const filas = await this.prisma.tarea.findMany({
+      where: {
+        AND: [await this.filtroVisibles(usuarioId, 'agenda_reuniones.ver')],
+        actividad: { tipo: { comportamiento: 'reunion' }, ...(consulta.actividadId && { id: consulta.actividadId }) },
+        inicio: { not: null },
+        fecha: { gte: new Date(`${desde}T00:00:00Z`), lte: new Date(`${hasta}T00:00:00Z`) },
+        ...(consulta.estado && { estado: consulta.estado }),
+        ...(consulta.responsableId && { OR: [{ prospecto: { responsableId: consulta.responsableId } }, { trabajo: { prospecto: { responsableId: consulta.responsableId } } }] }),
+      },
+      include: {
+        ...INCLUIR_TAREA,
+        responsables: { ...INCLUIR_TAREA.responsables, include: { ...INCLUIR_TAREA.responsables.include, rol: { select: { nombre: true, codigo: true } } } },
+        prospecto: {
+          select: {
+            ...INCLUIR_TAREA.prospecto.select,
+            responsable: { select: { id: true, nombres: true, apellidos: true } },
+            nivelAcademico: { select: { nombre: true } },
+            carrera: { select: { nombre: true } },
+            universidad: { select: { nombre: true } },
+            trabajo: { select: { id: true } },
+          },
+        },
+        trabajo: {
+          select: {
+            id: true,
+            codigo: true,
+            titulo: true,
+            nivelAcademico: { select: { nombre: true } },
+            carrera: { select: { nombre: true } },
+            universidad: { select: { nombre: true } },
+            prospecto: { select: { responsable: { select: { id: true, nombres: true, apellidos: true } } } },
+            integrantes: { where: { esTitular: true }, take: 1, select: { persona: { select: CAMPOS_PERSONA } } },
+          },
+        },
+      },
+      orderBy: [{ fecha: 'asc' }, { inicio: 'asc' }, { creadoEn: 'asc' }],
+    });
+    const ahora = new Date();
+    return filas.map((t) => {
+      const tarea = aTareaItem(t as unknown as TareaCompleta, ahora);
+      const p = t.prospecto;
+      const w = t.trabajo;
+      const quien = (codigo: string) => t.responsables.find((r) => r.rol.codigo === codigo)?.usuario ?? null;
+      return {
+        tarea,
+        cliente: p?.contactos[0]?.persona ?? w?.integrantes[0]?.persona ?? null,
+        nivelAcademico: p?.nivelAcademico?.nombre ?? w?.nivelAcademico?.nombre ?? null,
+        carrera: p?.carrera?.nombre ?? w?.carrera?.nombre ?? null,
+        universidad: p?.universidad?.nombre ?? w?.universidad?.nombre ?? null,
+        enlace: t.enlaceReunion,
+        jefe: quien(ROLES_BASE.JEFE_PROD),
+        auxiliar: quien(ROLES_BASE.AUXILIAR),
+        asistente: p?.responsable ?? w?.prospecto?.responsable ?? null,
+        condicion: p && !p.trabajo ? ('potencial_cliente' as const) : ('cliente' as const),
+        motivo: t.motivoCancelacion ?? (t.estado === 'no_asistio' ? 'El cliente no asistió' : null),
+      };
+    });
+  }
+
+  /** Guarda (o quita) el enlace de la videollamada de una reunión. */
+  async guardarEnlaceReunion(tareaId: string, datos: EnlaceReunionDatos, actor: ActorTarea): Promise<TareaItem> {
+    const tarea = await this.obtenerVisible(tareaId, actor.usuarioId, 'tareas.editar');
+    if (tarea.actividad.tipo.comportamiento !== 'reunion') throw new BadRequestException('Solo las reuniones tienen enlace');
+    const enlace = datos.enlace ?? null;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.tarea.update({ where: { id: tareaId }, data: { enlaceReunion: enlace } });
+      await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'enlace_reunion', entidad: 'tarea', entidadId: tareaId, antes: { enlace: tarea.enlaceReunion }, despues: { enlace }, ip: actor.ip }, tx);
+    });
+    return this.detalle(tareaId, actor.usuarioId);
   }
 
   // ─── Asignar (bandeja del coordinador) ────────────────────

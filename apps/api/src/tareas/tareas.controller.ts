@@ -1,14 +1,19 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query, Req } from '@nestjs/common';
 import {
   asignarTareaSchema,
   cancelarTareaSchema,
   completarTareaSchema,
+  enlaceReunionSchema,
+  listarReunionesSchema,
   programarTareaSchema,
   reprogramarTareaSchema,
   type ActividadCatalogo,
   type AsignarTareaDatos,
   type CandidatosTarea,
   type CompletarTareaDatos,
+  type EnlaceReunionDatos,
+  type ListarReunionesConsulta,
+  type ReunionFila,
   type ProgramarTareaDatos,
   type ReprogramarTareaDatos,
   type ResultadoCompletar,
@@ -104,6 +109,19 @@ export class TareasController {
     @Req() req: SolicitudAutenticada,
   ): Promise<TareaItem> {
     return this.tareas.reprogramar(id, datos, actor(req));
+  }
+
+  /** Tabla de reuniones por días (con alcance «propios», las del usuario). */
+  @RequierePermiso('agenda_reuniones.ver')
+  @Get('reuniones')
+  reuniones(@Query(new ZodValidationPipe(listarReunionesSchema)) consulta: ListarReunionesConsulta, @Req() req: SolicitudAutenticada): Promise<ReunionFila[]> {
+    return this.tareas.reuniones(consulta, req.usuario!.id);
+  }
+
+  @RequierePermiso('tareas.editar')
+  @Put('tareas/:id/enlace-reunion')
+  enlaceReunion(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(enlaceReunionSchema)) datos: EnlaceReunionDatos, @Req() req: SolicitudAutenticada): Promise<TareaItem> {
+    return this.tareas.guardarEnlaceReunion(id, datos, actor(req));
   }
 
   @RequierePermiso('tareas.editar')

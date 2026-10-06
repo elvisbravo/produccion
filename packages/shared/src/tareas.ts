@@ -116,6 +116,8 @@ export interface TareaItem {
   inicio: string | null
   minutosEstimados: number
   modalidad: Modalidad | null
+  /** Reuniones virtuales: enlace de la videollamada. */
+  enlaceReunion: string | null
   estado: EstadoTarea
   vencida: boolean
   notas: string | null
@@ -202,4 +204,50 @@ export interface TableroSeguimiento {
   etapas: { id: string; nombre: string; color: string; clase: 'abierta' | 'ganada' | 'perdida'; orden: number }[]
   prospectos: TarjetaSeguimiento[]
   hoy: string
+}
+
+// ─── Agenda de reuniones (tabla por días) ───────────────────
+
+export const enlaceReunionSchema = z.object({
+  enlace: z.preprocess(
+    (v) => (v === '' || v === null ? undefined : v),
+    z
+      .string()
+      .trim()
+      .max(500, 'Máximo 500 caracteres')
+      .regex(/^https?:\/\/\S+$/i, 'Debe ser un enlace que empiece con http:// o https://')
+      .optional(),
+  ),
+})
+export type EnlaceReunionDatos = z.output<typeof enlaceReunionSchema>
+
+export const listarReunionesSchema = z.object({
+  /** Primer día (por defecto, hoy). */
+  desde: opcional(dia),
+  /** Último día (por defecto, el mismo día). Máximo 31 días. */
+  hasta: opcional(dia),
+  estado: z.enum(['por_asignar', 'pendiente', 'en_proceso', 'completada', 'cancelada', 'no_asistio', 'en_pausa']).optional(),
+  /** La asistente administrativa que sigue al cliente. */
+  responsableId: z.uuid().optional(),
+  actividadId: z.uuid().optional(),
+})
+export type ListarReunionesConsulta = z.output<typeof listarReunionesSchema>
+export type ListarReunionesFiltros = Partial<ListarReunionesConsulta>
+
+/** Una reunión de la tabla por días, con los datos del cliente y de quienes participan. */
+export interface ReunionFila {
+  tarea: TareaItem
+  /** Nombre y celular del contacto (del prospecto o, en un trabajo, del titular). */
+  cliente: PersonaResumen | null
+  nivelAcademico: string | null
+  carrera: string | null
+  universidad: string | null
+  enlace: string | null
+  jefe: UsuarioResumen | null
+  auxiliar: UsuarioResumen | null
+  /** La asistente administrativa que sigue al cliente. */
+  asistente: UsuarioResumen | null
+  condicion: 'potencial_cliente' | 'cliente'
+  /** Por qué se canceló (o no asistió). */
+  motivo: string | null
 }

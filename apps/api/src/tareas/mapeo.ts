@@ -64,6 +64,7 @@ export function aTareaItem(t: TareaCompleta, ahora = new Date()): TareaItem {
     inicio: t.inicio?.toISOString() ?? null,
     minutosEstimados: t.minutosEstimados,
     modalidad: t.modalidad,
+    enlaceReunion: t.enlaceReunion,
     estado: t.estado,
     vencida: estaVencida(t, ahora),
     notas: t.notas,

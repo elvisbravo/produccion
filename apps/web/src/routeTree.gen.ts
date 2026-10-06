@@ -35,6 +35,7 @@ import { Route as AppProveedoresIndexRouteImport } from './routes/_app/proveedor
 import { Route as AppProveedoresIdRouteImport } from './routes/_app/proveedores/$id'
 import { Route as AppReportesIndexRouteImport } from './routes/_app/reportes/index'
 import { Route as AppReunionesIndexRouteImport } from './routes/_app/reuniones/index'
+import { Route as AppReunionesAgendaRouteImport } from './routes/_app/reuniones/agenda'
 import { Route as AppRolesIndexRouteImport } from './routes/_app/roles/index'
 import { Route as AppRolesIdRouteImport } from './routes/_app/roles/$id'
 import { Route as AppSeguimientoIndexRouteImport } from './routes/_app/seguimiento/index'
@@ -181,6 +182,11 @@ const AppReunionesIndexRoute = AppReunionesIndexRouteImport.update({
   path: '/reuniones/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppReunionesAgendaRoute = AppReunionesAgendaRouteImport.update({
+  id: '/reuniones/agenda',
+  path: '/reuniones/agenda',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppRolesIndexRoute = AppRolesIndexRouteImport.update({
   id: '/roles/',
   path: '/roles/',
@@ -273,6 +279,7 @@ export interface FileRoutesByFullPath {
   '/clientes/$id': typeof AppClientesIdRoute
   '/prospectos/nuevo': typeof AppProspectosNuevoRoute
   '/proveedores/$id': typeof AppProveedoresIdRoute
+  '/reuniones/agenda': typeof AppReunionesAgendaRoute
   '/roles/$id': typeof AppRolesIdRoute
   '/trabajos/$id': typeof AppTrabajosIdRoute
   '/trabajos/cliente-directo': typeof AppTrabajosClienteDirectoRoute
@@ -316,6 +323,7 @@ export interface FileRoutesByTo {
   '/clientes/$id': typeof AppClientesIdRoute
   '/prospectos/nuevo': typeof AppProspectosNuevoRoute
   '/proveedores/$id': typeof AppProveedoresIdRoute
+  '/reuniones/agenda': typeof AppReunionesAgendaRoute
   '/roles/$id': typeof AppRolesIdRoute
   '/trabajos/$id': typeof AppTrabajosIdRoute
   '/trabajos/cliente-directo': typeof AppTrabajosClienteDirectoRoute
@@ -361,6 +369,7 @@ export interface FileRoutesById {
   '/_app/clientes/$id': typeof AppClientesIdRoute
   '/_app/prospectos/nuevo': typeof AppProspectosNuevoRoute
   '/_app/proveedores/$id': typeof AppProveedoresIdRoute
+  '/_app/reuniones/agenda': typeof AppReunionesAgendaRoute
   '/_app/roles/$id': typeof AppRolesIdRoute
   '/_app/trabajos/$id': typeof AppTrabajosIdRoute
   '/_app/trabajos/cliente-directo': typeof AppTrabajosClienteDirectoRoute
@@ -406,6 +415,7 @@ export interface FileRouteTypes {
     | '/clientes/$id'
     | '/prospectos/nuevo'
     | '/proveedores/$id'
+    | '/reuniones/agenda'
     | '/roles/$id'
     | '/trabajos/$id'
     | '/trabajos/cliente-directo'
@@ -449,6 +459,7 @@ export interface FileRouteTypes {
     | '/clientes/$id'
     | '/prospectos/nuevo'
     | '/proveedores/$id'
+    | '/reuniones/agenda'
     | '/roles/$id'
     | '/trabajos/$id'
     | '/trabajos/cliente-directo'
@@ -493,6 +504,7 @@ export interface FileRouteTypes {
     | '/_app/clientes/$id'
     | '/_app/prospectos/nuevo'
     | '/_app/proveedores/$id'
+    | '/_app/reuniones/agenda'
     | '/_app/roles/$id'
     | '/_app/trabajos/$id'
     | '/_app/trabajos/cliente-directo'
@@ -718,6 +730,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppReunionesIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/reuniones/agenda': {
+      id: '/_app/reuniones/agenda'
+      path: '/reuniones/agenda'
+      fullPath: '/reuniones/agenda'
+      preLoaderRoute: typeof AppReunionesAgendaRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/roles/': {
       id: '/_app/roles/'
       path: '/roles'
@@ -840,6 +859,7 @@ interface AppRouteChildren {
   AppClientesIdRoute: typeof AppClientesIdRoute
   AppProspectosNuevoRoute: typeof AppProspectosNuevoRoute
   AppProveedoresIdRoute: typeof AppProveedoresIdRoute
+  AppReunionesAgendaRoute: typeof AppReunionesAgendaRoute
   AppRolesIdRoute: typeof AppRolesIdRoute
   AppTrabajosIdRoute: typeof AppTrabajosIdRoute
   AppTrabajosClienteDirectoRoute: typeof AppTrabajosClienteDirectoRoute
@@ -879,6 +899,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppClientesIdRoute: AppClientesIdRoute,
   AppProspectosNuevoRoute: AppProspectosNuevoRoute,
   AppProveedoresIdRoute: AppProveedoresIdRoute,
+  AppReunionesAgendaRoute: AppReunionesAgendaRoute,
   AppRolesIdRoute: AppRolesIdRoute,
   AppTrabajosIdRoute: AppTrabajosIdRoute,
   AppTrabajosClienteDirectoRoute: AppTrabajosClienteDirectoRoute,

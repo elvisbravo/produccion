@@ -5,10 +5,13 @@ import type {
   CandidatosTarea,
   CatalogosProspecto,
   CompletarTareaDatos,
+  EnlaceReunionDatos,
+  ListarReunionesFiltros,
   ProgramarTareaDatos,
   ProspectoDetalle,
   ReprogramarTareaDatos,
   ResultadoCompletar,
+  ReunionFila,
   TableroSeguimiento,
   TareaItem,
 } from '@grupoes/shared'
@@ -139,5 +142,24 @@ export function useCambiarEtapa() {
       if (contexto?.anterior) queryClient.setQueryData(clavesTareas.tablero, contexto.anterior)
     },
     onSettled: refrescar,
+  })
+}
+
+/** La tabla de reuniones por días (las claves empiezan por «tareas»: reprogramar o cancelar la refrescan). */
+export const reunionesQuery = (filtros: ListarReunionesFiltros) => {
+  const params = new URLSearchParams()
+  for (const [clave, valor] of Object.entries(filtros)) if (valor) params.set(clave, String(valor))
+  return queryOptions({
+    queryKey: ['tareas', 'reuniones', filtros] as const,
+    queryFn: ({ signal }) => api<ReunionFila[]>(`/reuniones?${params.toString()}`, { signal }),
+    refetchInterval: 60_000,
+  })
+}
+
+export function useGuardarEnlaceReunion(tareaId: string) {
+  const refrescar = useRefrescar()
+  return useMutation({
+    mutationFn: (datos: EnlaceReunionDatos) => api<TareaItem>(`/tareas/${tareaId}/enlace-reunion`, { method: 'PUT', body: datos }),
+    onSuccess: refrescar,
   })
 }

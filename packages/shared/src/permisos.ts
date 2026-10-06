@@ -97,6 +97,10 @@ export const MODULOS = [
     ],
   },
   {
+    codigo: 'agenda_reuniones', nombre: 'Agenda de reuniones', padre: 'comercial', ruta: '/reuniones/agenda', icono: 'CalendarRange', orden: 14,
+    acciones: [ver(true)],
+  },
+  {
     codigo: 'reuniones', nombre: 'Reuniones por programar', padre: 'produccion', ruta: '/reuniones', icono: 'CalendarCheck2', orden: 27,
     acciones: [ver()],
   },
