@@ -1,7 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, ChevronsUpDown, Loader2, Plus, X } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -31,6 +33,9 @@ interface Props {
   onBlur?: () => void
 }
 
+/** Cómo se llama lo que se agrega (para el botón «+» y su ventana). */
+const NOMBRE_ELEMENTO: Record<string, string> = { universidades: 'universidad', carreras: 'carrera' }
+
 const normalizar = (t: string) =>
   t
     .normalize('NFD')
@@ -55,6 +60,11 @@ export function SelectorRemoto({
   const [abierto, setAbierto] = useState(false)
   const [texto, setTexto] = useState('')
   const [creando, setCreando] = useState(false)
+  const [agregando, setAgregando] = useState(false)
+  const [nuevo, setNuevo] = useState('')
+  const [errorNuevo, setErrorNuevo] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const elemento = NOMBRE_ELEMENTO[clave] ?? 'elemento'
   const q = useDebounce(texto.trim(), 250)
 
   const { data: resultados = [], isFetching: consultando } = useQuery({
@@ -87,7 +97,32 @@ export function SelectorRemoto({
     }
   }
 
+  // El botón «+»: agrega uno nuevo con su nombre y lo deja seleccionado.
+  const guardarNuevo = async () => {
+    if (!crear) return
+    const nombre = nuevo.trim()
+    if (nombre.length < 2) {
+      setErrorNuevo('Escribe al menos 2 letras')
+      return
+    }
+    setCreando(true)
+    setErrorNuevo(null)
+    try {
+      const creado = await crear(nombre)
+      void queryClient.invalidateQueries({ queryKey: ['selector', clave] })
+      onCambio(creado)
+      setAgregando(false)
+      setNuevo('')
+    } catch (err) {
+      setErrorNuevo(err instanceof Error ? err.message : 'No se pudo agregar')
+    } finally {
+      setCreando(false)
+    }
+  }
+
   return (
+    <div className="flex items-center gap-1.5">
+      <div className="min-w-0 flex-1">
     <Popover
       open={abierto}
       onOpenChange={(v) => {
@@ -159,5 +194,45 @@ export function SelectorRemoto({
         </Command>
       </PopoverContent>
     </Popover>
+      </div>
+      {crear && (
+        <>
+          <Button type="button" variant="outline" size="icon" aria-label={`Agregar ${elemento}`} title={`Agregar ${elemento}`} onClick={() => setAgregando(true)}>
+            <Plus />
+          </Button>
+          <Dialog open={agregando} onOpenChange={(v) => !creando && setAgregando(v)}>
+            <DialogContent className="sm:max-w-sm">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  // El diálogo está dentro de otro formulario (React propaga el envío a través del portal): no debe guardarlo.
+                  e.stopPropagation()
+                  void guardarNuevo()
+                }}
+                className="flex flex-col gap-4"
+              >
+                <DialogHeader>
+                  <DialogTitle>Agregar {elemento}</DialogTitle>
+                  <DialogDescription>Escribe el nombre. Si ya existe, se usa el que está registrado. Al guardar queda seleccionada.</DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-col gap-1.5">
+                  <Input autoFocus value={nuevo} onChange={(e) => setNuevo(e.target.value)} placeholder={`Nombre de la ${elemento}`} maxLength={200} aria-label={`Nombre de la ${elemento}`} aria-invalid={Boolean(errorNuevo)} />
+                  {errorNuevo && <p className="text-sm text-destructive">{errorNuevo}</p>}
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setAgregando(false)} disabled={creando}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" disabled={creando}>
+                    {creando && <Loader2 className="animate-spin" />}
+                    Agregar
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
+    </div>
   )
 }
