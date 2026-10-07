@@ -392,3 +392,56 @@ export const cambiarInicioSchema = z.object({
   hora: opcional(hora),
 })
 export type CambiarInicioDatos = z.output<typeof cambiarInicioSchema>
+
+// ─── Bolsa de horas extra y canje ───────────────────────────
+
+export const TIPOS_CANJE = ['dias', 'dinero'] as const
+export type TipoCanje = (typeof TIPOS_CANJE)[number]
+export const NOMBRE_TIPO_CANJE: Record<TipoCanje, string> = { dias: 'Días libres', dinero: 'Dinero' }
+
+/** Canjear horas de la bolsa: por días libres (se descuenta lo que suma su jornada) o por dinero (el monto, a mano). */
+export const canjearHorasSchema = z
+  .object({
+    tipo: z.enum(TIPOS_CANJE),
+    fechaDesde: opcional(dia),
+    fechaHasta: opcional(dia),
+    /** Dinero: cuánto de la bolsa se canjea (por defecto, todo el saldo). */
+    minutos: opcional(z.coerce.number('Minutos no válidos').int().min(15, 'Mínimo 15 minutos').max(24 * 60 * 200)),
+    monto: opcional(z.coerce.number('Monto no válido').positive('Debe ser mayor que cero').max(100_000)),
+    nota: texto(300),
+  })
+  .superRefine((d, ctx) => {
+    if (d.tipo === 'dias') {
+      if (!d.fechaDesde) ctx.addIssue({ code: 'custom', message: 'Elige el primer día', path: ['fechaDesde'] })
+      if (!d.fechaHasta) ctx.addIssue({ code: 'custom', message: 'Elige el último día', path: ['fechaHasta'] })
+      if (d.fechaDesde && d.fechaHasta && d.fechaHasta < d.fechaDesde) ctx.addIssue({ code: 'custom', message: 'Debe ser igual o posterior al primer día', path: ['fechaHasta'] })
+    } else if (!d.monto) {
+      ctx.addIssue({ code: 'custom', message: 'Indica el monto', path: ['monto'] })
+    }
+  })
+export type CanjearHorasFormulario = z.input<typeof canjearHorasSchema>
+export type CanjearHorasDatos = z.output<typeof canjearHorasSchema>
+
+export interface MovimientoBolsa {
+  id: string
+  tipo: 'acumulado' | 'canje_dias' | 'canje_dinero'
+  /** ISO. */
+  fecha: string
+  /** Positivo si suma a la bolsa; negativo si se canjea. */
+  minutos: number
+  detalle: string
+  monto: number | null
+  anulado: boolean
+}
+
+export interface BolsaPersona {
+  usuario: UsuarioResumen
+  acumuladoMinutos: number
+  canjeadoMinutos: number
+  saldoMinutos: number
+  movimientos: MovimientoBolsa[]
+}
+
+export interface ResumenBolsa {
+  personas: BolsaPersona[]
+}

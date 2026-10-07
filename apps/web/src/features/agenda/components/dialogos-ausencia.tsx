@@ -51,7 +51,7 @@ export function DialogoAusencia({
   abierto,
   onAbiertoChange,
 }: PropsDialogo & { modo: 'solicitar' | 'registrar'; tiposPermitidos?: readonly TipoAusencia[] }) {
-  const tipos = tiposPermitidos ?? (modo === 'solicitar' ? TIPOS_AUSENCIA_SOLICITABLES : TIPOS_AUSENCIA)
+  const tipos = tiposPermitidos ?? (modo === 'solicitar' ? TIPOS_AUSENCIA_SOLICITABLES : TIPOS_AUSENCIA.filter((t) => t !== 'compensacion'))
   const solicitar = useSolicitarAusencia()
   const registrar = useRegistrarAusencia()
   const { data: personas } = useQuery({ ...personasAusenciaQuery, enabled: abierto && modo === 'registrar' })

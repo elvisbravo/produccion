@@ -118,13 +118,14 @@ export const feriadoSchema = z.object({
 export type FeriadoFormulario = z.input<typeof feriadoSchema>
 export type FeriadoDatos = z.output<typeof feriadoSchema>
 
-export const TIPOS_AUSENCIA = ['vacaciones', 'permiso', 'descanso_medico', 'otro'] as const
+export const TIPOS_AUSENCIA = ['vacaciones', 'permiso', 'descanso_medico', 'otro', 'compensacion'] as const
 export type TipoAusencia = (typeof TIPOS_AUSENCIA)[number]
 export const NOMBRE_TIPO_AUSENCIA: Record<TipoAusencia, string> = {
   vacaciones: 'Vacaciones',
   permiso: 'Permiso',
   descanso_medico: 'Descanso médico',
   otro: 'Otro',
+  compensacion: 'Días por horas extra',
 }
 /** Los que la persona solicita (el descanso médico lo registra producción o el administrador). */
 export const TIPOS_AUSENCIA_SOLICITABLES = ['vacaciones', 'permiso', 'otro'] as const satisfies readonly TipoAusencia[]

@@ -82,6 +82,9 @@ model Usuario {
   notificaciones         Notificacion[]               @relation("NotificacionDelUsuario")
   topeHorasExtra         TopeHorasExtraUsuario?
   tiempos                RegistroTiempo[]             @relation("TiempoDelUsuario")
+  canjesDeHoras          CanjeHoras[]                 @relation("CanjeDelUsuario")
+  canjesCreados          CanjeHoras[]                 @relation("CanjeCreadoPor")
+  canjesAnulados         CanjeHoras[]                 @relation("CanjeAnuladoPor")
   costosHora             CostoHoraUsuario[]           @relation("CostoDelUsuario")
   extrasPropuestas       HoraExtraBono[]              @relation("ExtraPropuestaPor")
   extrasAprobadas        HoraExtraBono[]              @relation("ExtraAprobadaPor")
@@ -1166,6 +1169,8 @@ enum TipoAusencia {
   permiso
   descanso_medico
   otro
+  /// Días libres canjeados con horas extra acumuladas.
+  compensacion
 
   @@map("tipo_ausencia")
 }
@@ -1198,6 +1203,7 @@ model Ausencia {
   observacion     String?
 
   usuario       Usuario  @relation("AusenciaDelUsuario", fields: [usuarioId], references: [id])
+  canje         CanjeHoras?
   solicitadaPor Usuario  @relation("AusenciaSolicitadaPor", fields: [solicitadaPorId], references: [id])
   resueltaPor   Usuario? @relation("AusenciaResueltaPor", fields: [resueltaPorId], references: [id])
 
@@ -1474,6 +1480,42 @@ model HoraExtraBono {
   @@index([usuarioId, fecha])
   @@index([estado])
   @@map("hora_extra_bono")
+}
+
+enum TipoCanje {
+  dias
+  dinero
+
+  @@map("tipo_canje")
+}
+
+/// Canje de las horas extra acumuladas en la bolsa de una persona: días libres (crea una ausencia) o dinero (monto a mano).
+model CanjeHoras {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  usuarioId    String    @map("usuario_id") @db.Uuid
+  tipo         TipoCanje
+  /// Minutos que se descuentan de la bolsa.
+  minutos      Int
+  /// Dinero: el monto, a mano.
+  monto        Decimal?  @db.Decimal(10, 2)
+  /// Días: el rango libre.
+  fechaDesde   DateTime? @map("fecha_desde") @db.Date
+  fechaHasta   DateTime? @map("fecha_hasta") @db.Date
+  nota         String?
+  /// Días: la ausencia (compensación) que bloquea esos días.
+  ausenciaId   String?   @unique @map("ausencia_id") @db.Uuid
+  creadoPorId  String    @map("creado_por_id") @db.Uuid
+  creadoEn     DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
+  anuladoEn    DateTime? @map("anulado_en") @db.Timestamptz(6)
+  anuladoPorId String?   @map("anulado_por_id") @db.Uuid
+
+  usuario    Usuario   @relation("CanjeDelUsuario", fields: [usuarioId], references: [id])
+  creadoPor  Usuario   @relation("CanjeCreadoPor", fields: [creadoPorId], references: [id])
+  anuladoPor Usuario?  @relation("CanjeAnuladoPor", fields: [anuladoPorId], references: [id])
+  ausencia   Ausencia? @relation(fields: [ausenciaId], references: [id])
+
+  @@index([usuarioId])
+  @@map("canje_horas")
 }
 
 // ─── Notificaciones ─────────────────────────────────────────

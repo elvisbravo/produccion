@@ -421,6 +421,51 @@ describe('Cliente directo (e2e)', () => {
     }
   });
 
+  it('las horas extra acumuladas van a la bolsa y se canjean por dinero o por días libres', async () => {
+    const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string }[];
+    const dia = await proximoDiaHabil(prisma, sumarDias(hoy, 3));
+    const integrantes = [{ celular: `9${sufijo}55`, nombres: 'Bolsa', apellidos: 'Horas', email: `bolsa.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `5${sufijo}9`, esTitular: true }];
+    const programacion = { actividadId: actividades.find((a) => a.nombre === 'Elaboración')!.id, minutosEstimados: 14 * 60, hora: '08:00', auxiliarPrincipalId: ids.aux, jefeResponsableId: ids.jefe, modoInicio: 'secuencial', faltante: { tipo: 'horas_extra', fecha: dia, horaInicio: '19:00', horaFin: '22:00', acumula: true } };
+    const creado = (await enviar('prod', { integrantes, pagos: [], contrato: undefined, trabajo: { ...(cuerpo.trabajo as object), titulo: 'Bolsa', fechaInicio: dia, fechaLimite: dia }, programacion }).expect(201)).body as TrabajoDetalle;
+    try {
+      const propuesta = await prisma.horaExtraBono.findFirstOrThrow({ where: { trabajoId: creado.id } });
+      // El auxiliar acepta, la asistente de producción aprueba y se realiza con 12 h reales
+      await http().post(`/api/horas-extra/${propuesta.id}/responder`).set(como('aux')).send({ acepta: true }).expect(201);
+      await http().post(`/api/horas-extra/${propuesta.id}/aprobar`).set(como('prod')).expect(201);
+      await http().post(`/api/horas-extra/${propuesta.id}/realizar`).set(como('prod')).send({ minutosReales: 720 }).expect(201);
+      const bolsa = async (q: Quien) => ((await http().get('/api/horas-extra/bolsa').set(como(q)).expect(200)).body as { personas: { usuario: { id: string }; acumuladoMinutos: number; canjeadoMinutos: number; saldoMinutos: number; movimientos: { id: string; tipo: string; minutos: number; anulado: boolean }[] }[] }).personas;
+      expect((await bolsa('prod')).find((p) => p.usuario.id === ids.aux)).toMatchObject({ acumuladoMinutos: 720, saldoMinutos: 720 });
+      // Cada quien ve solo lo suyo
+      expect((await bolsa('aux')).map((p) => p.usuario.id)).toEqual([ids.aux]);
+      // Solo quien aprueba canjea
+      await http().post(`/api/horas-extra/bolsa/${ids.aux}/canjear`).set(como('aux')).send({ tipo: 'dinero', monto: 10 }).expect(403);
+      // Dinero: monto a mano, descuenta lo canjeado
+      await http().post(`/api/horas-extra/bolsa/${ids.aux}/canjear`).set(como('prod')).send({ tipo: 'dinero', minutos: 60, monto: 25.5, nota: 'Pagado en efectivo' }).expect(204);
+      expect((await bolsa('prod')).find((p) => p.usuario.id === ids.aux)).toMatchObject({ canjeadoMinutos: 60, saldoMinutos: 660 });
+      await http().post(`/api/horas-extra/bolsa/${ids.aux}/canjear`).set(como('prod')).send({ tipo: 'dinero', minutos: 9999, monto: 1 }).expect(400);
+      // Días libres: se descuenta su jornada y se bloquean esos días en el calendario
+      const libre = await proximoDiaHabil(prisma, sumarDias(hoy, 10));
+      await http().post(`/api/horas-extra/bolsa/${ids.aux}/canjear`).set(como('prod')).send({ tipo: 'dias', fechaDesde: libre, fechaHasta: libre }).expect(204);
+      const despues = (await bolsa('prod')).find((p) => p.usuario.id === ids.aux)!;
+      expect(despues.canjeadoMinutos).toBeGreaterThan(60);
+      const canjeDias = despues.movimientos.find((m) => m.tipo === 'canje_dias')!;
+      const ausencia = await prisma.ausencia.findFirstOrThrow({ where: { usuarioId: ids.aux, tipo: 'compensacion' } });
+      expect(ausencia.estado).toBe('aprobada');
+      // Otro canje de esos mismos días se rechaza (ya tiene ausencia)
+      await http().post(`/api/horas-extra/bolsa/${ids.aux}/canjear`).set(como('prod')).send({ tipo: 'dias', fechaDesde: libre, fechaHasta: libre }).expect(400);
+      // Anular devuelve las horas y quita la ausencia
+      await http().post(`/api/horas-extra/bolsa/canjes/${canjeDias.id}/anular`).set(como('prod')).expect(204);
+      expect((await bolsa('prod')).find((p) => p.usuario.id === ids.aux)).toMatchObject({ canjeadoMinutos: 60, saldoMinutos: 660 });
+      expect((await prisma.ausencia.findUniqueOrThrow({ where: { id: ausencia.id } })).estado).toBe('anulada');
+    } finally {
+      await prisma.canjeHoras.deleteMany({ where: { usuarioId: ids.aux } });
+      await prisma.ausencia.deleteMany({ where: { usuarioId: ids.aux, tipo: 'compensacion' } });
+      await prisma.horaExtraBono.deleteMany({ where: { trabajoId: creado.id } });
+      await prisma.trabajo.deleteMany({ where: { id: creado.id } });
+      await prisma.prospecto.deleteMany({ where: { creadoPor: ids.prod, trabajo: null } });
+    }
+  });
+
   it('acepta una hora de inicio de hoy que ya pasó: la actividad arranca desde ahora', async () => {
     const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string }[];
     const elaboracion = actividades.find((a) => a.nombre === 'Elaboración')!;

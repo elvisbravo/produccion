@@ -2,6 +2,7 @@ import type {
   ApoyoTarea,
   AplicarReasignacionDatos,
   CambiarInicioDatos,
+  CanjearHorasDatos,
   CargaPersona,
   ImpactoCarga,
   RepartoCargaDatos,
@@ -14,6 +15,7 @@ import type {
   ProponerApoyoFormulario,
   ResumenExtras,
   PropuestaUrgente,
+  ResumenBolsa,
   RepartoUrgente,
   SolicitudUrgenteItem,
   TopesExtra,
@@ -128,3 +130,10 @@ export const useAplicarCarga = (usuarioId: string) =>
 /** Cambia desde qué día y hora se programa una actividad de la cola. */
 export const useCambiarInicio = (tareaId: string) =>
   useAccion((datos: CambiarInicioDatos) => api<void>(`/produccion/tareas/${tareaId}/inicio`, { method: 'PUT', body: datos }))
+
+/** La bolsa de horas extra acumuladas de cada persona (o la propia). */
+export const bolsaQuery = queryOptions({ queryKey: ['horas-extra', 'bolsa'] as const, queryFn: () => api<ResumenBolsa>('/horas-extra/bolsa'), staleTime: 0 })
+
+export const useCanjearHoras = (usuarioId: string) => useAccion((datos: CanjearHorasDatos) => api<void>(`/horas-extra/bolsa/${usuarioId}/canjear`, { method: 'POST', body: datos }))
+
+export const useAnularCanje = () => useAccion((id: string) => api<void>(`/horas-extra/bolsa/canjes/${id}/anular`, { method: 'POST', body: {} }))

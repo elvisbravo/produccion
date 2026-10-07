@@ -105,6 +105,7 @@ export class AusenciasService {
   }
 
   private async crear(usuarioId: string, datos: SolicitarAusenciaDatos, estado: 'solicitada' | 'aprobada', actor: ActorAusencia) {
+    if (datos.tipo === 'compensacion') throw errorCampo('tipo', 'Los días por horas extra se crean al canjear la bolsa de horas');
     const minutoDesde = datos.horaDesde ? horaAMinutos(datos.horaDesde) : null;
     const minutoHasta = datos.horaHasta ? horaAMinutos(datos.horaHasta) : null;
     await this.verificarCruce(usuarioId, { fechaDesde: datos.fechaDesde, fechaHasta: datos.fechaHasta, minutoDesde, minutoHasta });

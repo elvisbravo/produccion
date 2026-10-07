@@ -224,7 +224,8 @@ describe('Contingencias de producción (e2e)', () => {
       await http().post(`/api/horas-extra/${extraId}/aprobar`).set(como('jefe')).expect(400);
       await http().post(`/api/horas-extra/${extraId}/responder`).set(como('aux')).send({ acepta: true }).expect(403);
       await http().post(`/api/horas-extra/${extraId}/responder`).set(como('aux2')).send({ acepta: true }).expect(201);
-      await http().post(`/api/horas-extra/${extraId}/aprobar`).set(como('prod')).expect(403);
+      // Aprueba el jefe o la asistente de producción; quien no tiene el permiso (la administrativa) no
+      await http().post(`/api/horas-extra/${extraId}/aprobar`).set(como('ana')).expect(403);
       expect((await http().post(`/api/horas-extra/${extraId}/aprobar`).set(como('jefe')).expect(201)).body.estado).toBe('aprobada');
 
       const agenda = (await http().get(`/api/agenda/mia?desde=${domingo}&hasta=${domingo}`).set(como('aux2')).expect(200)).body as AgendaPersona;

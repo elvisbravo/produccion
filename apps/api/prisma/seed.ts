@@ -52,7 +52,7 @@ const PERMISOS_INICIALES: Record<Exclude<RolBase, 'ADMIN'>, Matriz> = {
     'tareas.ver': 'todos', 'tareas.crear': null, 'tareas.editar': 'todos', 'tareas.eliminar': null, 'tareas.asignar': null, 'agenda_reuniones.ver': 'todos', 'entregas.ver': null, 'entregas.exportar': null,
     'tareas.reprogramar': null, 'tareas.forzar_agenda': null,
     'ausencias.ver': 'todos', 'ausencias.crear': null, 'ausencias.solicitar': null,
-    'horas_extra.ver': 'todos',
+    'horas_extra.ver': 'todos', 'horas_extra.aprobar': null,
     'reportes.ver': null,
     'agenda.ver': null, 'calendario.ver': null,
     'proveedores.ver': null, 'proveedores.crear': null, 'proveedores.editar': null, 'reuniones.ver': null,

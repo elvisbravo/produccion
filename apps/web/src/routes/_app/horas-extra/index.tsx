@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { extrasQuery, useAccionExtra, useGuardarTopes } from '@/features/produccion/api-contingencias'
+import { BolsaHoras } from '@/features/produccion/components/bolsa-horas'
 import { DialogoProponerExtra } from '@/features/produccion/components/dialogo-proponer-extra'
 import { ApiError } from '@/lib/api'
 import { duracion, formatearFecha, haceCuanto, nombreCompleto } from '@/lib/formato'
@@ -27,7 +28,7 @@ import { useSesion } from '@/stores/sesion'
 
 export const Route = createFileRoute('/_app/horas-extra/')({
   validateSearch: z.object({
-    vista: z.enum(['mias', 'por_aprobar', 'todas']).optional().catch(undefined),
+    vista: z.enum(['mias', 'por_aprobar', 'todas', 'bolsa']).optional().catch(undefined),
     mes: z.string().regex(/^\d{4}-\d{2}$/).optional().catch(undefined),
   }),
   beforeLoad: () => exigirPermiso('horas_extra.ver'),
@@ -60,8 +61,9 @@ function HorasExtra() {
   const veTodas = useAlcance('horas_extra.ver') === 'todos'
   const mesActual = diaEnLima().slice(0, 7)
   const mes = mesBuscado ?? mesActual
-  const vista: VistaExtras = buscada ?? (puedeAprobar ? 'por_aprobar' : veTodas ? 'todas' : 'mias')
-  const { data, isPending } = useQuery(extrasQuery(vista, `${mes}-01`, finDeMes(mes)))
+  const esBolsa = buscada === 'bolsa'
+  const vista: VistaExtras = buscada && buscada !== 'bolsa' ? buscada : puedeAprobar ? 'por_aprobar' : veTodas ? 'todas' : 'mias'
+  const { data, isPending } = useQuery({ ...extrasQuery(vista, `${mes}-01`, finDeMes(mes)), enabled: !esBolsa })
   const [proponiendo, setProponiendo] = useState(false)
   const [topes, setTopes] = useState(false)
 
@@ -71,7 +73,7 @@ function HorasExtra() {
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">Horas extra y bonos</h1>
           <p className="text-sm text-muted-foreground">
-            Se proponen, la persona acepta, el jefe aprueba y luego se registran como realizadas. Las horas extra aprobadas abren capacidad en la agenda.
+            Se proponen, la persona acepta, producción (la asistente o el jefe) aprueba y luego se registran como realizadas. Las horas extra aprobadas abren capacidad en la agenda.
           </p>
         </div>
         <div className="flex gap-2">
@@ -93,14 +95,15 @@ function HorasExtra() {
         <ToggleGroup
           type="single"
           variant="outline"
-          value={vista}
-          onValueChange={(v) => v && void navigate({ search: (x) => ({ ...x, vista: v as VistaExtras }), replace: true })}
+          value={esBolsa ? 'bolsa' : vista}
+          onValueChange={(v) => v && void navigate({ search: (x) => ({ ...x, vista: v as VistaExtras | 'bolsa' }), replace: true })}
         >
           <ToggleGroupItem value="mias">Mías</ToggleGroupItem>
           {puedeAprobar && <ToggleGroupItem value="por_aprobar">Por aprobar</ToggleGroupItem>}
           {veTodas && <ToggleGroupItem value="todas">Todas</ToggleGroupItem>}
+          <ToggleGroupItem value="bolsa">Bolsa de horas</ToggleGroupItem>
         </ToggleGroup>
-        {vista !== 'por_aprobar' && (
+        {!esBolsa && vista !== 'por_aprobar' && (
           <div className="flex items-center gap-2">
             <Button variant="outline" size="icon" onClick={() => void navigate({ search: (x) => ({ ...x, mes: mover(mes, -1) }), replace: true })} aria-label="Mes anterior">
               <ChevronLeft />
@@ -113,7 +116,7 @@ function HorasExtra() {
         )}
       </div>
 
-      {data && vista !== 'por_aprobar' && data.personas.length > 0 && (
+      {!esBolsa && data && vista !== 'por_aprobar' && data.personas.length > 0 && (
         <section className="flex flex-col gap-2">
           <h2 className="text-sm font-medium text-muted-foreground">
             Aprobado y realizado en el mes
@@ -137,7 +140,9 @@ function HorasExtra() {
         </section>
       )}
 
-      {isPending || !data ? (
+      {esBolsa ? (
+        <BolsaHoras puedeCanjear={puedeAprobar} />
+      ) : isPending || !data ? (
         <Skeleton className="h-64" />
       ) : data.items.length === 0 ? (
         <Empty className="border">
