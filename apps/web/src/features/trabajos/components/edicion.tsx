@@ -35,7 +35,7 @@ export function BotonReprogramar({ t }: { t: TrabajoDetalle }) {
   )
 }
 
-function DialogoReprogramar({ t, abierto, onAbiertoChange }: { t: TrabajoDetalle; abierto: boolean; onAbiertoChange: (a: boolean) => void }) {
+export function DialogoReprogramar({ t, abierto, onAbiertoChange }: { t: TrabajoDetalle; abierto: boolean; onAbiertoChange: (a: boolean) => void }) {
   const reprogramar = useReprogramarTrabajo(t.id)
   const [error, setError] = useState<string | null>(null)
   const form = useForm<ReprogramarTrabajoFormulario, unknown, ReprogramarTrabajoDatos>({ resolver: zodResolver(reprogramarTrabajoSchema), defaultValues: { fechaLimite: '', motivo: '' } })

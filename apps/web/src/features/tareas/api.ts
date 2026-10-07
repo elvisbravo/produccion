@@ -76,6 +76,8 @@ export function useCatalogosSeguimiento() {
 function useRefrescar() {
   const queryClient = useQueryClient()
   return () => {
+    // Las reuniones y la cola se reflejan también en el calendario del equipo, las colas y las entregas.
+    for (const queryKey of [['agenda'], ['produccion'], ['trabajos']]) void queryClient.invalidateQueries({ queryKey })
     void queryClient.invalidateQueries({ queryKey: clavesTareas.todo })
     void queryClient.invalidateQueries({ queryKey: clavesTareas.tablero })
     void queryClient.invalidateQueries({ queryKey: clavesProspectos.todo })
@@ -214,3 +216,6 @@ export const impactoCancelarQuery = (tareaId: string, activo: boolean) =>
     enabled: activo,
     staleTime: 0,
   })
+
+/** Una tarea con todo su detalle (para abrir sus diálogos desde el calendario). */
+export const tareaDetalleQuery = (id: string, activo = true) => queryOptions({ queryKey: ['tareas', 'detalle', id] as const, queryFn: () => api<TareaItem>(`/tareas/${id}`), enabled: activo, staleTime: 0 })

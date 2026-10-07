@@ -4,6 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils'
 import { cabeceraDia, horaCorta, horas } from '../semanas'
 import { InsigniaEstadoDia } from './insignias'
+import { MenuAccionesTarea } from './menu-acciones-tarea'
 
 const PX_POR_HORA = 44
 const RAYADO = 'bg-[repeating-linear-gradient(135deg,transparent_0_6px,var(--color-violet-500)_6px_7px)] opacity-25'
@@ -34,7 +35,7 @@ function carriles(tareas: TareaAgenda[]): Map<string, { carril: number; total: n
 }
 
 /** Semana de una persona: su horario, los días u horas no laborables y sus tareas. */
-export function Semana({ dias, hoy }: { dias: DiaAgenda[]; hoy: string }) {
+export function Semana({ dias, hoy, usuarioId }: { dias: DiaAgenda[]; hoy: string; /** Con la persona, cada bloque tiene su menú de acciones (reprogramar, cancelar…). */ usuarioId?: string }) {
   const marcas = dias.flatMap((d) => [...d.tramos.flatMap((t) => [t.inicio, t.fin]), ...d.extras.flatMap((t) => [t.inicio, t.fin]), ...d.tareas.flatMap((t) => (t.inicio === null ? [] : [t.inicio, t.fin!]))])
   const desde = Math.floor(Math.min(7 * 60, ...marcas) / 60) * 60
   const hasta = Math.ceil(Math.max(20 * 60, ...marcas) / 60) * 60
@@ -127,6 +128,7 @@ export function Semana({ dias, hoy }: { dias: DiaAgenda[]; hoy: string }) {
                       width: `calc(${ancho}% - 4px)`,
                     }}
                     conHora
+                    usuarioId={usuarioId}
                   />
                 )
               })}
@@ -138,7 +140,7 @@ export function Semana({ dias, hoy }: { dias: DiaAgenda[]; hoy: string }) {
   )
 }
 
-function BloqueTarea({ tarea: t, className, style, conHora }: { tarea: TareaAgenda; className?: string; style?: React.CSSProperties; conHora?: boolean }) {
+function BloqueTarea({ tarea: t, className, style, conHora, usuarioId }: { tarea: TareaAgenda; className?: string; style?: React.CSSProperties; conHora?: boolean; usuarioId?: string }) {
   const hecha = t.estado !== 'pendiente' && t.estado !== 'en_proceso'
   const color = t.color ?? 'var(--color-zinc-500)'
   const contenido = (
@@ -161,7 +163,12 @@ function BloqueTarea({ tarea: t, className, style, conHora }: { tarea: TareaAgen
   const clases = cn('text-foreground', hecha && 'opacity-60', className)
   const enlace = cn(clases, 'hover:ring-2 hover:ring-ring/40')
 
+  // El menú de acciones va al lado del bloque (un botón dentro de un enlace no es válido).
+  const menu = usuarioId && conHora && style ? <MenuAccionesTarea tarea={t} usuarioId={usuarioId} estilo={{ top: `calc(${style.top}px + 2px)`, left: `calc(${style.left} + ${style.width} - 22px)` }} /> : null
+
   return (
+    <>
+    {menu}
     <Tooltip>
       <TooltipTrigger asChild>
         {t.referencia?.tipo === 'trabajo' ? (
@@ -192,5 +199,6 @@ function BloqueTarea({ tarea: t, className, style, conHora }: { tarea: TareaAgen
         )}
       </TooltipContent>
     </Tooltip>
+    </>
   )
 }

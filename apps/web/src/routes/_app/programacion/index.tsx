@@ -144,7 +144,7 @@ function SemanaPersona({ persona, lunes, hoy }: { persona: AgendaPersona; lunes:
           <NavegacionSemana lunes={desde} lunesActual={lunesDe(hoy)} onCambiar={(s) => setDesde(s ?? lunesDe(hoy))} />
           <Leyenda />
         </div>
-        {data ? <Semana dias={data.dias} hoy={hoy} /> : <Skeleton className="h-[600px]" />}
+        {data ? <Semana dias={data.dias} hoy={hoy} usuarioId={persona.usuario.id} /> : <Skeleton className="h-[600px]" />}
       </div>
     </>
   )
