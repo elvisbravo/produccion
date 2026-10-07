@@ -17,7 +17,9 @@ import { ApiError } from '@/lib/api'
 import { describirCuando, formatearHora, nombreCompleto } from '@/lib/formato'
 import { usePermiso } from '@/lib/permisos'
 import { cn } from '@/lib/utils'
-import { candidatosQuery, useAsignarTarea } from '../api'
+import { candidatosQuery, impactoColaQuery, useAsignarTarea } from '../api'
+import { AvisoImpacto, resumenImpacto } from './aviso-impacto'
+import { avisarReordenar } from './reordenar-cola'
 
 interface Props {
   tareaId: string
@@ -34,6 +36,9 @@ export function DialogoAsignar({ tareaId, hoy, abierto, onAbiertoChange }: Props
   const [elegidos, setElegidos] = useState<Record<string, string>>({})
   const [motivo, setMotivo] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [confirmado, setConfirmado] = useState(false)
+  const [fijasAceptadas, setFijasAceptadas] = useState(false)
+  const puedeFijar = usePermiso('trabajos.fijar_fechas')
 
   // Por defecto, el primer candidato libre de cada participación obligatoria (ya vienen ordenados por prioridad y disponibilidad).
   const seleccion = useMemo(() => {
@@ -50,6 +55,12 @@ export function DialogoAsignar({ tareaId, hoy, abierto, onAbiertoChange }: Props
   const conChoque = data?.participaciones.flatMap((p) => p.candidatos.filter((c) => seleccion[p.id] === c.usuario.id && c.disponibilidad.avisos.length > 0)) ?? []
   const puedeForzar = usePermiso('tareas.forzar_agenda')
   const faltan = data?.participaciones.filter((p) => p.obligatoria && seleccion[p.id] === NINGUNO) ?? []
+  // Qué pasa en la cola de quienes se eligen (solo aparece si algo se corre).
+  const idsElegidos = [...new Set(Object.values(seleccion).filter((id) => id !== NINGUNO))]
+  const yaAsignados = data?.tarea.responsables.map((r) => r.usuario.id) ?? []
+  const { data: impactos = [] } = useQuery(impactoColaQuery(tareaId, idsElegidos.filter((id) => !yaAsignados.includes(id))))
+  const impacto = resumenImpacto(impactos)
+  const faltaConfirmar = (impacto.enRojo > 0 && !confirmado) || (impacto.fijas.length > 0 && (!fijasAceptadas || !puedeFijar))
 
   const enviar = async () => {
     if (!data) return
@@ -58,8 +69,15 @@ export function DialogoAsignar({ tareaId, hoy, abierto, onAbiertoChange }: Props
       const responsables = data.participaciones
         .filter((p) => seleccion[p.id] && seleccion[p.id] !== NINGUNO)
         .map((p) => ({ participacionId: p.id, usuarioId: seleccion[p.id] }))
-      const tarea = await asignar.mutateAsync({ responsables, motivoForzado: conChoque.length ? motivo : undefined })
-      toast.success(`${tarea.actividad.nombre} asignado a ${tarea.responsables.map((r) => nombreCompleto(r.usuario)).join(', ')}`)
+      const tarea = await asignar.mutateAsync({
+        responsables,
+        motivoForzado: conChoque.length ? motivo : undefined,
+        confirmarImpacto: impacto.enRojo > 0 ? confirmado : undefined,
+        forzarFechasFijas: impacto.fijas.length > 0 ? fijasAceptadas : undefined,
+      })
+      const mensaje = `${tarea.actividad.nombre} asignado a ${tarea.responsables.map((r) => nombreCompleto(r.usuario)).join(', ')}`
+      if (impacto.enRojo > 0) avisarReordenar(impactos.filter((i) => i.pasanARojo > 0).map((i) => i.usuario.id), mensaje)
+      else toast.success(mensaje)
       setElegidos({})
       setMotivo('')
       onAbiertoChange(false)
@@ -163,6 +181,8 @@ export function DialogoAsignar({ tareaId, hoy, abierto, onAbiertoChange }: Props
               </fieldset>
             ))}
 
+            <AvisoImpacto impactos={impactos} confirmado={confirmado} onConfirmado={setConfirmado} fijasAceptadas={fijasAceptadas} onFijas={setFijasAceptadas} puedeForzarFijas={puedeFijar} />
+
             {conChoque.length > 0 && (
               <Field>
                 <FieldLabel htmlFor="motivo-forzado">Motivo para asignar pese a los avisos</FieldLabel>
@@ -182,7 +202,7 @@ export function DialogoAsignar({ tareaId, hoy, abierto, onAbiertoChange }: Props
           <Button
             type="button"
             onClick={() => void enviar()}
-            disabled={!data || asignar.isPending || faltan.length > 0 || (conChoque.length > 0 && (!puedeForzar || motivo.trim().length < 3))}
+            disabled={!data || asignar.isPending || faltan.length > 0 || faltaConfirmar || (conChoque.length > 0 && (!puedeForzar || motivo.trim().length < 3))}
           >
             {asignar.isPending && <Loader2 className="animate-spin" />}
             Asignar

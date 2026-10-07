@@ -7,6 +7,7 @@ import type {
   CompletarTareaDatos,
   EnlaceReunionDatos,
   EquipoReunionDatos,
+  ImpactoReunion,
   ListarReunionesFiltros,
   ProgramarTareaDatos,
   ProspectoDetalle,
@@ -186,3 +187,12 @@ export function useEquipoReunion(tareaId: string) {
     onSuccess: refrescar,
   })
 }
+
+/** Qué se corre en la cola de esas personas si se les asigna la reunión (vacío si no se corre nada). */
+export const impactoColaQuery = (tareaId: string, usuarioIds: string[]) =>
+  queryOptions({
+    queryKey: ['tareas', 'impacto-cola', tareaId, [...usuarioIds].sort().join(',')] as const,
+    queryFn: () => api<ImpactoReunion[]>(`/tareas/${tareaId}/impacto-cola?usuarioIds=${usuarioIds.join(',')}`),
+    enabled: usuarioIds.length > 0,
+    staleTime: 0,
+  })

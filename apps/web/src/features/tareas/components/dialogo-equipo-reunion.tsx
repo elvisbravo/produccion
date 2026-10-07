@@ -12,7 +12,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ApiError } from '@/lib/api'
 import { nombreCompleto } from '@/lib/formato'
 import { usePermiso } from '@/lib/permisos'
-import { candidatosQuery, useEquipoReunion } from '../api'
+import { candidatosQuery, impactoColaQuery, useEquipoReunion } from '../api'
+import { AvisoImpacto, resumenImpacto } from './aviso-impacto'
+import { avisarReordenar } from './reordenar-cola'
 
 const NINGUNO = 'ninguno'
 
@@ -25,6 +27,9 @@ export function DialogoEquipoReunion({ tareaId, actividad, jefeId, auxiliarId, o
   const [auxiliar, setAuxiliar] = useState(auxiliarId ?? NINGUNO)
   const [motivo, setMotivo] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [confirmado, setConfirmado] = useState(false)
+  const [fijasAceptadas, setFijasAceptadas] = useState(false)
+  const puedeFijar = usePermiso('trabajos.fijar_fechas')
 
   // Todas las personas que pueden tomar la reunión, separadas por su rol.
   const candidatos = data?.participaciones.flatMap((p) => p.candidatos) ?? []
@@ -34,12 +39,23 @@ export function DialogoEquipoReunion({ tareaId, actividad, jefeId, auxiliarId, o
   const aviso = (id: string) => candidatos.find((c) => c.usuario.id === id)?.disponibilidad
   const choques = [jefe, auxiliar].flatMap((id) => (id === NINGUNO ? [] : [{ id, d: aviso(id) }])).filter((x) => x.d && x.d.avisos.length > 0)
   const sinNadie = jefe === NINGUNO && auxiliar === NINGUNO
+  const elegidos = [jefe, auxiliar].filter((id) => id !== NINGUNO && id !== jefeId && id !== auxiliarId)
+  const { data: impactos = [] } = useQuery(impactoColaQuery(tareaId, elegidos))
+  const r = resumenImpacto(impactos)
+  const faltaConfirmar = (r.enRojo > 0 && !confirmado) || (r.fijas.length > 0 && (!fijasAceptadas || !puedeFijar))
 
   const enviar = async () => {
     setError(null)
     try {
-      await guardar.mutateAsync({ jefeId: jefe === NINGUNO ? undefined : jefe, auxiliarId: auxiliar === NINGUNO ? undefined : auxiliar, motivoForzado: choques.length > 0 ? motivo : undefined })
-      toast.success('Equipo de la reunión actualizado')
+      await guardar.mutateAsync({
+        jefeId: jefe === NINGUNO ? undefined : jefe,
+        auxiliarId: auxiliar === NINGUNO ? undefined : auxiliar,
+        motivoForzado: choques.length > 0 ? motivo : undefined,
+        confirmarImpacto: r.enRojo > 0 ? confirmado : undefined,
+        forzarFechasFijas: r.fijas.length > 0 ? fijasAceptadas : undefined,
+      })
+      if (r.enRojo > 0) avisarReordenar(impactos.filter((i) => i.pasanARojo > 0).map((i) => i.usuario.id), 'Equipo de la reunión actualizado')
+      else toast.success('Equipo de la reunión actualizado')
       onCerrar()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar')
@@ -86,6 +102,7 @@ export function DialogoEquipoReunion({ tareaId, actividad, jefeId, auxiliarId, o
           <div className="flex flex-col gap-4">
             {campo('Jefe de producción', 'Quien da la reunión.', jefe, setJefe, jefes, 'Sin jefe')}
             {campo('Auxiliar de apoyo (opcional)', 'Quien acompaña al jefe.', auxiliar, setAuxiliar, auxiliares, 'Sin auxiliar')}
+            <AvisoImpacto impactos={impactos} confirmado={confirmado} onConfirmado={setConfirmado} fijasAceptadas={fijasAceptadas} onFijas={setFijasAceptadas} puedeForzarFijas={puedeFijar} />
             {choques.length > 0 && (
               <div className="flex flex-col gap-2">
                 <p className="flex items-start gap-1.5 text-xs text-destructive">
@@ -105,7 +122,7 @@ export function DialogoEquipoReunion({ tareaId, actividad, jefeId, auxiliarId, o
           <Button variant="outline" onClick={onCerrar}>
             Cancelar
           </Button>
-          <Button onClick={() => void enviar()} disabled={!data || guardar.isPending || sinNadie || (choques.length > 0 && (!puedeForzar || motivo.trim().length < 3))}>
+          <Button onClick={() => void enviar()} disabled={!data || guardar.isPending || sinNadie || faltaConfirmar || (choques.length > 0 && (!puedeForzar || motivo.trim().length < 3))}>
             {guardar.isPending && <Loader2 className="animate-spin" />}
             Guardar
           </Button>

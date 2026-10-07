@@ -466,6 +466,41 @@ describe('Cliente directo (e2e)', () => {
     }
   });
 
+  it('una reunión que entra en el día de un auxiliar corre su cola; si algo deja de llegar hay que confirmarlo', async () => {
+    const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string }[];
+    const dia = await proximoDiaHabil(prisma, sumarDias(hoy, 3));
+    const integrantes = [{ celular: `9${sufijo}44`, nombres: 'Corre', apellidos: 'Cola', email: `corre.${sufijo}@correo.com`, tipoDocumento: 'DNI', numeroDocumento: `4${sufijo}6`, esTitular: true }];
+    // Una tarea de 8 h que llena el día y vence ese mismo día
+    const programacion = { actividadId: actividades.find((a) => a.nombre === 'Elaboración')!.id, minutosEstimados: 8 * 60, hora: '08:00', auxiliarPrincipalId: ids.aux, jefeResponsableId: ids.jefe, modoInicio: 'fijo' };
+    const trabajoA = (await enviar('prod', { integrantes, pagos: [], contrato: undefined, trabajo: { ...(cuerpo.trabajo as object), titulo: 'Cola llena', fechaInicio: dia, fechaLimite: dia }, programacion }).expect(201)).body as TrabajoDetalle;
+    const reunion = async (hora: string) =>
+      ((await http().post(`/api/trabajos/${trabajoA.id}/reuniones`).set(como('prod')).send({ actividadId: actividades.find((a) => a.nombre === 'Enfoque')!.id, fecha: dia, hora, modalidad: 'virtual' }).expect(201)).body as { id: string }).id;
+    try {
+      const m1 = await reunion('10:00');
+      const impacto = (await http().get(`/api/tareas/${m1}/impacto-cola?usuarioIds=${ids.aux}`).set(como('prod')).expect(200)).body as { usuario: { id: string }; tareas: { trabajoCodigo: string; pasaARojo: boolean }[]; pasanARojo: number }[];
+      expect(impacto).toHaveLength(1);
+      expect(impacto[0].tareas.map((t) => t.trabajoCodigo)).toContain(trabajoA.codigo);
+      expect(impacto[0].pasanARojo).toBe(1);
+      // Sin confirmar, no se asigna; confirmándolo, sí, y se avisa al jefe responsable
+      const rechazo = await http().put(`/api/tareas/${m1}/equipo-reunion`).set(como('prod')).send({ auxiliarId: ids.aux }).expect(409);
+      expect(rechazo.body.codigo).toBe('impacto_cola');
+      await http().put(`/api/tareas/${m1}/equipo-reunion`).set(como('prod')).send({ auxiliarId: ids.aux, confirmarImpacto: true }).expect(200);
+      expect(await prisma.notificacion.count({ where: { usuarioId: ids.jefe, tipo: 'cola.impacto' } })).toBeGreaterThan(0);
+      // Una persona sin cola no se ve afectada
+      const sinCola = (await http().get(`/api/tareas/${await reunion('15:00')}/impacto-cola?usuarioIds=${ids.jefe}`).set(como('prod')).expect(200)).body as { tareas: unknown[]; pasanARojo: number }[];
+      expect(sinCola[0].tareas).toHaveLength(0);
+      // Trabajo de fechas inamovibles: no se atrasa sin aceptarlo de forma expresa
+      await prisma.trabajo.update({ where: { id: trabajoA.id }, data: { fechasFijas: true, fechasFijasMotivo: 'Prueba', fechasFijasEn: new Date(), fechasFijasPorId: ids.admin } });
+      const m2 = await reunion('16:30');
+      const fija = await http().put(`/api/tareas/${m2}/equipo-reunion`).set(como('prod')).send({ auxiliarId: ids.aux, confirmarImpacto: true }).expect(409);
+      expect(fija.body.codigo).toBe('fechas_fijas');
+    } finally {
+      await prisma.notificacion.deleteMany({ where: { usuarioId: { in: [ids.jefe, ids.aux] }, tipo: { in: ['cola.impacto', 'tarea.asignada'] } } });
+      await prisma.trabajo.deleteMany({ where: { id: trabajoA.id } });
+      await prisma.prospecto.deleteMany({ where: { creadoPor: ids.prod, trabajo: null } });
+    }
+  });
+
   it('acepta una hora de inicio de hoy que ya pasó: la actividad arranca desde ahora', async () => {
     const actividades = (await http().get('/api/catalogos/actividades').set(como('admin')).expect(200)).body.actividades as { id: string; nombre: string }[];
     const elaboracion = actividades.find((a) => a.nombre === 'Elaboración')!;

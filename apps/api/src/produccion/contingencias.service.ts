@@ -5,6 +5,7 @@ import {
   type AplicarReasignacionDatos,
   type BloqueCarga,
   type CargaPersona,
+  type ImpactoReunion,
   type ImpactoCarga,
   type RepartoCargaDatos,
   type TrabajoCarga,
@@ -24,6 +25,7 @@ import {
 } from '@grupoes/shared';
 import { AgendaService, aTareaEnCola, type TareaDeAgenda } from '../agenda/agenda.service.js';
 import { holgura, planificar, type PlanCola } from '../agenda/cola.js';
+import { restar } from '../agenda/disponibilidad.js';
 import { AuditoriaService } from '../common/auditoria.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
@@ -373,6 +375,65 @@ export class ContingenciasService {
       { tipo: 'tarea.reasignada', titulo: `Recibiste una tarea de ${r.deNombre}`, mensaje: r.titulo, enlace: '/tareas?vista=cola' },
       actor.usuarioId,
     );
+  }
+
+  // ─── Impacto de una reunión con hora fija en la cola ──────
+
+  /**
+   * Qué tareas de la cola de cada persona se corren si entra una reunión con hora fija ese día (la cola se acomoda sola alrededor de ella),
+   * cuáles dejan de llegar a su fecha límite y si hay trabajos urgentes o de fechas inamovibles entre ellas.
+   */
+  async impactoDeReunion(usuarioIds: string[], r: { fecha: string; inicio: number; fin: number }): Promise<ImpactoReunion[]> {
+    if (usuarioIds.length === 0) return [];
+    const [bases, personas] = await Promise.all([
+      this.agenda.basesDeCola(usuarioIds, this.prisma, r.fecha),
+      this.prisma.usuario.findMany({ where: { id: { in: usuarioIds } }, select: CAMPOS_USUARIO }),
+    ]);
+    const salida: ImpactoReunion[] = [];
+    for (const usuario of personas) {
+      const base = bases.get(usuario.id);
+      if (!base) continue;
+      const items = base.items.map(({ tarea }) => aTareaEnCola(tarea));
+      const antes = planificar(base.dias, items, base.ahora);
+      const dias = base.dias.map((d) => (d.fecha === r.fecha ? { fecha: d.fecha, huecos: restar(d.huecos, [{ inicio: r.inicio, fin: r.fin }]) } : d));
+      const despues = planificar(dias, items, base.ahora);
+      const movidas = base.items.flatMap(({ tarea }) => {
+        const a = antes.get(tarea.id);
+        const d = despues.get(tarea.id);
+        if (JSON.stringify(a?.segmentos) === JSON.stringify(d?.segmentos)) return [];
+        const limite = limiteDe(tarea);
+        const ra = resultado(a, limite);
+        const rd = resultado(d, limite);
+        return [
+          {
+            tareaId: tarea.id,
+            titulo: tarea.titulo ?? tarea.actividad.nombre,
+            trabajoId: tarea.trabajo?.id ?? '',
+            trabajoCodigo: tarea.trabajo?.codigo ?? '',
+            fechasFijas: Boolean(tarea.trabajo?.fechasFijas),
+            urgente: false,
+            finAntes: ra.fin,
+            finDespues: rd.fin,
+            fechaLimite: limite,
+            semaforoAntes: ra.semaforo,
+            semaforoDespues: rd.semaforo,
+            pasaARojo: !enRiesgo(ra) && enRiesgo(rd),
+          },
+        ];
+      });
+      const urgentes = new Set(
+        (await this.prisma.trabajo.findMany({ where: { id: { in: [...new Set(movidas.map((m) => m.trabajoId))] }, prioridad: { permiteInsercionUrgente: true } }, select: { id: true } })).map((t) => t.id),
+      );
+      const tareas = movidas.map(({ trabajoId, ...m }) => ({ ...m, urgente: urgentes.has(trabajoId) }));
+      salida.push({
+        usuario,
+        tareas,
+        pasanARojo: tareas.filter((t) => t.pasaARojo).length,
+        fijasAfectadas: [...new Set(tareas.filter((t) => t.fechasFijas && t.finDespues !== t.finAntes).map((t) => t.trabajoCodigo))],
+        urgentesAfectadas: [...new Set(tareas.filter((t) => t.urgente).map((t) => t.trabajoCodigo))],
+      });
+    }
+    return salida;
   }
 
   // ─── Reasignar la carga de un auxiliar ───────────────────

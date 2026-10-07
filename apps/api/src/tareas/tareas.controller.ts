@@ -14,6 +14,7 @@ import {
   type CompletarTareaDatos,
   type EnlaceReunionDatos,
   type EquipoReunionDatos,
+  type ImpactoReunion,
   type ListarReunionesConsulta,
   type ReunionFila,
   type ProgramarTareaDatos,
@@ -131,6 +132,14 @@ export class TareasController {
   @Get('reuniones')
   reuniones(@Query(new ZodValidationPipe(listarReunionesSchema)) consulta: ListarReunionesConsulta, @Req() req: SolicitudAutenticada): Promise<ReunionFila[]> {
     return this.tareas.reuniones(consulta, req.usuario!.id);
+  }
+
+  /** Qué se corre en la cola de esas personas si se les asigna esta reunión (ids separados por coma). */
+  @RequierePermiso('tareas.asignar')
+  @Get('tareas/:id/impacto-cola')
+  impactoCola(@Param('id', ParseUUIDPipe) id: string, @Query('usuarioIds') usuarioIds: string | undefined, @Req() req: SolicitudAutenticada): Promise<ImpactoReunion[]> {
+    const ids = (usuarioIds ?? '').split(',').filter((x) => z.uuid().safeParse(x).success);
+    return this.tareas.impactoDeAsignar(id, ids, req.usuario!.id);
   }
 
   /** El jefe de producción y el auxiliar de apoyo (opcional) de una reunión. */

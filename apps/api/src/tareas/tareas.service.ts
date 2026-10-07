@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   diaEnLima,
+  horaAMinutos,
   horaEnLima,
   instanteDesdeLima,
   ROLES_BASE,
@@ -11,6 +12,7 @@ import {
   type ConflictoAgenda,
   type EnlaceReunionDatos,
   type EquipoReunionDatos,
+  type ImpactoReunion,
   type EstadoDisponibilidad,
   type ListarReunionesConsulta,
   type PermisoCodigo,
@@ -28,6 +30,7 @@ import { ParametrosService } from '../parametros/parametros.service.js';
 import { PermisosService } from '../permisos/permisos.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
+import { ContingenciasService } from '../produccion/contingencias.service.js';
 import { ProduccionService } from '../produccion/produccion.service.js';
 import { EmbudoService } from './embudo.service.js';
 import { cerrarTramos } from './tramos.js';
@@ -73,6 +76,7 @@ export class TareasService {
     private readonly agenda: AgendaService,
     private readonly produccion: ProduccionService,
     private readonly notificaciones: NotificacionesService,
+    private readonly contingencias: ContingenciasService,
   ) {}
 
   // ─── Catálogo ─────────────────────────────────────────────
@@ -515,7 +519,31 @@ export class TareasService {
       ...(datos.jefeId ? [{ participacionId: lugarJefe!.id, usuarioId: datos.jefeId }] : []),
       ...(datos.auxiliarId ? [{ participacionId: lugarAuxiliar!.id, usuarioId: datos.auxiliarId }] : []),
     ];
-    return this.asignar(tareaId, { responsables, motivoForzado: datos.motivoForzado }, actor);
+    return this.asignar(tareaId, { responsables, motivoForzado: datos.motivoForzado, confirmarImpacto: datos.confirmarImpacto, forzarFechasFijas: datos.forzarFechasFijas }, actor);
+  }
+
+  /** Avisa a quien coordina y al jefe responsable de cada trabajo que una reunión dejó tareas sin llegar a su fecha límite. */
+  private async avisarImpacto(impactos: ImpactoReunion[], rolCoordinadorId: string | null, autorId: string): Promise<void> {
+    const afectadas = impactos.flatMap((i) => i.tareas.filter((t) => t.pasaARojo));
+    if (afectadas.length === 0) return;
+    const codigos = [...new Set(afectadas.map((t) => t.trabajoCodigo))];
+    const jefes = await this.prisma.trabajoEquipo.findMany({ where: { funcion: 'jefe_responsable', hasta: null, trabajo: { codigo: { in: codigos } } }, select: { usuarioId: true } });
+    const coordinadores = rolCoordinadorId ? await this.notificaciones.conRol(rolCoordinadorId) : [];
+    await this.notificaciones.notificar(
+      [...coordinadores, ...jefes.map((j) => j.usuarioId)],
+      { tipo: 'cola.impacto', titulo: 'Una reunión dejó trabajos sin llegar a su fecha', mensaje: `${codigos.join(', ')}: reordena la cola, busca apoyo o ajusta la reunión`, enlace: '/entregas' },
+      autorId,
+    );
+  }
+
+  /** Impacto de asignar esta reunión a esas personas: qué tareas de su cola se corren y cuáles dejan de llegar a su fecha. */
+  async impactoDeAsignar(tareaId: string, usuarioIds: string[], usuarioActor: string): Promise<ImpactoReunion[]> {
+    const tarea = await this.obtenerVisible(tareaId, usuarioActor, 'tareas.asignar');
+    if (!tarea.inicio) return [];
+    // Quien ya la tiene asignada ya la lleva en su agenda: solo importan las personas nuevas.
+    const nuevos = usuarioIds.filter((id) => !tarea.responsables.some((r) => r.usuario.id === id));
+    const inicio = horaAMinutos(horaEnLima(tarea.inicio));
+    return this.contingencias.impactoDeReunion(nuevos, { fecha: tarea.fecha.toISOString().slice(0, 10), inicio, fin: inicio + tarea.minutosEstimados });
   }
 
   /** Guarda (o quita) el enlace de la videollamada de una reunión. */
@@ -651,6 +679,20 @@ export class TareasService {
       throw new ForbiddenException('No tienes permiso para forzar la agenda');
     }
 
+    // Una reunión con hora corre lo que ya tiene en su cola: si algo deja de llegar a su fecha límite hay que aceptarlo; un trabajo de fechas inamovibles, aceptarlo de forma expresa.
+    const impactos = tarea.actividad.tipo.comportamiento === 'reunion' ? await this.impactoDeAsignar(tareaId, ids, actor.usuarioId) : [];
+    const fijas = [...new Set(impactos.flatMap((i) => i.fijasAfectadas))];
+    if (fijas.length > 0 && !datos.forzarFechasFijas) {
+      throw new ConflictException({ message: `Esta reunión atrasaría trabajos con fechas inamovibles (${fijas.join(', ')}). Cambia la hora o, si de verdad debe hacerse, acéptalo de forma expresa.`, codigo: 'fechas_fijas', impacto: impactos });
+    }
+    if (fijas.length > 0 && !('trabajos.fijar_fechas' in (await this.permisos.efectivos(actor.usuarioId)))) {
+      throw new ForbiddenException('Solo quien puede fijar o liberar fechas puede atrasar un trabajo con fechas inamovibles');
+    }
+    const enRojo = impactos.reduce((n, i) => n + i.pasanARojo, 0);
+    if (enRojo > 0 && !datos.confirmarImpacto) {
+      throw new ConflictException({ message: `Con esta reunión ${enRojo} ${enRojo === 1 ? 'tarea deja' : 'tareas dejan'} de llegar a su fecha límite. Confírmalo para continuar.`, codigo: 'impacto_cola', impacto: impactos });
+    }
+
     const usuarios = await this.prisma.usuario.findMany({ where: { id: { in: responsables.map((r) => r.usuarioId) } } });
     await this.prisma.$transaction(async (tx) => {
       await tx.tareaResponsable.deleteMany({ where: { tareaId } });
@@ -679,6 +721,7 @@ export class TareasService {
     });
     const d = await this.describir(tareaId);
     if (d) await this.notificaciones.notificar(d.responsables, { tipo: 'tarea.asignada', titulo: 'Te asignaron una tarea', mensaje: d.texto, enlace: '/tareas' }, actor.usuarioId);
+    if (enRojo > 0) await this.avisarImpacto(impactos, tarea.actividad.rolCoordinadorId, actor.usuarioId);
     return this.detalle(tareaId, actor.usuarioId);
   }
 

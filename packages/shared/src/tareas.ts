@@ -56,6 +56,10 @@ export const asignarTareaSchema = z.object({
   responsables: z.array(responsableSchema).min(1, 'Asigna al menos a una persona'),
   /** Obligatorio si alguna persona tiene un choque de horario. */
   motivoForzado: texto(300),
+  /** Acepta que la reunión deje tareas de su cola sin llegar a su fecha límite. */
+  confirmarImpacto: z.boolean().optional(),
+  /** Acepta atrasar un trabajo con fechas inamovibles (solo quien puede fijar o liberar fechas). */
+  forzarFechasFijas: z.boolean().optional(),
 })
 export type AsignarTareaDatos = z.output<typeof asignarTareaSchema>
 
@@ -65,6 +69,8 @@ export const equipoReunionSchema = z.object({
   auxiliarId: opcional(z.uuid('Elige al auxiliar')),
   /** Obligatorio si alguna persona tiene un choque de horario. */
   motivoForzado: texto(300),
+  confirmarImpacto: z.boolean().optional(),
+  forzarFechasFijas: z.boolean().optional(),
 })
 export type EquipoReunionDatos = z.output<typeof equipoReunionSchema>
 
@@ -259,4 +265,33 @@ export interface ReunionFila {
   condicion: 'potencial_cliente' | 'cliente'
   /** Por qué se canceló (o no asistió). */
   motivo: string | null
+}
+
+// ─── Impacto de una reunión en la cola de quien la hace ──────
+
+/** Una tarea de la cola que se corre porque entra una reunión con hora fija. */
+export interface ImpactoTareaReunion {
+  tareaId: string
+  titulo: string
+  trabajoCodigo: string
+  fechasFijas: boolean
+  urgente: boolean
+  /** Cuándo terminaba y cuándo terminaría (ISO). */
+  finAntes: string | null
+  finDespues: string | null
+  fechaLimite: string | null
+  semaforoAntes: 'verde' | 'ambar' | 'rojo' | 'sin_plan'
+  semaforoDespues: 'verde' | 'ambar' | 'rojo' | 'sin_plan'
+  /** Con la reunión deja de llegar a su fecha límite. */
+  pasaARojo: boolean
+}
+
+export interface ImpactoReunion {
+  usuario: UsuarioResumen
+  tareas: ImpactoTareaReunion[]
+  pasanARojo: number
+  /** Códigos de trabajos con fechas inamovibles que se atrasarían. */
+  fijasAfectadas: string[]
+  /** Códigos de trabajos urgentes que se correrían. */
+  urgentesAfectadas: string[]
 }
