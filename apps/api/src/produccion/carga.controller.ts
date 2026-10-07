@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
+import { z } from 'zod';
 import { repartoCargaSchema, type CargaPersona, type ImpactoCarga, type RepartoCargaDatos } from '@grupoes/shared';
 import type { SolicitudAutenticada } from '../auth/tipos.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
@@ -14,8 +15,11 @@ export class CargaController {
 
   @RequierePermiso('programacion.reasignar')
   @Get()
-  ver(@Param('usuarioId', ParseUUIDPipe) usuarioId: string): Promise<CargaPersona> {
-    return this.contingencias.cargaDe(usuarioId);
+  ver(
+    @Param('usuarioId', ParseUUIDPipe) usuarioId: string,
+    @Query(new ZodValidationPipe(z.object({ trabajoId: z.uuid().optional(), tareaId: z.uuid().optional() }))) q: { trabajoId?: string; tareaId?: string },
+  ): Promise<CargaPersona> {
+    return this.contingencias.cargaDe(usuarioId, q);
   }
 
   @RequierePermiso('programacion.reasignar')

@@ -94,6 +94,7 @@ const INCLUIR_CARGA = {
   tiempos: { select: { usuarioId: true, inicio: true, fin: true, minutos: true } },
 } as const satisfies Prisma.TareaInclude;
 type FilaCarga = Prisma.TareaResponsableGetPayload<{ include: { tarea: { include: typeof INCLUIR_CARGA } } }>;
+type ContextoCarga = { candidatos: Candidato[]; permitidos: Map<string, Set<string>>; equipo: { trabajoId: string; usuarioId: string; funcion: string }[] };
 interface BloqueInternoCarga {
   clave: string;
   trabajoId: string;
@@ -475,9 +476,34 @@ export class ContingenciasService {
     return { candidatos: personal.filter((c) => c.id !== usuarioId), permitidos, equipo };
   }
 
-  private puedeBloque(c: Candidato, b: BloqueInternoCarga, ctx: Awaited<ReturnType<ContingenciasService['contextoCarga']>>): boolean {
+  /** Las tareas de un bloque que esa persona puede tomar: con un rol permitido para su participación y, si elabora, sin ser el jefe que luego la revisa. */
+  private filasPara(c: Candidato, b: BloqueInternoCarga, ctx: ContextoCarga): FilaCarga[] {
+    const roles = new Set(c.roles.filter((r) => r.rol.activo).map((r) => r.rol.codigo));
     const jefe = ctx.equipo.find((e) => e.trabajoId === b.trabajoId && e.funcion === 'jefe_responsable')?.usuarioId ?? null;
-    return this.puedeTomar(c, b, ctx.permitidos, jefe);
+    return b.filas.filter((f) => {
+      const elabora = ['produccion', 'correccion'].includes(f.tarea.actividad.tipo.comportamiento);
+      if (elabora && c.id === jefe) return false;
+      return [...(ctx.permitidos.get(f.participacionId) ?? [])].some((codigo) => roles.has(codigo));
+    });
+  }
+
+  /** Puede tomar al menos una tarea del bloque (las demás se quedan con su responsable). */
+  private puedeBloque(c: Candidato, b: BloqueInternoCarga, ctx: ContextoCarga): boolean {
+    return this.filasPara(c, b, ctx).length > 0;
+  }
+
+  /** Una sola tarea como si fuera su propio bloque. */
+  private bloqueDeTarea(f: FilaCarga): BloqueInternoCarga {
+    const t = f.tarea;
+    return {
+      clave: `${t.trabajoId}|${t.entregableId ?? ''}|t:${t.id}`,
+      trabajoId: t.trabajoId!,
+      entregableId: t.entregableId,
+      filas: [f],
+      minutos: aTareaEnCola(t).minutos,
+      hechos: minutosReales(t.tiempos),
+      elabora: ['produccion', 'correccion'].includes(t.actividad.tipo.comportamiento),
+    };
   }
 
   /**
@@ -485,15 +511,17 @@ export class ContingenciasService {
    * a igual día, un auxiliar antes que un jefe y quien ya es del equipo). Si nadie puede con todo el trabajo, se reparte por entregable.
    * Lo que se pasa queda al final de su cola, como al reasignar una tarea.
    */
-  private async sugerirCarga(bloques: BloqueInternoCarga[], ctx: Awaited<ReturnType<ContingenciasService['contextoCarga']>>): Promise<Map<string, string>> {
+  private async sugerirCarga(bloques: BloqueInternoCarga[], ctx: ContextoCarga): Promise<Map<string, string>> {
     const sugerencia = new Map<string, string>();
     if (ctx.candidatos.length === 0) return sugerencia;
     const bases = await this.agenda.basesDeCola(ctx.candidatos.map((c) => c.id));
     const porTrabajo = new Map<string, BloqueInternoCarga[]>();
     for (const b of bloques) porTrabajo.set(b.trabajoId, [...(porTrabajo.get(b.trabajoId) ?? []), b]);
     const unidades: BloqueInternoCarga[][] = [];
+    // Un trabajo va completo a una sola persona si alguien puede con todas sus tareas; si no, por entregable.
+    const completo = (c: Candidato, b: BloqueInternoCarga) => this.filasPara(c, b, ctx).length === b.filas.length;
     for (const bs of porTrabajo.values()) {
-      if (ctx.candidatos.some((c) => bs.every((b) => this.puedeBloque(c, b, ctx)))) unidades.push(bs);
+      if (ctx.candidatos.some((c) => bs.every((b) => completo(c, b)))) unidades.push(bs);
       else unidades.push(...bs.map((b) => [b]));
     }
     unidades.sort((x, y) => y.reduce((s, b) => s + b.minutos, 0) - x.reduce((s, b) => s + b.minutos, 0));
@@ -504,11 +532,11 @@ export class ContingenciasService {
       for (const c of ctx.candidatos) {
         if (!u.every((b) => this.puedeBloque(c, b, ctx))) continue;
         const base = bases.get(c.id)!;
-        const nuevas = u.flatMap((b) => b.filas.map((f) => f.tarea));
+        const nuevas = u.flatMap((b) => this.filasPara(c, b, ctx).map((f) => f.tarea));
         const plan = planificar(base.dias, [...base.items.map(({ tarea }) => aTareaEnCola(tarea)), ...[...(dados.get(c.id) ?? []), ...nuevas].map(aTareaEnCola)], base.ahora);
         const fines = nuevas.map((t) => plan.get(t.id)?.fin);
-        const completo = fines.every(Boolean);
-        const fin = completo ? fines.map((x) => `${x!.fecha}${String(x!.fin).padStart(4, '0')}`).sort().at(-1)! : '9999-99-990000';
+        const todoPlanificado = fines.every(Boolean);
+        const fin = todoPlanificado ? fines.map((x) => `${x!.fecha}${String(x!.fin).padStart(4, '0')}`).sort().at(-1)! : '9999-99-990000';
         const enRojo = nuevas.filter((t) => enRiesgo(resultado(plan.get(t.id), limiteCarga(t)))).length;
         const esAuxiliar = c.roles.some((r) => r.rol.codigo === ROLES_BASE.AUXILIAR);
         const delEquipo = ctx.equipo.some((e) => e.trabajoId === u[0].trabajoId && e.usuarioId === c.id);
@@ -516,17 +544,21 @@ export class ContingenciasService {
         if (!mejor || clave < mejor.clave) mejor = { c, clave };
       }
       if (!mejor) continue;
-      dados.set(mejor.c.id, [...(dados.get(mejor.c.id) ?? []), ...u.flatMap((b) => b.filas.map((f) => f.tarea))]);
-      for (const b of u) sugerencia.set(b.clave, mejor.c.id);
+      const elegido = mejor.c;
+      dados.set(elegido.id, [...(dados.get(elegido.id) ?? []), ...u.flatMap((b) => this.filasPara(elegido, b, ctx).map((f) => f.tarea))]);
+      for (const b of u) sugerencia.set(b.clave, elegido.id);
     }
     return sugerencia;
   }
 
-  /** Los trabajos (y entregables) que la persona tiene en su cola, cuánto falta de cada uno y a quién podrían pasar. */
-  async cargaDe(usuarioId: string): Promise<CargaPersona> {
+  /**
+   * Los trabajos (y entregables) que la persona tiene en su cola, cuánto falta de cada uno y a quién podrían pasar.
+   * Con `trabajoId` solo ese trabajo, y con sus tareas una por una (y la recomendación para `tareaId`).
+   */
+  async cargaDe(usuarioId: string, opciones: { trabajoId?: string; tareaId?: string } = {}): Promise<CargaPersona> {
     const usuario = await this.prisma.usuario.findFirst({ where: { id: usuarioId, eliminadoEn: null }, select: CAMPOS_USUARIO });
     if (!usuario) throw new NotFoundException('La persona no existe');
-    const filas = await this.filasDeCarga(usuarioId);
+    const filas = (await this.filasDeCarga(usuarioId)).filter((f) => !opciones.trabajoId || f.tarea.trabajoId === opciones.trabajoId);
     const bloques = this.bloquesDeCarga(filas);
     if (bloques.length === 0) return { usuario, trabajos: [] };
     const ctx = await this.contextoCarga(usuarioId, filas);
@@ -554,7 +586,7 @@ export class ContingenciasService {
         elegibles: ctx.candidatos.filter((c) => this.puedeBloque(c, b, ctx)).map(resumen),
         sugerido: sugerido ? resumen(ctx.candidatos.find((c) => c.id === sugerido)!) : null,
       };
-      const actual = trabajos.get(b.trabajoId) ?? { trabajo: { id: t.trabajo!.id, codigo: t.trabajo!.codigo, titulo: t.trabajo!.titulo, fechaLimite: soloFecha(t.trabajo!.fechaLimite) }, bloques: [], elegibles: [], sugerido: null };
+      const actual = trabajos.get(b.trabajoId) ?? { trabajo: { id: t.trabajo!.id, codigo: t.trabajo!.codigo, titulo: t.trabajo!.titulo, fechaLimite: soloFecha(t.trabajo!.fechaLimite) }, bloques: [], tareas: [], elegibles: [], sugerido: null };
       actual.bloques.push(bloque);
       trabajos.set(b.trabajoId, actual);
     }
@@ -564,30 +596,66 @@ export class ContingenciasService {
       const ids = new Set(tr.bloques.map((b) => b.sugerido?.id ?? ''));
       tr.sugerido = ids.size === 1 && primero.sugerido ? primero.sugerido : null;
     }
+    // Con un trabajo pedido: cada tarea como su propia opción (y la recomendación de la que se tocó).
+    if (opciones.trabajoId) {
+      const tr = trabajos.get(opciones.trabajoId);
+      if (tr) {
+        for (const f of filas) {
+          const sb = this.bloqueDeTarea(f);
+          const sug = f.tareaId === opciones.tareaId ? (await this.sugerirCarga([sb], ctx)).get(sb.clave) : undefined;
+          const t = f.tarea;
+          tr.tareas.push({
+            tareaId: t.id,
+            titulo: t.titulo ?? t.actividad.nombre,
+            entregableId: t.entregableId,
+            entregable: t.entregable?.nombre ?? null,
+            minutosFaltan: sb.minutos,
+            minutosHechos: sb.hechos,
+            enProceso: t.estado === 'en_proceso',
+            semaforo: resultado(plan.get(t.id), limiteCarga(t)).semaforo,
+            elegibles: ctx.candidatos.filter((c) => this.puedeBloque(c, sb, ctx)).map(resumen),
+            sugerido: sug ? resumen(ctx.candidatos.find((c) => c.id === sug)!) : null,
+          });
+        }
+      }
+    }
     return { usuario, trabajos: [...trabajos.values()] };
   }
 
-  /** Comprueba el reparto (bloques que existen, personas que pueden con ellos) y lo agrupa por quien lo recibe, en el orden de su cola. */
+  /** Comprueba el reparto (bloques o tareas que existen, personas que pueden con ellos) y lo agrupa por quien lo recibe, en el orden de su cola. */
   private async resolverCarga(usuarioId: string, reparto: RepartoCargaDatos['reparto']) {
     const error = (mensaje: string) => new BadRequestException({ message: mensaje, errores: [{ campo: 'reparto', mensaje }] });
     const filas = await this.filasDeCarga(usuarioId);
     const bloques = this.bloquesDeCarga(filas);
     const ctx = await this.contextoCarga(usuarioId, filas);
     const vistos = new Set<string>();
-    const porUsuario = new Map<string, { usuario: { id: string; nombres: string; apellidos: string }; filas: FilaCarga[] }>();
+    const tareasUsadas = new Set<string>();
+    const porUsuario = new Map<string, { usuario: { id: string; nombres: string; apellidos: string }; filas: FilaCarga[]; quedan: number }>();
     for (const r of reparto) {
-      const clave = `${r.trabajoId}|${r.entregableId ?? ''}`;
-      const b = bloques.find((x) => x.clave === clave);
+      // Una tarea sola o el entregable completo
+      const b = r.tareaId
+        ? (() => {
+            const f = filas.find((x) => x.tareaId === r.tareaId && x.tarea.trabajoId === r.trabajoId);
+            return f ? this.bloqueDeTarea(f) : undefined;
+          })()
+        : bloques.find((x) => x.clave === `${r.trabajoId}|${r.entregableId ?? ''}`);
       if (!b) throw error('Uno de los trabajos ya no está en la cola de esa persona: vuelve a cargar la pantalla');
-      if (vistos.has(clave)) throw error('Un mismo entregable aparece dos veces en el reparto');
-      vistos.add(clave);
+      if (vistos.has(b.clave)) throw error('Lo mismo aparece dos veces en el reparto');
+      vistos.add(b.clave);
+      for (const f of b.filas) {
+        if (tareasUsadas.has(f.tareaId)) throw error('Una tarea aparece dos veces en el reparto (sola y dentro de su entregable)');
+        tareasUsadas.add(f.tareaId);
+      }
       if (r.usuarioId === usuarioId) throw error('No tiene sentido pasarle el trabajo a la misma persona');
       const usuario = await this.validarAuxiliar(r.usuarioId);
       const c = ctx.candidatos.find((x) => x.id === r.usuarioId);
-      const titulo = `${b.filas[0].tarea.trabajo!.codigo}${b.entregableId ? ` · ${b.filas[0].tarea.entregable!.nombre}` : ''}`;
-      if (!c || !this.puedeBloque(c, b, ctx)) throw error(`${nombreDe(usuario)} no puede tomar ${titulo}: sin un rol permitido o es el jefe que luego lo revisa`);
-      const g = porUsuario.get(r.usuarioId) ?? { usuario, filas: [] };
-      g.filas.push(...b.filas);
+      const t0 = b.filas[0].tarea;
+      const titulo = r.tareaId ? `${t0.trabajo!.codigo} · ${t0.titulo ?? t0.actividad.nombre}` : `${t0.trabajo!.codigo}${b.entregableId ? ` · ${t0.entregable!.nombre}` : ''}`;
+      const permitidas = c ? this.filasPara(c, b, ctx) : [];
+      if (!c || permitidas.length === 0) throw error(`${nombreDe(usuario)} no puede tomar ${titulo}: sin un rol permitido o es el jefe que luego lo revisa`);
+      const g = porUsuario.get(r.usuarioId) ?? { usuario, filas: [], quedan: 0 };
+      g.filas.push(...permitidas);
+      g.quedan += b.filas.length - permitidas.length;
       porUsuario.set(r.usuarioId, g);
     }
     for (const g of porUsuario.values()) g.filas.sort((a, b) => a.ordenCola! - b.ordenCola!);
@@ -603,9 +671,9 @@ export class ContingenciasService {
       const nuevas = g.filas.map((f) => f.tarea);
       const plan = planificar(base.dias, [...base.items.map(({ tarea }) => aTareaEnCola(tarea)), ...nuevas.map(aTareaEnCola)], base.ahora);
       const tareas = nuevas.map((t) => ({ tareaId: t.id, titulo: t.titulo ?? t.actividad.nombre, trabajoCodigo: t.trabajo!.codigo, resultado: resultado(plan.get(t.id), limiteCarga(t)) }));
-      return { usuario: g.usuario, minutos: nuevas.reduce((s, t) => s + aTareaEnCola(t).minutos, 0), tareas, sinLlegar: tareas.filter((t) => enRiesgo(t.resultado)).length };
+      return { usuario: g.usuario, minutos: nuevas.reduce((s, t) => s + aTareaEnCola(t).minutos, 0), tareas, sinLlegar: tareas.filter((t) => enRiesgo(t.resultado)).length, quedan: g.quedan };
     });
-    return { personas, sinLlegar: personas.reduce((n, p) => n + p.sinLlegar, 0) };
+    return { personas, sinLlegar: personas.reduce((n, p) => n + p.sinLlegar, 0), quedan: personas.reduce((n, p) => n + p.quedan, 0) };
   }
 
   /** Pasa los trabajos elegidos a quien se indicó, tarea por tarea y en su orden; lo ya avanzado queda a nombre de quien lo hizo. */

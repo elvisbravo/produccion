@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { DialogoApoyo } from '@/features/produccion/components/dialogo-apoyo'
 import { DialogoCarga } from '@/features/produccion/components/dialogo-carga'
 import { DialogoInicio } from '@/features/produccion/components/dialogo-inicio'
+import { DialogoPasarTrabajo } from '@/features/produccion/components/dialogo-pasar-trabajo'
 import { tareaDetalleQuery } from '@/features/tareas/api'
 import { DialogoEnlaceReunion } from '@/features/tareas/components/dialogo-enlace'
 import { DialogoEquipoReunion } from '@/features/tareas/components/dialogo-equipo-reunion'
@@ -16,7 +17,7 @@ import { trabajoQuery } from '@/features/trabajos/api'
 import { DialogoReprogramar as DialogoReprogramarEntrega } from '@/features/trabajos/components/edicion'
 import { usePermiso } from '@/lib/permisos'
 
-type Accion = 'reprogramar' | 'cancelar' | 'equipo' | 'enlace' | 'inicio' | 'apoyo' | 'carga' | 'entrega'
+type Accion = 'reprogramar' | 'cancelar' | 'equipo' | 'enlace' | 'inicio' | 'apoyo' | 'carga' | 'carga_todos' | 'entrega'
 
 /**
  * Acciones de un bloque del calendario de una persona: reprogramar o cancelar una reunión, cambiar su equipo o enlace, y, en un tramo de la cola,
@@ -85,7 +86,7 @@ export function MenuAccionesTarea({ tarea, usuarioId, estilo }: { tarea: TareaAg
               )}
               {puedeReasignar && (
                 <DropdownMenuItem onSelect={() => setAccion('carga')}>
-                  <Shuffle /> Pasar trabajos a otro auxiliar
+                  <Shuffle /> {tarea.referencia?.tipo === 'trabajo' ? 'Pasar a otro auxiliar (tarea, bloque o trabajo)' : 'Pasar trabajos a otro auxiliar'}
                 </DropdownMenuItem>
               )}
               {puedeEntrega && tarea.referencia?.tipo === 'trabajo' && (
@@ -113,20 +114,22 @@ export function MenuAccionesTarea({ tarea, usuarioId, estilo }: { tarea: TareaAg
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-      {accion && <Dialogos accion={accion} tarea={tarea} usuarioId={usuarioId} onCerrar={() => setAccion(null)} />}
+      {accion && <Dialogos accion={accion} tarea={tarea} usuarioId={usuarioId} onCerrar={() => setAccion(null)} onVerTodos={() => setAccion('carga_todos')} />}
     </>
   )
 }
 
 /** Carga el detalle que cada diálogo necesita y lo muestra. */
-function Dialogos({ accion, tarea, usuarioId, onCerrar }: { accion: Accion; tarea: TareaAgenda; usuarioId: string; onCerrar: () => void }) {
+function Dialogos({ accion, tarea, usuarioId, onCerrar, onVerTodos }: { accion: Accion; tarea: TareaAgenda; usuarioId: string; onCerrar: () => void; onVerTodos: () => void }) {
   const necesitaTarea = accion === 'reprogramar' || accion === 'cancelar' || accion === 'equipo' || accion === 'enlace' || accion === 'inicio'
   const { data: t } = useQuery(tareaDetalleQuery(tarea.id, necesitaTarea))
   const { data: trabajo } = useQuery({ ...trabajoQuery(tarea.referencia?.id ?? ''), enabled: accion === 'entrega' && tarea.referencia?.tipo === 'trabajo' })
   const cerrar = (abierto: boolean) => !abierto && onCerrar()
 
   if (accion === 'apoyo') return <DialogoApoyo tareaId={tarea.id} onCerrar={onCerrar} />
-  if (accion === 'carga') return <DialogoCarga usuarioId={usuarioId} onCerrar={onCerrar} />
+  // Desde un tramo de un trabajo se abre enfocado en eso; «ver todos» abre la lista completa de la persona.
+  if (accion === 'carga' && tarea.referencia?.tipo === 'trabajo') return <DialogoPasarTrabajo usuarioId={usuarioId} trabajoId={tarea.referencia.id} tareaId={tarea.id} onCerrar={onCerrar} onVerTodos={onVerTodos} />
+  if (accion === 'carga' || accion === 'carga_todos') return <DialogoCarga usuarioId={usuarioId} onCerrar={onCerrar} />
   if (accion === 'entrega') return trabajo ? <DialogoReprogramarEntrega t={trabajo} abierto onAbiertoChange={cerrar} /> : null
   if (!t) return null
   return <DialogoDeTarea accion={accion} t={t} cerrar={cerrar} onCerrar={onCerrar} />

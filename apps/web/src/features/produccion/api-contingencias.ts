@@ -114,7 +114,12 @@ export const useProponerApoyo = (tareaId: string) =>
   useAccion((datos: ProponerApoyoFormulario) => api<HoraExtraItem>(`/produccion/tareas/${tareaId}/apoyo`, { method: 'POST', body: datos }))
 
 /** Los trabajos que una persona tiene en su cola, cuánto falta de cada uno y a quién podrían pasar. */
-export const cargaQuery = (usuarioId: string) => queryOptions({ queryKey: ['produccion', 'carga', usuarioId], queryFn: () => api<CargaPersona>(`/produccion/carga/${usuarioId}`), staleTime: 0 })
+export const cargaQuery = (usuarioId: string, foco?: { trabajoId: string; tareaId?: string }) =>
+  queryOptions({
+    queryKey: ['produccion', 'carga', usuarioId, foco ?? null],
+    queryFn: () => api<CargaPersona>(`/produccion/carga/${usuarioId}${foco ? `?trabajoId=${foco.trabajoId}${foco.tareaId ? `&tareaId=${foco.tareaId}` : ''}` : ''}`),
+    staleTime: 0,
+  })
 
 /** Simulación: cómo queda la cola de quien recibe. No cambia nada. */
 export const impactoCargaQuery = (usuarioId: string, reparto: RepartoCargaDatos['reparto']) =>

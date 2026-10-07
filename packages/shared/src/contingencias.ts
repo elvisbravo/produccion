@@ -354,9 +354,26 @@ export interface BloqueCarga {
   sugerido: UsuarioResumen | null
 }
 
+/** Una tarea suelta de la cola (cuando se pasa solo esa tarea). */
+export interface TareaCarga {
+  tareaId: string
+  titulo: string
+  entregableId: string | null
+  entregable: string | null
+  minutosFaltan: number
+  minutosHechos: number
+  enProceso: boolean
+  semaforo: Semaforo
+  elegibles: UsuarioResumen[]
+  /** Solo se calcula para la tarea que se pidió. */
+  sugerido: UsuarioResumen | null
+}
+
 export interface TrabajoCarga {
   trabajo: { id: string; codigo: string; titulo: string | null; fechaLimite: string }
   bloques: BloqueCarga[]
+  /** Con un trabajo pedido: sus tareas pendientes, una por una. */
+  tareas: TareaCarga[]
   /** Quienes pueden tomar el trabajo completo. */
   elegibles: UsuarioResumen[]
   /** Quien lo tomaría completo, si una sola persona puede con todos sus entregables. */
@@ -370,7 +387,7 @@ export interface CargaPersona {
 
 export const repartoCargaSchema = z.object({
   reparto: z
-    .array(z.object({ trabajoId: z.uuid(), entregableId: z.uuid().nullish(), usuarioId: z.string().min(1, 'Elige a la persona').pipe(z.uuid()) }))
+    .array(z.object({ trabajoId: z.uuid(), entregableId: z.uuid().nullish(), /** Solo esa tarea (en vez de todo el entregable). */ tareaId: z.uuid().nullish(), usuarioId: z.string().min(1, 'Elige a la persona').pipe(z.uuid()) }))
     .min(1, 'Elige al menos un trabajo'),
   motivo: texto(300),
 })
@@ -382,8 +399,11 @@ export interface ImpactoCarga {
     minutos: number
     tareas: { tareaId: string; titulo: string; trabajoCodigo: string; resultado: ResultadoPlan }[]
     sinLlegar: number
+    /** Tareas de lo elegido que esta persona no puede tomar (rol no permitido o es quien revisa) y se quedan con su responsable. */
+    quedan: number
   }[]
   sinLlegar: number
+  quedan: number
 }
 
 /** Cambiar desde cuándo se programa una actividad de la cola (el trabajo ya empezó o se pospone). */
