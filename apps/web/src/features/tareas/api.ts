@@ -196,3 +196,12 @@ export const impactoColaQuery = (tareaId: string, usuarioIds: string[]) =>
     enabled: usuarioIds.length > 0,
     staleTime: 0,
   })
+
+/** Qué pasa en la cola de quienes hacen una reunión ya asignada si se mueve a otro día u hora. */
+export const impactoReprogramarQuery = (tareaId: string, fecha: string, hora: string, activo: boolean) =>
+  queryOptions({
+    queryKey: ['tareas', 'impacto-cola', tareaId, 'reprogramar', fecha, hora] as const,
+    queryFn: () => api<ImpactoReunion[]>(`/tareas/${tareaId}/impacto-cola?fecha=${fecha}&hora=${hora}`),
+    enabled: activo,
+    staleTime: 0,
+  })

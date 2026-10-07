@@ -9,7 +9,7 @@ import {
 } from '@grupoes/shared'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import type { z } from 'zod'
 import { Requerido } from '@/components/requerido'
@@ -20,7 +20,11 @@ import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { aplicarErroresApi } from '@/lib/formularios'
-import { useCancelarTarea, useReprogramarTarea } from '../api'
+import { useQuery } from '@tanstack/react-query'
+import { usePermiso } from '@/lib/permisos'
+import { impactoReprogramarQuery, useCancelarTarea, useReprogramarTarea } from '../api'
+import { AvisoImpacto, resumenImpacto } from './aviso-impacto'
+import { avisarReordenar } from './reordenar-cola'
 
 interface PropsDialogo {
   tarea: TareaItem
@@ -31,17 +35,28 @@ interface PropsDialogo {
 export function DialogoReprogramar({ tarea, abierto, onAbiertoChange, proponer = false }: PropsDialogo & { proponer?: boolean }) {
   const reprogramar = useReprogramarTarea(tarea.id)
   const [error, setError] = useState<string | null>(null)
+  const [confirmado, setConfirmado] = useState(false)
+  const [fijasAceptadas, setFijasAceptadas] = useState(false)
+  const puedeFijar = usePermiso('trabajos.fijar_fechas')
   const form = useForm<z.input<typeof reprogramarTareaSchema>, unknown, ReprogramarTareaDatos>({
     resolver: zodResolver(reprogramarTareaSchema),
     defaultValues: { fecha: tarea.fecha, hora: tarea.inicio ? horaEnLima(new Date(tarea.inicio)) : '', motivo: '' },
   })
   const e = form.formState.errors
+  // Una reunión ya asignada: se ve qué se corre en la cola de quien la hace con el nuevo horario.
+  const [fechaNueva = '', horaNueva = ''] = useWatch({ control: form.control, name: ['fecha', 'hora'] }) as (string | undefined)[]
+  const esReunionAsignada = tarea.actividad.requiereHoraFija && tarea.responsables.length > 0 && !proponer
+  const cambio = Boolean(fechaNueva && horaNueva && (fechaNueva !== tarea.fecha || horaNueva !== (tarea.inicio ? horaEnLima(new Date(tarea.inicio)) : '')))
+  const { data: impactos = [] } = useQuery(impactoReprogramarQuery(tarea.id, fechaNueva, horaNueva, esReunionAsignada && cambio && /^\d{2}:\d{2}$/.test(horaNueva)))
+  const r = resumenImpacto(impactos)
+  const faltaConfirmar = (r.enRojo > 0 && !confirmado) || (r.fijas.length > 0 && (!fijasAceptadas || !puedeFijar))
 
   const enviar = form.handleSubmit(async (datos) => {
     setError(null)
     try {
-      await reprogramar.mutateAsync(datos)
-      toast.success(proponer ? 'Propuesta enviada: se avisó a quien pidió la reunión' : 'Actividad reprogramada')
+      await reprogramar.mutateAsync({ ...datos, motivoForzado: datos.motivo, confirmarImpacto: r.enRojo > 0 ? confirmado : undefined, forzarFechasFijas: r.fijas.length > 0 ? fijasAceptadas : undefined })
+      if (r.enRojo > 0) avisarReordenar(impactos.filter((i) => i.pasanARojo > 0).map((i) => i.usuario.id), 'Reunión reprogramada')
+      else toast.success(proponer ? 'Propuesta enviada: se avisó a quien pidió la reunión' : 'Actividad reprogramada')
       onAbiertoChange(false)
     } catch (err) {
       setError(aplicarErroresApi(err, form.setError, ['fecha', 'hora', 'motivo']))
@@ -82,6 +97,7 @@ export function DialogoReprogramar({ tarea, abierto, onAbiertoChange, proponer =
               <FieldError errors={[e.hora]} />
             </Field>
           </div>
+          <AvisoImpacto impactos={impactos} confirmado={confirmado} onConfirmado={setConfirmado} fijasAceptadas={fijasAceptadas} onFijas={setFijasAceptadas} puedeForzarFijas={puedeFijar} />
           <Field data-invalid={Boolean(e.motivo)}>
             <FieldLabel htmlFor="rep-motivo">Motivo</FieldLabel>
             <Input id="rep-motivo" placeholder="Ej.: el cliente pidió otro día" {...form.register('motivo')} />
@@ -91,7 +107,7 @@ export function DialogoReprogramar({ tarea, abierto, onAbiertoChange, proponer =
             <Button type="button" variant="outline" onClick={() => onAbiertoChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={form.formState.isSubmitting}>
+            <Button type="submit" disabled={form.formState.isSubmitting || faltaConfirmar}>
               {form.formState.isSubmitting && <Loader2 className="animate-spin" />}
               {proponer ? 'Proponer esta hora' : 'Reprogramar'}
             </Button>

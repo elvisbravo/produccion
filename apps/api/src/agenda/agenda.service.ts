@@ -164,7 +164,7 @@ export class AgendaService {
    * sus huecos libres desde ahora (horario − días no laborables − tareas con hora) y sus tareas en cola, en orden.
    * Sirve para planificar y para simular cambios en memoria (reasignar, insertar urgentes).
    */
-  async basesDeCola(usuarioIds: string[], db: Cliente = this.prisma, desde?: string): Promise<Map<string, BaseDeCola>> {
+  async basesDeCola(usuarioIds: string[], db: Cliente = this.prisma, desde?: string, excluirTarea?: string): Promise<Map<string, BaseDeCola>> {
     const resultado = new Map<string, BaseDeCola>();
     if (usuarioIds.length === 0) return resultado;
     const ahora = ahoraEnLima();
@@ -184,7 +184,7 @@ export class AgendaService {
     for (const usuarioId of usuarioIds) {
       const dias = (entradas.get(usuarioId) ?? []).map((e) => {
         const dia = calcularDia(e);
-        const conHora = dia.tareas.filter((t) => t.inicio !== null && t.estado !== 'cancelada').map((t) => ({ inicio: t.inicio!, fin: t.fin! }));
+        const conHora = dia.tareas.filter((t) => t.inicio !== null && t.estado !== 'cancelada' && t.id !== excluirTarea).map((t) => ({ inicio: t.inicio!, fin: t.fin! }));
         return { fecha: dia.fecha, huecos: huecosDelDia(dia.libres, conHora) };
       });
       const items = filas.filter((f) => f.usuarioId === usuarioId).map((f) => ({ ordenCola: f.ordenCola!, tarea: f.tarea }));

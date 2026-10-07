@@ -78,6 +78,12 @@ export const reprogramarTareaSchema = z.object({
   fecha: z.string().min(1, 'Elige el día').pipe(dia),
   hora: opcional(hora),
   motivo: texto(300),
+  /** Obligatorio si quien la hace tiene un choque o está fuera de su horario ese día. */
+  motivoForzado: texto(300),
+  /** Acepta que el cambio deje tareas de su cola sin llegar a su fecha límite. */
+  confirmarImpacto: z.boolean().optional(),
+  /** Acepta atrasar un trabajo con fechas inamovibles (solo quien puede fijar o liberar fechas). */
+  forzarFechasFijas: z.boolean().optional(),
 })
 export type ReprogramarTareaDatos = z.output<typeof reprogramarTareaSchema>
 

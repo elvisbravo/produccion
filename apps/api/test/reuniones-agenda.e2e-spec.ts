@@ -175,10 +175,10 @@ describe('Agenda de reuniones (e2e)', () => {
   });
 
   it('cambiar la hora y cancelar con motivo se reflejan en la tabla', async () => {
-    await http().post(`/api/tareas/${tareaId}/reprogramar`).set(como('ana')).send({ fecha: dia, hora: '15:00', motivo: 'El cliente pidió la tarde' }).expect(201);
+    await http().post(`/api/tareas/${tareaId}/reprogramar`).set(como('ana')).send({ fecha: dia, hora: '11:00', motivo: 'El cliente pidió otra hora' }).expect(201);
     let f = (await reuniones('prod')).find((x) => x.tarea.id === tareaId)!;
     expect(f.tarea.vecesReprogramada).toBe(1);
-    expect(new Date(f.tarea.inicio!).getUTCHours()).toBe(20); // 15:00 en Lima
+    expect(new Date(f.tarea.inicio!).getUTCHours()).toBe(16); // 11:00 en Lima
     await http().post(`/api/tareas/${tareaId}/cancelar`).set(como('ana')).send({ motivo: 'El cliente ya no quiere reunión' }).expect(201);
     f = (await reuniones('prod')).find((x) => x.tarea.id === tareaId)!;
     expect(f.tarea.estado).toBe('cancelada');
