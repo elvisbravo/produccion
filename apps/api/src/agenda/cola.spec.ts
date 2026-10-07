@@ -69,6 +69,20 @@ describe('planificar', () => {
     expect(n.fecha > '2026-10-06' || (n.fecha === '2026-10-06' && n.inicio >= h(15))).toBe(true);
   });
 
+  it('una reunión en medio del día parte el trabajo y lo que no cabe pasa al día siguiente', () => {
+    // Día lleno (8–13 y 15–19) y entra una reunión de 16:00 a 17:00
+    const conReunion: DiaLibre[] = dias.map((d) => (d.fecha === '2026-10-05' ? { fecha: d.fecha, huecos: huecosDelDia(jornada, [{ inicio: h(16), fin: h(17) }]) } : d));
+    const plan = planificar(conReunion, [{ id: 'a', minutos: h(9), noAntesDe: '2026-10-05' }, { id: 'b', minutos: h(2), noAntesDe: '2026-10-05' }], temprano);
+    expect(plan.get('a')!.segmentos).toEqual([
+      { fecha: '2026-10-05', inicio: h(8), fin: h(13) },
+      { fecha: '2026-10-05', inicio: h(15), fin: h(16) },
+      { fecha: '2026-10-05', inicio: h(17), fin: h(19) },
+      { fecha: '2026-10-06', inicio: h(8), fin: h(9) },
+    ]);
+    // Lo siguiente sigue a continuación, sin cruzarse con nada
+    expect(plan.get('b')!.segmentos).toEqual([{ fecha: '2026-10-06', inicio: h(9), fin: h(11) }]);
+  });
+
   it('si no alcanza el horizonte, queda sin fin', () => {
     const plan = planificar(dias, [{ id: 'a', minutos: h(40), noAntesDe: '2026-10-05' }], temprano).get('a')!;
     expect(plan.fin).toBeNull();
