@@ -12,6 +12,7 @@ import {
   type VistaExtras,
 } from '@grupoes/shared';
 import { AgendaService } from '../agenda/agenda.service.js';
+import { ahoraEnLima } from '../agenda/cola.js';
 import { AuditoriaService } from '../common/auditoria.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
@@ -127,9 +128,27 @@ export class ExtrasService {
     }
   }
 
+  /**
+   * Para cubrir lo que no cabe antes de la entrega: una ventana de horas extra el día de la entrega, al terminar la jornada de la persona
+   * (y no antes de ahora), de hasta 4 horas. null si ese día no se puede (ausencia, ya pasó o no queda hora).
+   */
+  async ventanaParaFaltante(usuarioId: string, limite: string, faltan: number): Promise<{ fecha: string; horaInicio: string; horaFin: string; minutos: number; cubreTodo: boolean; avisos: string[] } | null> {
+    if (limite < diaEnLima() || faltan <= 0) return null;
+    const [dia] = (await this.agenda.calcular([usuarioId], limite, limite)).get(usuarioId) ?? [];
+    const finJornada = dia && dia.tramos.length ? Math.max(...dia.tramos.map((t) => t.fin)) : 18 * 60;
+    const ahora = ahoraEnLima();
+    const desdeAhora = limite === ahora.fecha ? Math.ceil(ahora.minuto / 15) * 15 : 0;
+    const inicio = Math.min(Math.max(finJornada, desdeAhora), 22 * 60 - 15);
+    const fin = Math.min(inicio + Math.min(Math.ceil(faltan / 15) * 15, 240), 22 * 60);
+    if (fin <= inicio) return null;
+    const avisos = await this.evaluarVentana(usuarioId, limite, inicio, fin);
+    if (avisos === null) return null;
+    return { fecha: limite, horaInicio: minutosAHora(inicio), horaFin: minutosAHora(fin), minutos: fin - inicio, cubreTodo: fin - inicio >= faltan, avisos };
+  }
+
   // ─── Flujo ───────────────────────────────────────────────
 
-  async proponer(datos: ProponerExtraDatos, actor: ActorProduccion, apoyo?: { tareaId: string }): Promise<HoraExtraItem> {
+  async proponer(datos: ProponerExtraDatos, actor: ActorProduccion, apoyo?: { tareaId: string; reasigna?: boolean }): Promise<HoraExtraItem> {
     const trabajo = await this.prisma.trabajo.findFirst({ where: { id: datos.trabajoId, eliminadoEn: null } });
     if (!trabajo || ['finalizado', 'cancelado'].includes(trabajo.estado)) throw errorCampo('trabajoId', 'Trabajo no disponible');
     if (datos.entregableId && !(await this.prisma.entregable.count({ where: { id: datos.entregableId, trabajoId: datos.trabajoId } }))) {
@@ -138,8 +157,9 @@ export class ExtrasService {
     const usuario = await this.prisma.usuario.findFirst({ where: { id: datos.usuarioId, activo: true, eliminadoEn: null } });
     if (!usuario) throw errorCampo('usuarioId', 'Usuario no disponible');
 
-    // Apoyo para una tarea: se propone a quien la tomaría; la tarea le pasa cuando se aprueba.
-    if (apoyo) {
+    // Apoyo para una tarea: se propone a quien la tomaría; la tarea le pasa cuando se aprueba (salvo que solo cubra lo que le falta a su propia tarea).
+    const reasigna = apoyo ? apoyo.reasigna !== false : false;
+    if (apoyo && reasigna) {
       const tarea = await this.prisma.tarea.findFirst({ where: { id: apoyo.tareaId, trabajoId: datos.trabajoId, estado: { in: ['pendiente', 'en_proceso'] } }, select: { id: true, responsables: { select: { usuarioId: true, ordenCola: true } } } });
       if (!tarea || !tarea.responsables.some((r) => r.ordenCola !== null)) throw errorCampo('tareaId', 'La tarea ya no está pendiente en una cola');
       if (tarea.responsables.some((r) => r.usuarioId === datos.usuarioId)) throw errorCampo('usuarioId', 'Esa persona ya tiene la tarea');
@@ -161,7 +181,8 @@ export class ExtrasService {
         trabajoId: datos.trabajoId,
         entregableId: datos.entregableId ?? null,
         tareaId: apoyo?.tareaId ?? null,
-        reasignaTarea: Boolean(apoyo),
+        reasignaTarea: reasigna,
+        acumula: esHoras && Boolean(datos.acumula),
         descripcion: datos.descripcion,
         fecha: esHoras ? aFecha(datos.fecha!) : null,
         minutoInicio: inicio,
@@ -303,6 +324,7 @@ export class ExtrasService {
           motivoRechazo: x.motivoRechazo,
           aprobadaPor: x.aprobadaPor,
           minutosReales: x.minutosReales,
+          acumula: x.acumula,
           avisos,
         };
       }),

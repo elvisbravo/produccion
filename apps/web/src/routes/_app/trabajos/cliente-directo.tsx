@@ -7,13 +7,14 @@ import {
   TIPOS_DOCUMENTO,
   type ClienteDirectoDatos,
   type ClienteDirectoFormulario,
+  type VistaPreviaInicio,
   type TipoDocumento,
 } from '@grupoes/shared'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { AlertCircle, ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { AlertCircle, ArrowLeft, Loader2, Plus, Trash2, TriangleAlert } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Controller, FormProvider, useFieldArray, useForm, useFormContext, useWatch, type FieldValues, type UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 import { Requerido } from '@/components/requerido'
@@ -775,14 +776,18 @@ function RegistrarClienteDirecto() {
  */
 function PlanInicio() {
   const { control, setValue } = useFormContext<ClienteDirectoFormulario>()
-  const [auxiliarId, fecha, hora, minutosForm, modo] = useWatch({
+  const [auxiliarId, fecha, hora, minutosForm, modo, limite, faltante] = useWatch({
     control,
-    name: ['programacion.auxiliarPrincipalId', 'trabajo.fechaInicio', 'programacion.hora', 'programacion.minutosEstimados', 'programacion.modoInicio'],
+    name: ['programacion.auxiliarPrincipalId', 'trabajo.fechaInicio', 'programacion.hora', 'programacion.minutosEstimados', 'programacion.modoInicio', 'trabajo.fechaLimite', 'programacion.faltante'],
   })
   const minutos = Number(useDebounce(String(minutosForm ?? ''), 400)) || 0
   const fijo = modo === 'fijo'
   const listo = Boolean(auxiliarId && fecha && /^\d{2}:\d{2}$/.test(hora ?? '') && minutos >= 15)
-  const { data, isFetching } = useQuery({ ...vistaPreviaInicioQuery({ auxiliarId: auxiliarId ?? '', fecha: fecha ?? '', hora: hora ?? '', minutos, fijo }), enabled: listo })
+  const { data, isFetching } = useQuery({ ...vistaPreviaInicioQuery({ auxiliarId: auxiliarId ?? '', fecha: fecha ?? '', hora: hora ?? '', minutos, fijo, limite: limite || undefined }), enabled: listo })
+  // Si al cambiar los datos ya no falta nada, se descarta la propuesta que se había elegido.
+  useEffect(() => {
+    if (faltante && data && data.faltanMinutos === 0) setValue('programacion.faltante', undefined as never)
+  }, [faltante, data, setValue])
   if (!listo) return <p className="text-sm text-muted-foreground sm:col-span-2">Elige el auxiliar, la hora y el tiempo para ver cuándo empezaría.</p>
 
   return (
@@ -824,6 +829,84 @@ function PlanInicio() {
             <span className="text-destructive">{data.mensaje ?? 'Esa hora no está libre.'}</span>
           )}
         </>
+      )}
+      {data && data.faltanMinutos > 0 && limite && (
+        <Faltante
+          faltan={data.faltanMinutos}
+          limite={limite}
+          sugerencia={data.extra}
+          valor={faltante as FaltanteForm | undefined}
+          onCambio={(v) => setValue('programacion.faltante', v as never, { shouldDirty: true })}
+        />
+      )}
+    </div>
+  )
+}
+
+type FaltanteForm = { tipo: 'horas_extra'; fecha: string; horaInicio: string; horaFin: string; acumula?: boolean } | { tipo: 'bono'; monto: number | string }
+
+/** Lo que no cabe en el horario normal antes de la entrega: horas extra (que se pueden acumular en la bolsa) o bono, a elección; no se guarda hasta registrar. */
+function Faltante({ faltan, limite, sugerencia, valor, onCambio }: { faltan: number; limite: string; sugerencia: VistaPreviaInicio['extra']; valor: FaltanteForm | undefined; onCambio: (v: FaltanteForm | undefined) => void }) {
+  const tipo = valor?.tipo ?? 'ninguno'
+  const cambiarTipo = (t: string) => {
+    if (t === 'ninguno') onCambio(undefined)
+    else if (t === 'bono') onCambio({ tipo: 'bono', monto: '' })
+    else onCambio({ tipo: 'horas_extra', fecha: sugerencia?.fecha ?? limite, horaInicio: sugerencia?.horaInicio ?? '19:00', horaFin: sugerencia?.horaFin ?? '20:00', acumula: false })
+  }
+  return (
+    <div className="flex flex-col gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-50">
+      <p className="flex items-start gap-2 font-medium">
+        <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+        Faltan {duracion(faltan)} para llegar a la entrega del {formatearFecha(limite)}: no caben en el horario normal del auxiliar.
+      </p>
+      <p className="text-xs">Esas horas no pasan solas al día siguiente. Elige cómo cubrirlas (la propuesta se guarda al registrar el cliente y el auxiliar la acepta):</p>
+      <RadioGroup value={tipo} onValueChange={cambiarTipo} className="gap-2">
+        <label className="flex items-center gap-2">
+          <RadioGroupItem value="horas_extra" /> Horas extra
+        </label>
+        <label className="flex items-center gap-2">
+          <RadioGroupItem value="bono" /> Bono (el monto lo pones a mano)
+        </label>
+        <label className="flex items-center gap-2">
+          <RadioGroupItem value="ninguno" /> Dejarlo así: lo que falta pasa al día siguiente
+        </label>
+      </RadioGroup>
+      {valor?.tipo === 'horas_extra' && (
+        <div className="flex flex-col gap-2">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <label className="flex flex-col gap-1 text-xs">
+              Día
+              <Input type="date" value={valor.fecha} onChange={(e) => onCambio({ ...valor, fecha: e.target.value })} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs">
+              Desde
+              <Input type="time" value={valor.horaInicio} onChange={(e) => onCambio({ ...valor, horaInicio: e.target.value })} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs">
+              Hasta
+              <Input type="time" value={valor.horaFin} onChange={(e) => onCambio({ ...valor, horaFin: e.target.value })} />
+            </label>
+          </div>
+          {sugerencia && (
+            <p className="text-xs">
+              Sugerido: {formatearFecha(sugerencia.fecha)}, {sugerencia.horaInicio}–{sugerencia.horaFin} ({duracion(sugerencia.minutos)}){sugerencia.cubreTodo ? '' : ': no alcanza a cubrir todo, habría que repetirlo otro día'}.
+              {sugerencia.avisos.length > 0 && <span className="block text-destructive">{sugerencia.avisos.join(' · ')}</span>}
+            </p>
+          )}
+          <label className="flex items-start gap-2 text-xs">
+            <Checkbox checked={Boolean(valor.acumula)} onCheckedChange={(v) => onCambio({ ...valor, acumula: v === true })} className="mt-0.5" />
+            <span>
+              Acumular estas horas en la bolsa del auxiliar
+              <span className="block text-muted-foreground">Se van sumando y después se canjean por días libres o por dinero, cuando se decida.</span>
+            </span>
+          </label>
+        </div>
+      )}
+      {valor?.tipo === 'bono' && (
+        <label className="flex max-w-48 flex-col gap-1 text-xs">
+          Monto del bono (S/)
+          <Input type="number" inputMode="decimal" min={1} step="0.01" value={valor.monto} onChange={(e) => onCambio({ tipo: 'bono', monto: e.target.value })} />
+        </label>
       )}
     </div>
   )

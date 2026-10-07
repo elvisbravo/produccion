@@ -1444,6 +1444,8 @@ model HoraExtraBono {
   tareaId        String?        @map("tarea_id") @db.Uuid
   /// Al aprobarse, la tarea pasa a esta persona (apoyo con horas extra o bono para una tarea que no llega).
   reasignaTarea  Boolean        @default(false) @map("reasigna_tarea")
+  /// Horas extra que se acumulan en la bolsa de la persona (se canjean después por días o dinero) en vez de compensarse al momento.
+  acumula        Boolean        @default(false)
   /// Horas extra: el día y el tramo (minutos desde las 00:00).
   fecha          DateTime?      @db.Date
   minutoInicio   Int?           @map("minuto_inicio") @db.SmallInt

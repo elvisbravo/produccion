@@ -265,9 +265,9 @@ export function useGuardarNotaEntrega(trabajoId: string) {
 }
 
 /** Cómo quedaría la primera actividad del auxiliar: a continuación de lo que tiene o a hora fija sin cruces. */
-export const vistaPreviaInicioQuery = (p: { auxiliarId: string; fecha: string; hora: string; minutos: number; fijo: boolean }) =>
+export const vistaPreviaInicioQuery = (p: { auxiliarId: string; fecha: string; hora: string; minutos: number; fijo: boolean; limite?: string }) =>
   queryOptions({
     queryKey: ['trabajos', 'cliente-directo', 'vista-previa-inicio', p] as const,
-    queryFn: ({ signal }) => api<VistaPreviaInicio>(`/trabajos/cliente-directo/vista-previa-inicio?${new URLSearchParams({ auxiliarId: p.auxiliarId, fecha: p.fecha, hora: p.hora, minutos: String(p.minutos), fijo: String(p.fijo) })}`, { signal }),
+    queryFn: ({ signal }) => api<VistaPreviaInicio>(`/trabajos/cliente-directo/vista-previa-inicio?${new URLSearchParams({ auxiliarId: p.auxiliarId, fecha: p.fecha, hora: p.hora, minutos: String(p.minutos), fijo: String(p.fijo), ...(p.limite && { limite: p.limite }) })}`, { signal }),
     staleTime: 0,
   })

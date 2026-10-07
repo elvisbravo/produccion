@@ -229,6 +229,8 @@ export const proponerExtraSchema = z
     horaInicio: opcional(hora),
     horaFin: opcional(hora),
     monto: opcional(z.coerce.number('Monto no válido').positive('Debe ser mayor que cero').max(100_000)),
+    /** Horas extra que se acumulan en la bolsa de la persona (para canjear después por días o dinero). */
+    acumula: z.boolean().optional(),
   })
   .superRefine(validarExtra)
 export type ProponerExtraFormulario = z.input<typeof proponerExtraSchema>
@@ -266,6 +268,8 @@ export interface HoraExtraItem {
   motivoRechazo: string | null
   aprobadaPor: UsuarioResumen | null
   minutosReales: number | null
+  /** Las horas se acumulan en la bolsa de la persona. */
+  acumula: boolean
   /** Avisos: tope superado, cae en feriado o cumpleaños (requiere aceptación)… */
   avisos: string[]
 }

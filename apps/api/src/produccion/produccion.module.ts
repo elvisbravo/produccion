@@ -14,6 +14,6 @@ import { ProduccionService } from './produccion.service.js';
   imports: [AgendaModule],
   controllers: [ColasController, ExtrasController, ApoyoController, CargaController],
   providers: [ProduccionService, ContingenciasService, ExtrasService, ApoyoService],
-  exports: [ProduccionService, ContingenciasService],
+  exports: [ProduccionService, ContingenciasService, ExtrasService],
 })
 export class ProduccionModule {}

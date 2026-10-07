@@ -405,7 +405,7 @@ export class ProduccionService {
    * Cómo quedaría la primera actividad de un auxiliar: a continuación de lo que ya tiene (secuencial) o exactamente a la hora pedida (fijo),
    * comprobando que en ese caso no se cruce con otra actividad suya ni caiga fuera de su horario.
    */
-  async vistaPreviaInicio(auxiliarId: string, d: { fecha: string; hora: string; minutos: number; fijo: boolean }): Promise<VistaPreviaInicio> {
+  async vistaPreviaInicio(auxiliarId: string, d: { fecha: string; hora: string; minutos: number; fijo: boolean; limite?: string }): Promise<VistaPreviaInicio> {
     const base = (await this.agenda.basesDeCola([auxiliarId], this.prisma, d.fecha)).get(auxiliarId);
     if (!base) throw new NotFoundException('El auxiliar no existe');
     const [h, m] = d.hora.split(':').map(Number);
@@ -419,9 +419,17 @@ export class ProduccionService {
     const ultimo = base.items.at(-1)?.tarea;
     const tieneActividades = existentes.length > 0;
 
+    // Lo que no cabe en el horario normal antes de la fecha límite: se planifica solo hasta ese día y se ve cuánto queda fuera.
+    const faltan = (lista: TareaEnCola[]) => {
+      if (!d.limite) return 0;
+      const parcial = planificar(base.dias.filter((x) => x.fecha <= d.limite!), lista, base.ahora).get('nueva');
+      const entra = (parcial?.segmentos ?? []).reduce((suma, sg) => suma + (sg.fin - sg.inicio), 0);
+      return Math.max(0, d.minutos - entra);
+    };
+
     if (!d.fijo) {
       const plan = planificar(base.dias, [...existentes, nueva], base.ahora).get('nueva');
-      return { tieneActividades, inicio: aIso(plan?.inicio), fin: aIso(plan?.fin, true), despuesDe: tieneActividades ? (ultimo?.titulo ?? ultimo?.actividad.nombre ?? null) : null, cabe: true, cruces: [], mensaje: null };
+      return { tieneActividades, inicio: aIso(plan?.inicio), fin: aIso(plan?.fin, true), despuesDe: tieneActividades ? (ultimo?.titulo ?? ultimo?.actividad.nombre ?? null) : null, cabe: true, cruces: [], mensaje: null, faltanMinutos: faltan([...existentes, nueva]), extra: null };
     }
 
     // Hora fija: dónde entraría en la cola y si el plan la respeta.
@@ -443,7 +451,7 @@ export class ProduccionService {
         : !respeta
           ? `Esa hora cae fuera del horario del auxiliar o en un día que no trabaja${plan?.inicio ? `: empezaría el ${plan.inicio.fecha} a las ${hhmm(plan.inicio.inicio)}` : ''}.`
           : null;
-    return { tieneActividades, inicio: aIso(plan?.inicio), fin: aIso(plan?.fin, true), despuesDe: null, cabe: cruces.length === 0 && respeta, cruces, mensaje };
+    return { tieneActividades, inicio: aIso(plan?.inicio), fin: aIso(plan?.fin, true), despuesDe: null, cabe: cruces.length === 0 && respeta, cruces, mensaje, faltanMinutos: faltan([...existentes.slice(0, antes), nueva, ...existentes.slice(antes)]), extra: null };
   }
 
   private async posicionEnCola(tx: Tx, usuarioId: string, alFrente: boolean): Promise<number> {

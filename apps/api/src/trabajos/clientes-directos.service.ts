@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
-import { ROLES_BASE, type VistaPreviaInicio, type VistaPreviaInicioConsulta, type ClienteDirectoDatos, ConvertirProspectoDatos, TrabajoDetalle, UsuarioResumen } from '@grupoes/shared';
+import { diaEnLima, ROLES_BASE, type VistaPreviaInicio, type VistaPreviaInicioConsulta, type ClienteDirectoDatos, ConvertirProspectoDatos, TrabajoDetalle, UsuarioResumen } from '@grupoes/shared';
 import { siguienteCodigo } from '../common/correlativo.js';
+import { ExtrasService } from '../produccion/extras.service.js';
 import { ProduccionService } from '../produccion/produccion.service.js';
 import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
 import { PermisosService } from '../permisos/permisos.service.js';
@@ -25,6 +26,7 @@ export class ClientesDirectosService {
     private readonly permisos: PermisosService,
     private readonly notificaciones: NotificacionesService,
     private readonly produccion: ProduccionService,
+    private readonly extras: ExtrasService,
   ) {}
 
   /** Quienes pueden figurar como responsable del cliente: personas activas que ven prospectos (asistentes administrativos…) y los jefes de producción; sin los administradores ocultos. */
@@ -36,8 +38,11 @@ export class ClientesDirectosService {
   }
 
   /** Cómo quedaría la primera actividad del auxiliar (a continuación o a hora fija), para mostrarlo antes de guardar. */
-  vistaPreviaInicio(consulta: VistaPreviaInicioConsulta): Promise<VistaPreviaInicio> {
-    return this.produccion.vistaPreviaInicio(consulta.auxiliarId, { fecha: consulta.fecha, hora: consulta.hora, minutos: consulta.minutos, fijo: consulta.fijo });
+  async vistaPreviaInicio(consulta: VistaPreviaInicioConsulta): Promise<VistaPreviaInicio> {
+    const v = await this.produccion.vistaPreviaInicio(consulta.auxiliarId, { fecha: consulta.fecha, hora: consulta.hora, minutos: consulta.minutos, fijo: consulta.fijo, limite: consulta.limite });
+    // Si no llega a la entrega en horario normal, se sugiere una ventana de horas extra ese día.
+    const extra = v.faltanMinutos > 0 && consulta.limite ? await this.extras.ventanaParaFaltante(consulta.auxiliarId, consulta.limite, v.faltanMinutos) : null;
+    return { ...v, extra };
   }
 
   async registrar(datos: ClienteDirectoDatos, actor: ActorTrabajo): Promise<TrabajoDetalle> {
@@ -78,6 +83,18 @@ export class ClientesDirectosService {
     if (datos.programacion?.modoInicio === 'fijo') {
       const v = await this.produccion.vistaPreviaInicio(datos.programacion.auxiliarPrincipalId, { fecha: datos.trabajo.fechaInicio, hora: datos.programacion.hora, minutos: datos.programacion.minutosEstimados, fijo: true });
       if (!v.cabe) throw errorCampo('programacion.hora', v.mensaje ?? 'Esa hora no está libre');
+    }
+
+    // Lo que falta para llegar a la entrega: la propuesta de horas extra o bono debe ser posible antes de registrar nada.
+    const faltante = datos.programacion?.faltante;
+    if (datos.programacion && faltante?.tipo === 'horas_extra') {
+      if (faltante.fecha < diaEnLima()) throw errorCampo('programacion.faltante', 'Las horas extra no pueden ser un día pasado');
+      if (faltante.horaInicio >= faltante.horaFin) throw errorCampo('programacion.faltante', 'La hora de fin debe ser posterior a la de inicio');
+      const [hi, mi] = faltante.horaInicio.split(':').map(Number);
+      const [hf, mf] = faltante.horaFin.split(':').map(Number);
+      if ((await this.extras.evaluarVentana(datos.programacion.auxiliarPrincipalId, faltante.fecha, hi * 60 + mi, hf * 60 + mf)) === null) {
+        throw errorCampo('programacion.faltante', 'Ese día el auxiliar no puede hacer horas extra (ausencia o descanso)');
+      }
     }
 
     const id = await this.prisma.$transaction(async (tx) => {
@@ -150,6 +167,27 @@ export class ClientesDirectosService {
       } catch (err) {
         const cod = (await this.prisma.trabajo.findUniqueOrThrow({ where: { id }, select: { codigo: true } })).codigo;
         throw new BadRequestException(`El cliente quedó registrado (${cod}) pero no se pudo programar la actividad: ${err instanceof Error ? err.message : 'error'}. Arma el equipo y genera el plan desde su ficha.`);
+      }
+    }
+    // La propuesta de horas extra o bono para lo que no cabe en horario normal: el auxiliar la acepta y la asistente de producción la aprueba.
+    if (datos.programacion?.faltante) {
+      const f = datos.programacion.faltante;
+      try {
+        const tarea = await this.prisma.tarea.findFirstOrThrow({ where: { trabajoId: id }, select: { id: true, titulo: true } });
+        await this.extras.proponer(
+          {
+            usuarioId: datos.programacion.auxiliarPrincipalId,
+            modalidad: f.tipo,
+            trabajoId: id,
+            descripcion: `Lo que falta para llegar a la entrega: ${tarea.titulo ?? 'actividad'}`,
+            ...(f.tipo === 'horas_extra' ? { fecha: f.fecha, horaInicio: f.horaInicio, horaFin: f.horaFin, acumula: f.acumula } : { monto: f.monto }),
+          },
+          actor,
+          { tareaId: tarea.id, reasigna: false },
+        );
+      } catch (err) {
+        const cod = (await this.prisma.trabajo.findUniqueOrThrow({ where: { id }, select: { codigo: true } })).codigo;
+        throw new BadRequestException(`El cliente quedó registrado (${cod}) pero no se pudo crear la propuesta de ${f.tipo === 'bono' ? 'bono' : 'horas extra'}: ${err instanceof Error ? err.message : 'error'}. Propónla desde la ficha del trabajo.`);
       }
     }
     return this.trabajos.obtener(id, actor.usuarioId);

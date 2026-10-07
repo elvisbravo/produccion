@@ -638,6 +638,16 @@ export const programacionInicialSchema = z.object({
    * fijo: empieza exactamente a esa fecha y hora, siempre que no se cruce con otra actividad suya.
    */
   modoInicio: z.enum(['secuencial', 'fijo']).default('secuencial'),
+  /**
+   * Lo que no cabe en el horario normal antes de la entrega: se cubre con horas extra (que se pueden acumular en la bolsa) o con un bono.
+   * Se guarda como una propuesta al auxiliar al registrar el trabajo. Sin esto, lo que falta pasa al día siguiente.
+   */
+  faltante: z
+    .discriminatedUnion('tipo', [
+      z.object({ tipo: z.literal('horas_extra'), fecha: z.iso.date('Fecha no válida'), horaInicio: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Hora no válida'), horaFin: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Hora no válida'), acumula: z.boolean().default(false) }),
+      z.object({ tipo: z.literal('bono'), monto: z.coerce.number('Indica el monto').positive('Debe ser mayor que cero').max(100_000) }),
+    ])
+    .optional(),
 })
 export type ProgramacionInicialDatos = z.output<typeof programacionInicialSchema>
 
@@ -693,6 +703,8 @@ export const vistaPreviaInicioSchema = z.object({
   hora: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Hora no válida (HH:mm)'),
   minutos: z.coerce.number().int().min(15).max(60 * 200),
   fijo: z.preprocess((v) => v === true || v === 'true' || v === '1', z.boolean()),
+  /** Fecha límite del trabajo: con ella se calcula cuánto no llega. */
+  limite: z.preprocess((v) => (v === '' ? undefined : v), z.iso.date('Fecha no válida').optional()),
 })
 export type VistaPreviaInicioConsulta = z.output<typeof vistaPreviaInicioSchema>
 
@@ -708,4 +720,8 @@ export interface VistaPreviaInicio {
   cabe: boolean
   cruces: { titulo: string; inicio: string; fin: string }[]
   mensaje: string | null
+  /** Minutos que no caben en su horario normal antes de la fecha límite (0 si llega). */
+  faltanMinutos: number
+  /** Una ventana de horas extra sugerida para cubrir lo que falta (el día de la entrega, al terminar su jornada). */
+  extra: { fecha: string; horaInicio: string; horaFin: string; minutos: number; cubreTodo: boolean; avisos: string[] } | null
 }
