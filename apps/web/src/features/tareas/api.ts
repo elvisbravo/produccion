@@ -205,3 +205,12 @@ export const impactoReprogramarQuery = (tareaId: string, fecha: string, hora: st
     enabled: activo,
     staleTime: 0,
   })
+
+/** Qué se adelanta en la cola de quien hacía la reunión si se cancela (el tiempo liberado se aprovecha). */
+export const impactoCancelarQuery = (tareaId: string, activo: boolean) =>
+  queryOptions({
+    queryKey: ['tareas', 'impacto-cola', tareaId, 'cancelar'] as const,
+    queryFn: () => api<ImpactoReunion[]>(`/tareas/${tareaId}/impacto-cola?cancelar=1`),
+    enabled: activo,
+    staleTime: 0,
+  })

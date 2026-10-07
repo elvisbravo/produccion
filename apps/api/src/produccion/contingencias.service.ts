@@ -383,12 +383,13 @@ export class ContingenciasService {
    * Qué tareas de la cola de cada persona se corren si entra una reunión con hora fija ese día (la cola se acomoda sola alrededor de ella),
    * cuáles dejan de llegar a su fecha límite y si hay trabajos urgentes o de fechas inamovibles entre ellas.
    */
-  async impactoDeReunion(usuarioIds: string[], r: { fecha: string; inicio: number; fin: number }, reprograma?: string): Promise<ImpactoReunion[]> {
+  async impactoDeReunion(usuarioIds: string[], r: { fecha: string; inicio: number; fin: number } | null, reprograma?: string, fechaBase = r?.fecha): Promise<ImpactoReunion[]> {
     if (usuarioIds.length === 0) return [];
     // Al reprogramar una reunión ya asignada, «antes» es con la reunión en su hora actual y «después» es la cola sin ella con la hora nueva.
-    const basesSin = reprograma ? await this.agenda.basesDeCola(usuarioIds, this.prisma, r.fecha, reprograma) : null;
+    // Al cancelarla (`r` nulo), «después» es la cola sin ella: el tiempo liberado lo aprovechan las actividades siguientes.
+    const basesSin = reprograma ? await this.agenda.basesDeCola(usuarioIds, this.prisma, fechaBase, reprograma) : null;
     const [bases, personas] = await Promise.all([
-      this.agenda.basesDeCola(usuarioIds, this.prisma, r.fecha),
+      this.agenda.basesDeCola(usuarioIds, this.prisma, fechaBase),
       this.prisma.usuario.findMany({ where: { id: { in: usuarioIds } }, select: CAMPOS_USUARIO }),
     ]);
     const salida: ImpactoReunion[] = [];
@@ -397,7 +398,7 @@ export class ContingenciasService {
       if (!base) continue;
       const items = base.items.map(({ tarea }) => aTareaEnCola(tarea));
       const antes = planificar(base.dias, items, base.ahora);
-      const dias = (basesSin?.get(usuario.id)?.dias ?? base.dias).map((d) => (d.fecha === r.fecha ? { fecha: d.fecha, huecos: restar(d.huecos, [{ inicio: r.inicio, fin: r.fin }]) } : d));
+      const dias = (basesSin?.get(usuario.id)?.dias ?? base.dias).map((d) => (r && d.fecha === r.fecha ? { fecha: d.fecha, huecos: restar(d.huecos, [{ inicio: r.inicio, fin: r.fin }]) } : d));
       const despues = planificar(dias, items, base.ahora);
       const movidas = base.items.flatMap(({ tarea }) => {
         const a = antes.get(tarea.id);

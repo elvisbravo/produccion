@@ -436,4 +436,48 @@ describe('Escenario completo de programación (e2e)', () => {
     expect(final.reuniones).toHaveLength(0);
     expect(final.tramos).toEqual(antes.tramos);
   });
+  it('14. al cancelar una reunión el tiempo no queda vacío: las actividades siguientes se adelantan y llenan el hueco', async () => {
+    // aux4 tiene T13 (9 h que llenan el día D) y detrás otro trabajo
+    await registrar('T14', 8, { aux: 'aux4', minutos: 300 });
+    const sinReunion = await calendario('aux4');
+    expect(sinReunion.tramos.filter((t) => t.fecha === D).map((t) => [t.inicio, t.fin])).toEqual([[8 * 60, 13 * 60], [15 * 60, 19 * 60]]); // el día completo, sin huecos
+    const reunion = (await http().post(`/api/trabajos/${trabajos.T14.id}/reuniones`).set(como('prod')).send({ actividadId: enfoque, fecha: D, hora: '10:00', modalidad: 'virtual' }).expect(201)).body as { id: string };
+    await http().put(`/api/tareas/${reunion.id}/equipo-reunion`).set(como('prod')).send({ auxiliarId: ids.aux4, confirmarImpacto: true }).expect(200);
+    const conReunion = await calendario('aux4');
+    // Con la reunión (10:00–11:20) el día queda partido y lo que no cabe pasa al día siguiente
+    expect(conReunion.tramos.filter((t) => t.fecha === D).map((t) => [t.inicio, t.fin])).toEqual([[8 * 60, 10 * 60], [11 * 60 + 20, 13 * 60], [15 * 60, 19 * 60]]);
+    const finConReunion = Math.max(...conReunion.tramos.filter((t) => t.id === tareaDe('T14')).map((t) => Date.parse(`${t.fecha}T00:00:00-05:00`) + t.fin * 60_000));
+
+    // Antes de cancelar se ve qué se adelantaría
+    const prev = (await http().get(`/api/tareas/${reunion.id}/impacto-cola?cancelar=1`).set(como('prod')).expect(200)).body as { tareas: { trabajoCodigo: string; finAntes: string; finDespues: string; pasaARojo: boolean }[]; pasanARojo: number }[];
+    expect(prev[0].tareas.length).toBeGreaterThan(0);
+    expect(prev[0].pasanARojo).toBe(0);
+    for (const t of prev[0].tareas) expect(Date.parse(t.finDespues)).toBeLessThanOrEqual(Date.parse(t.finAntes));
+    expect(prev[0].tareas.map((t) => t.trabajoCodigo)).toContain(trabajos.T13.codigo);
+
+    // Cancelar: el hueco se llena con las actividades siguientes, no queda vacío
+    await http().post(`/api/tareas/${reunion.id}/cancelar`).set(como('prod')).send({ motivo: 'El cliente la canceló' }).expect(201);
+    const despues = await calendario('aux4');
+    expect(despues.reuniones).toHaveLength(0);
+    expect(despues.tramos.filter((t) => t.fecha === D).map((t) => [t.inicio, t.fin])).toEqual([[8 * 60, 13 * 60], [15 * 60, 19 * 60]]);
+    expect(despues.tramos).toEqual(sinReunion.tramos); // exactamente como antes de la reunión
+    expect(despues.minutos(tareaDe('T13'))).toBe(540);
+    expect(despues.minutos(tareaDe('T14'))).toBe(300);
+    const finDespues = Math.max(...despues.tramos.filter((t) => t.id === tareaDe('T14')).map((t) => Date.parse(`${t.fecha}T00:00:00-05:00`) + t.fin * 60_000));
+    expect(finDespues).toBeLessThan(finConReunion); // todo termina antes
+    sinCruces(despues);
+  });
+
+  it('14b. cancelar una reunión que aún no tiene responsable no mueve la cola de nadie', async () => {
+    const antes = await calendario('aux4');
+    const sinAsignar = (await http().post(`/api/trabajos/${trabajos.T14.id}/reuniones`).set(como('prod')).send({ actividadId: enfoque, fecha: D, hora: '09:00', modalidad: 'virtual' }).expect(201)).body as { id: string; estado: string };
+    expect(sinAsignar.estado).toBe('por_asignar');
+    expect((await calendario('aux4')).tramos).toEqual(antes.tramos); // por asignar: no ocupa el calendario de nadie
+    await http().post(`/api/tareas/${sinAsignar.id}/cancelar`).set(como('prod')).send({ motivo: 'Ya no hace falta' }).expect(201);
+    expect((await calendario('aux4')).tramos).toEqual(antes.tramos);
+    // El motivo es obligatorio
+    const otra = (await http().post(`/api/trabajos/${trabajos.T14.id}/reuniones`).set(como('prod')).send({ actividadId: enfoque, fecha: D, hora: '09:00', modalidad: 'virtual' }).expect(201)).body as { id: string };
+    await http().post(`/api/tareas/${otra.id}/cancelar`).set(como('prod')).send({}).expect(400);
+    await http().post(`/api/tareas/${otra.id}/cancelar`).set(como('prod')).send({ motivo: 'Fin de la prueba' }).expect(201);
+  });
 });

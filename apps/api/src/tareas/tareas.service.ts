@@ -553,9 +553,11 @@ export class TareasService {
   }
 
   /** Impacto de asignar esta reunión a esas personas: qué tareas de su cola se corren y cuáles dejan de llegar a su fecha. */
-  async impactoDeAsignar(tareaId: string, usuarioIds: string[], usuarioActor: string, nuevo?: { fecha: string; hora: string }): Promise<ImpactoReunion[]> {
+  async impactoDeAsignar(tareaId: string, usuarioIds: string[], usuarioActor: string, nuevo?: { fecha: string; hora: string } | 'cancelar'): Promise<ImpactoReunion[]> {
     const tarea = await this.obtenerVisible(tareaId, usuarioActor, nuevo ? 'tareas.editar' : 'tareas.asignar');
     if (!tarea.inicio) return [];
+    // Cancelar una reunión asignada: el tiempo libre lo aprovechan las actividades siguientes de su cola (se adelantan).
+    if (nuevo === 'cancelar') return this.contingencias.impactoDeReunion(tarea.responsables.map((r) => r.usuario.id), null, tarea.id, tarea.fecha.toISOString().slice(0, 10));
     // Reprogramar una reunión ya asignada: qué le pasa a la cola de quienes la hacen si cambia de hora.
     if (nuevo) {
       const quienes = tarea.responsables.map((r) => r.usuario.id);

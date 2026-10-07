@@ -142,12 +142,13 @@ export class TareasController {
     @Query('usuarioIds') usuarioIds: string | undefined,
     @Query('fecha') fecha: string | undefined,
     @Query('hora') hora: string | undefined,
+    @Query('cancelar') cancelar: string | undefined,
     @Req() req: SolicitudAutenticada,
   ): Promise<ImpactoReunion[]> {
     const ids = (usuarioIds ?? '').split(',').filter((x) => z.uuid().safeParse(x).success);
     // Con día y hora nuevos: qué pasa si se reprograma una reunión ya asignada.
     const nuevo = fecha && hora && z.iso.date().safeParse(fecha).success && /^([01]\d|2[0-3]):[0-5]\d$/.test(hora) ? { fecha, hora } : undefined;
-    return this.tareas.impactoDeAsignar(id, ids, req.usuario!.id, nuevo);
+    return this.tareas.impactoDeAsignar(id, ids, req.usuario!.id, cancelar === '1' ? 'cancelar' : nuevo);
   }
 
   /** El jefe de producción y el auxiliar de apoyo (opcional) de una reunión. */

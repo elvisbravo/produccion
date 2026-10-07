@@ -19,10 +19,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { formatearFechaHora, nombreCompleto } from '@/lib/formato'
 import { aplicarErroresApi } from '@/lib/formularios'
 import { useQuery } from '@tanstack/react-query'
 import { usePermiso } from '@/lib/permisos'
-import { impactoReprogramarQuery, useCancelarTarea, useReprogramarTarea } from '../api'
+import { impactoCancelarQuery, impactoReprogramarQuery, useCancelarTarea, useReprogramarTarea } from '../api'
 import { AvisoImpacto, resumenImpacto } from './aviso-impacto'
 import { avisarReordenar } from './reordenar-cola'
 
@@ -121,13 +122,16 @@ export function DialogoReprogramar({ tarea, abierto, onAbiertoChange, proponer =
 export function DialogoCancelar({ tarea, abierto, onAbiertoChange }: PropsDialogo) {
   const cancelar = useCancelarTarea(tarea.id)
   const [error, setError] = useState<string | null>(null)
+  // Una reunión ya asignada: el tiempo que deja libre lo aprovechan las actividades siguientes de su cola.
+  const { data: adelantos = [] } = useQuery(impactoCancelarQuery(tarea.id, abierto && tarea.actividad.requiereHoraFija && tarea.responsables.length > 0))
+  const seAdelantan = adelantos.reduce((n, i) => n + i.tareas.length, 0)
   const form = useForm<{ motivo: string }>({ resolver: zodResolver(cancelarTareaSchema), defaultValues: { motivo: '' } })
 
   const enviar = form.handleSubmit(async ({ motivo }) => {
     setError(null)
     try {
       await cancelar.mutateAsync(motivo)
-      toast.success('Actividad cancelada')
+      toast.success(seAdelantan > 0 ? `Actividad cancelada: ${seAdelantan === 1 ? 'se adelantó 1 tarea' : `se adelantaron ${seAdelantan} tareas`} de la cola` : 'Actividad cancelada')
       onAbiertoChange(false)
     } catch (err) {
       setError(aplicarErroresApi(err, form.setError, ['motivo']))
@@ -147,6 +151,24 @@ export function DialogoCancelar({ tarea, abierto, onAbiertoChange }: PropsDialog
               <AlertCircle />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
+          )}
+          {seAdelantan > 0 && (
+            <div className="flex flex-col gap-1 rounded-md border bg-muted/40 p-3 text-sm" aria-live="polite">
+              <p className="font-medium">El tiempo no queda vacío: {seAdelantan === 1 ? 'se adelanta 1 tarea' : `se adelantan ${seAdelantan} tareas`} de su cola.</p>
+              {adelantos
+                .filter((i) => i.tareas.length > 0)
+                .map((i) => (
+                  <div key={i.usuario.id} className="flex flex-col gap-0.5 text-xs">
+                    <span className="font-medium">{nombreCompleto(i.usuario)}</span>
+                    {i.tareas.slice(0, 4).map((t) => (
+                      <span key={t.tareaId}>
+                        <span className="font-mono">{t.trabajoCodigo}</span> {t.titulo}: {t.finAntes ? formatearFechaHora(t.finAntes) : '—'} → {t.finDespues ? formatearFechaHora(t.finDespues) : '—'}
+                      </span>
+                    ))}
+                    {i.tareas.length > 4 && <span className="text-muted-foreground">y {i.tareas.length - 4} más</span>}
+                  </div>
+                ))}
+            </div>
           )}
           <Field data-invalid={Boolean(form.formState.errors.motivo)}>
             <FieldLabel htmlFor="can-motivo">
