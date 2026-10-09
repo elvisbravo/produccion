@@ -440,6 +440,46 @@ export class ContingenciasService {
     return salida;
   }
 
+  /** Qué le pasa a la cola de alguien si una corrección de `minutos` entra primera: qué se corre y qué deja de llegar a su fecha. */
+  async impactoDeCorreccion(usuarioId: string, minutos: number): Promise<ImpactoReunion> {
+    const usuario = await this.prisma.usuario.findUniqueOrThrow({ where: { id: usuarioId }, select: CAMPOS_USUARIO });
+    const base = (await this.agenda.basesDeCola([usuarioId], this.prisma)).get(usuarioId);
+    if (!base) return { usuario, tareas: [], pasanARojo: 0, fijasAfectadas: [], urgentesAfectadas: [] };
+    const items = base.items.map(({ tarea }) => aTareaEnCola(tarea));
+    const antes = planificar(base.dias, items, base.ahora);
+    const despues = planificar(base.dias, [{ id: 'correccion-nueva', minutos, noAntesDe: base.ahora.fecha }, ...items], base.ahora);
+    const tareas = base.items.flatMap(({ tarea }) => {
+      const a = antes.get(tarea.id);
+      const d = despues.get(tarea.id);
+      if (JSON.stringify(a?.segmentos) === JSON.stringify(d?.segmentos)) return [];
+      const limite = limiteDe(tarea);
+      const ra = resultado(a, limite);
+      const rd = resultado(d, limite);
+      return [
+        {
+          tareaId: tarea.id,
+          titulo: tarea.titulo ?? tarea.actividad.nombre,
+          trabajoCodigo: tarea.trabajo?.codigo ?? '',
+          fechasFijas: Boolean(tarea.trabajo?.fechasFijas),
+          urgente: false,
+          finAntes: ra.fin,
+          finDespues: rd.fin,
+          fechaLimite: limite,
+          semaforoAntes: ra.semaforo,
+          semaforoDespues: rd.semaforo,
+          pasaARojo: !enRiesgo(ra) && enRiesgo(rd),
+        },
+      ];
+    });
+    return {
+      usuario,
+      tareas,
+      pasanARojo: tareas.filter((t) => t.pasaARojo).length,
+      fijasAfectadas: [...new Set(tareas.filter((t) => t.fechasFijas && t.finDespues !== t.finAntes).map((t) => t.trabajoCodigo))],
+      urgentesAfectadas: [],
+    };
+  }
+
   // ─── Reasignar la carga de un auxiliar ───────────────────
 
   private async filasDeCarga(usuarioId: string): Promise<FilaCarga[]> {

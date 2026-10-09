@@ -3,6 +3,9 @@ import {
   diaEnLima,
   horaEnLima,
   instanteDesdeLima,
+  proponerExtraSchema,
+  ROLES_BASE,
+  type CandidatoCorreccion,
   type ConfirmarObservacionDatos,
   type ConsultaObservaciones,
   type ConsultaPlazo,
@@ -18,7 +21,9 @@ import { ahoraEnLima, planificar } from '../agenda/cola.js';
 import { AuditoriaService } from '../common/auditoria.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { NotificacionesService } from '../notificaciones/notificaciones.service.js';
+import { PermisosService } from '../permisos/permisos.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ContingenciasService } from './contingencias.service.js';
 import { ExtrasService } from './extras.service.js';
 import { ProduccionService, type ActorProduccion } from './produccion.service.js';
 
@@ -44,6 +49,8 @@ export class ObservacionesService {
     private readonly prisma: PrismaService,
     private readonly produccion: ProduccionService,
     private readonly agenda: AgendaService,
+    private readonly contingencias: ContingenciasService,
+    private readonly permisos: PermisosService,
     private readonly extras: ExtrasService,
     private readonly notificaciones: NotificacionesService,
     private readonly auditoria: AuditoriaService,
@@ -134,6 +141,31 @@ export class ObservacionesService {
       ? `${nombre(auxiliar)} lo termina el ${cuando(fin ?? entrega)}: cabe antes de la entrega.`
       : `${nombre(auxiliar)} no alcanza en su horario normal (le faltan ${faltan} min antes del ${cuando(entrega)}). ${fin ? `En horario normal terminaría el ${cuando(fin)}: se le puede proponer esa hora al cliente.` : ''}${extra ? ` O cubrirlo con horas extra el ${extra.fecha} de ${extra.horaInicio} a ${extra.horaFin}.` : ''}`.trim();
     return { ...base, cabe, faltanMinutos: faltan, inicio: v.inicio, fin: v.fin, sugerenciaEntrega: cabe ? null : v.fin, extra, mensaje };
+  }
+
+  /** Quiénes podrían hacer la corrección, con lo que cabe y lo que atrasaría; recomienda a quien llega a tiempo sin atrasar a nadie (primero quien hizo el trabajo). */
+  async candidatos(id: string): Promise<CandidatoCorreccion[]> {
+    const o = await this.fila(id);
+    if (!o.minutosEstimados) return [];
+    const entrega = o.entregaConfirmada ?? o.entregaPropuesta;
+    if (!entrega) return [];
+    const original = o.trabajo.equipo[0]?.usuario ?? null;
+    const auxiliares = await this.prisma.usuario.findMany({
+      where: { activo: true, eliminadoEn: null, roles: { some: { rol: { codigo: ROLES_BASE.AUXILIAR, activo: true } } } },
+      select: { id: true, nombres: true, apellidos: true },
+      orderBy: [{ nombres: 'asc' }, { apellidos: 'asc' }],
+    });
+    const lista = original && !auxiliares.some((a) => a.id === original.id) ? [original, ...auxiliares] : auxiliares;
+    const filas = await Promise.all(
+      lista.map(async (usuario) => {
+        const [plazo, impacto] = await Promise.all([this.evaluarPlazo(usuario, o.minutosEstimados!, entrega), this.contingencias.impactoDeCorreccion(usuario.id, o.minutosEstimados!)]);
+        return { usuario, esOriginal: usuario.id === original?.id, plazo, pasanARojo: impacto.pasanARojo, fijasAfectadas: impacto.fijasAfectadas, recomendado: false };
+      }),
+    );
+    const limpios = filas.filter((f) => f.plazo.cabe && f.pasanARojo === 0 && f.fijasAfectadas.length === 0);
+    const ordenados = [...limpios].sort((a, b) => Number(b.esOriginal) - Number(a.esOriginal) || (a.plazo.fin ?? '').localeCompare(b.plazo.fin ?? ''));
+    if (ordenados[0]) ordenados[0].recomendado = true;
+    return filas.sort((a, b) => Number(b.recomendado) - Number(a.recomendado) || Number(b.esOriginal) - Number(a.esOriginal) || a.pasanARojo - b.pasanARojo);
   }
 
   /** Consulta mientras se llena el formulario de valoración: ¿alcanza el tiempo para la hora de entrega propuesta? */
@@ -234,11 +266,44 @@ export class ObservacionesService {
     return this.detalle(id);
   }
 
-  /** La asistente de producción programa la corrección: primera en la cola de quien la hará (por defecto, quien hizo el trabajo). */
+  /**
+   * La asistente de producción programa la corrección: primera en la cola de quien la hará (por defecto, quien hizo el trabajo).
+   * Si no cabe antes de la entrega o atrasa otras tareas hay que confirmarlo (o cubrirlo con horas extra / bono); si atrasa un trabajo de fechas inamovibles, aceptarlo de forma expresa.
+   */
   async programar(id: string, datos: ProgramarObservacionDatos, actor: ActorProduccion): Promise<ObservacionDetalle> {
     const o = await this.fila(id);
     if (o.estado !== 'confirmada') throw new ConflictException('Primero la asistente administrativa debe confirmar el plazo con el cliente');
     const quien = datos.usuarioId ?? o.trabajo.equipo[0]?.usuario.id;
+    if (!quien) throw new BadRequestException('Elige quién hará la corrección');
+    const entrega = o.entregaConfirmada ?? o.entregaPropuesta!;
+    const persona = await this.prisma.usuario.findFirst({ where: { id: quien, activo: true, eliminadoEn: null }, select: { id: true, nombres: true, apellidos: true } });
+    if (!persona) throw new BadRequestException('Esa persona no está disponible');
+    const [plazo, impacto] = await Promise.all([this.evaluarPlazo(persona, o.minutosEstimados!, entrega), this.contingencias.impactoDeCorreccion(quien, o.minutosEstimados!)]);
+    if (impacto.fijasAfectadas.length > 0) {
+      if (!datos.forzarFechasFijas) {
+        throw new ConflictException({ message: `Esta corrección atrasaría trabajos con fechas inamovibles (${impacto.fijasAfectadas.join(', ')}). Elige a otra persona o acéptalo de forma expresa.`, codigo: 'fechas_fijas', impacto: [impacto], plazo });
+      }
+      if (!('trabajos.fijar_fechas' in (await this.permisos.efectivos(actor.usuarioId)))) {
+        throw new ForbiddenException('Solo quien puede fijar o liberar fechas puede atrasar un trabajo con fechas inamovibles');
+      }
+    }
+    // Lo que no cabe se cubre con horas extra o bono (si se propone) o se confirma expresamente.
+    const sinCubrir = !plazo.cabe && !datos.extra;
+    if ((impacto.pasanARojo > 0 || sinCubrir) && !datos.confirmarImpacto) {
+      const partes = [sinCubrir && `no alcanza en el horario normal (${plazo.mensaje})`, impacto.pasanARojo > 0 && `${impacto.pasanARojo} ${impacto.pasanARojo === 1 ? 'tarea deja' : 'tareas dejan'} de llegar a su fecha límite`].filter(Boolean);
+      throw new ConflictException({ message: `Con esta corrección ${partes.join(' y ')}. Confírmalo, cubre con horas extra o bono, o elige a otra persona.`, codigo: 'impacto_cola', impacto: [impacto], plazo });
+    }
+    let extra: ReturnType<typeof proponerExtraSchema.safeParse> | null = null;
+    if (datos.extra) {
+      extra = proponerExtraSchema.safeParse({
+        usuarioId: quien,
+        trabajoId: o.trabajoId,
+        entregableId: o.entregableId,
+        descripcion: `Corrección de observaciones del cliente: ${o.entregable.nombre} (${o.trabajo.codigo})`,
+        ...datos.extra,
+      });
+      if (!extra.success) throw new BadRequestException(extra.error.issues.map((i) => i.message).join('. '));
+    }
     const notas = o.items.map((it, i) => `${i + 1}. ${it.texto}`).join('\n') || o.observaciones;
     const responsable = await this.prisma.$transaction(async (tx) => {
       const tareaId = await this.produccion.crearCorreccionDeObservacion(tx, { trabajoId: o.trabajoId, entregableId: o.entregableId, nombre: o.entregable.nombre, minutos: o.minutosEstimados!, notas }, actor, quien);
@@ -247,7 +312,14 @@ export class ObservacionesService {
       await this.auditoria.registrar({ usuarioId: actor.usuarioId, accion: 'actualizar', entidad: 'observacion_cliente', entidadId: id, despues: { programada: true, usuarioId: quien ?? null }, ip: actor.ip }, tx);
       return (await tx.tareaResponsable.findFirst({ where: { tareaId }, select: { usuarioId: true } }))?.usuarioId;
     });
-    const entrega = o.entregaConfirmada ?? o.entregaPropuesta;
+    let avisoExtra: string | null = null;
+    if (extra?.success) {
+      try {
+        await this.extras.proponer(extra.data, actor);
+      } catch (err) {
+        avisoExtra = `La corrección quedó programada, pero no se pudo proponer ${datos.extra!.modalidad === 'bono' ? 'el bono' : 'las horas extra'}: ${err instanceof Error ? err.message : 'error'}`;
+      }
+    }
     await this.notificaciones.notificar(
       responsable ? [responsable] : [],
       {
@@ -258,6 +330,6 @@ export class ObservacionesService {
       },
       actor.usuarioId,
     );
-    return this.detalle(id);
+    return { ...(await this.detalle(id)), avisoExtra };
   }
 }

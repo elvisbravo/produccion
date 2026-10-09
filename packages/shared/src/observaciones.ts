@@ -43,7 +43,24 @@ export type ConfirmarObservacionFormulario = z.input<typeof confirmarObservacion
 export type ConfirmarObservacionDatos = z.output<typeof confirmarObservacionSchema>
 
 /** La asistente de producción programa la corrección: por defecto la hace quien hizo el trabajo. */
-export const programarObservacionSchema = z.object({ usuarioId: opcional(z.uuid('Elige a la persona')) })
+export const programarObservacionSchema = z.object({
+  usuarioId: opcional(z.uuid('Elige a la persona')),
+  /** Acepta que otras tareas del auxiliar dejen de llegar a su fecha, o que no alcance en horario normal. */
+  confirmarImpacto: z.boolean().optional(),
+  /** Acepta atrasar un trabajo de fechas inamovibles (exige permiso). */
+  forzarFechasFijas: z.boolean().optional(),
+  /** Para lo que no cabe en horario normal: proponer horas extra o un bono a quien la hará. */
+  extra: z
+    .object({
+      modalidad: z.enum(['horas_extra', 'bono']),
+      fecha: opcional(dia),
+      horaInicio: opcional(hora),
+      horaFin: opcional(hora),
+      monto: opcional(z.coerce.number().positive().max(100_000)),
+      acumula: z.boolean().optional(),
+    })
+    .optional(),
+})
 export type ProgramarObservacionDatos = z.output<typeof programarObservacionSchema>
 
 export const consultaObservacionesSchema = z.object({ estado: z.enum(ESTADOS_OBSERVACION).optional(), trabajoId: z.uuid().optional() })
@@ -73,6 +90,18 @@ export interface PlazoEvaluado {
   extra: { fecha: string; horaInicio: string; horaFin: string; minutos: number; cubreTodo: boolean; avisos: string[] } | null
   /** Texto corto para mostrar: «Cabe», «No cabe: …». */
   mensaje: string
+}
+
+/** Quién podría hacer la corrección: si le cabe antes de la entrega y qué atrasaría en su cola. */
+export interface CandidatoCorreccion {
+  usuario: UsuarioResumen
+  esOriginal: boolean
+  plazo: PlazoEvaluado
+  /** Tareas suyas que dejarían de llegar a su fecha límite si la corrección pasa primero. */
+  pasanARojo: number
+  /** Códigos de trabajos de fechas inamovibles que se atrasarían. */
+  fijasAfectadas: string[]
+  recomendado: boolean
 }
 
 export interface ItemObservacionDto {
@@ -112,4 +141,6 @@ export interface ObservacionItem {
 export interface ObservacionDetalle extends ObservacionItem {
   /** Evaluación con la hora de entrega vigente (la confirmada o, si no, la propuesta). */
   plazo: PlazoEvaluado | null
+  /** Si al programar se propuso horas extra o bono y no se pudo, el motivo. */
+  avisoExtra?: string | null
 }

@@ -486,6 +486,7 @@ export class ProduccionService {
   async alAvanzarTarea(tx: Tx, tareaId: string, completada: boolean): Promise<void> {
     const t = await tx.tarea.findUnique({ where: { id: tareaId }, include: { entregable: true, trabajo: true, responsables: true } });
     if (!t?.trabajoId) return;
+    if (completada) await this.alCompletarCorreccion(tx, tareaId, t.trabajoId);
     if (completada && t.responsables.some((r) => r.ordenCola !== null)) await tx.tarea.update({ where: { id: tareaId }, data: { fecha: aFecha(diaEnLima()) } });
     if (t.entregable && ['pendiente', 'observado', 'observado_cliente'].includes(t.entregable.estado)) {
       await tx.entregable.update({ where: { id: t.entregable.id }, data: { estado: 'en_proceso' } });
@@ -493,6 +494,18 @@ export class ProduccionService {
     if (t.trabajo && ['sin_asignar', 'asignado'].includes(t.trabajo.estado)) {
       await tx.trabajo.update({ where: { id: t.trabajoId }, data: { estado: 'en_proceso', eventos: { create: { tipo: 'estado', detalle: 'El trabajo entró en producción' } } } });
     }
+  }
+
+  /** Terminada la corrección de una observación del cliente: la observación y su lista quedan resueltas y se avisa para reentregar. */
+  private async alCompletarCorreccion(tx: Tx, tareaId: string, trabajoId: string): Promise<void> {
+    const o = await tx.observacionCliente.findUnique({ where: { tareaId }, include: { entregable: { select: { nombre: true } }, trabajo: { select: { codigo: true, prospecto: { select: { responsableId: true } } } } } });
+    if (!o || o.estado === 'resuelta') return;
+    const ahora = new Date();
+    await tx.itemObservacion.updateMany({ where: { observacionId: o.id, resuelto: false }, data: { resuelto: true, resueltoEn: ahora } });
+    await tx.observacionCliente.update({ where: { id: o.id }, data: { estado: 'resuelta', resueltaEn: ahora } });
+    await tx.trabajoEvento.create({ data: { trabajoId, tipo: 'entregable', detalle: `${o.entregable.nombre}: observaciones del cliente corregidas`, usuarioId: null } });
+    const destinos = [o.trabajo.prospecto?.responsableId, o.programadaPorId].filter((x): x is string => Boolean(x));
+    await this.notificaciones.notificar(destinos, { tipo: 'observacion.resuelta', titulo: `Observaciones corregidas: ${o.entregable.nombre} (${o.trabajo.codigo})`, mensaje: 'Listo para reenviar al cliente', enlace: `/trabajos/${trabajoId}` });
   }
 
   /** Si cambia el equipo, las tareas pendientes de quien sale pasan a quien entra en su función. */

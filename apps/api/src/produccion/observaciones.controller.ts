@@ -5,6 +5,7 @@ import {
   consultaPlazoSchema,
   programarObservacionSchema,
   valorarObservacionSchema,
+  type CandidatoCorreccion,
   type ConfirmarObservacionDatos,
   type ConsultaObservaciones,
   type ConsultaPlazo,
@@ -42,6 +43,12 @@ export class ObservacionesController {
   @Get(':id/plazo')
   plazo(@Param('id', ParseUUIDPipe) id: string, @Query(new ZodValidationPipe(consultaPlazoSchema)) consulta: ConsultaPlazo): Promise<PlazoEvaluado> {
     return this.observaciones.plazo(id, consulta);
+  }
+
+  @RequierePermiso('observaciones.programar')
+  @Get(':id/candidatos')
+  candidatos(@Param('id', ParseUUIDPipe) id: string): Promise<CandidatoCorreccion[]> {
+    return this.observaciones.candidatos(id);
   }
 
   @RequierePermiso('observaciones.valorar')

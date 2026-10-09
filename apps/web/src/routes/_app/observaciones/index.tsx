@@ -25,6 +25,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
+  candidatosCorreccionQuery,
   observacionesQuery,
   plazoQuery,
   useConfirmarObservacion,
@@ -33,7 +34,6 @@ import {
   useTomarObservacion,
   useValorarObservacion,
 } from '@/features/observaciones/api'
-import { candidatosEquipoQuery } from '@/features/trabajos/api'
 import { ApiError } from '@/lib/api'
 import { duracion, formatearFechaHora, haceCuanto, nombreCompleto } from '@/lib/formato'
 import { exigirPermiso } from '@/lib/guardas'
@@ -392,20 +392,33 @@ function DialogoConfirmar({ observacion, onCerrar }: { observacion: ObservacionI
 
 function DialogoProgramar({ observacion, onCerrar }: { observacion: ObservacionItem; onCerrar: () => void }) {
   const programar = useProgramarObservacion(observacion.id)
-  const { data: candidatos } = useQuery(candidatosEquipoQuery)
-  const original = observacion.auxiliarOriginal?.id ?? ''
-  const [elegido, setQuien] = useState('')
-  const quien = elegido || original
+  const { data: candidatos, isPending } = useQuery(candidatosCorreccionQuery(observacion.id))
+  const puedeFijas = usePermiso('trabajos.fijar_fechas')
+  const [elegido, setElegido] = useState('')
+  const [confirmado, setConfirmado] = useState(false)
+  const [fijas, setFijas] = useState(false)
+  const [cubrir, setCubrir] = useState<'no' | 'horas_extra' | 'bono'>('no')
+  const [monto, setMonto] = useState('')
   const [error, setError] = useState<string | null>(null)
   const entrega = observacion.entregaConfirmada ?? observacion.entregaPropuesta
-  const consulta: ConsultaPlazo | null = observacion.minutosEstimados && entrega ? { minutos: observacion.minutosEstimados, fecha: diaEnLima(new Date(entrega)), hora: horaEnLima(new Date(entrega)) } : null
-  const { data: plazo, isFetching } = useQuery(plazoQuery(observacion.id, consulta))
+  const quien = elegido || candidatos?.find((c) => c.recomendado)?.usuario.id || observacion.auxiliarOriginal?.id || ''
+  const c = candidatos?.find((x) => x.usuario.id === quien)
+  const ventana = c?.plazo.extra ?? null
+  const hayProblema = c ? !c.plazo.cabe || c.pasanARojo > 0 : false
 
   const guardar = async () => {
     setError(null)
     try {
-      await programar.mutateAsync({ usuarioId: quien || undefined })
+      const r = await programar.mutateAsync({
+        usuarioId: quien,
+        confirmarImpacto: confirmado || undefined,
+        forzarFechasFijas: fijas || undefined,
+        ...(cubrir === 'horas_extra' && ventana && { extra: { modalidad: 'horas_extra' as const, fecha: ventana.fecha, horaInicio: ventana.horaInicio, horaFin: ventana.horaFin } }),
+        ...(cubrir === 'bono' && { extra: { modalidad: 'bono' as const, monto: Number(monto) } }),
+      })
       toast.success('Corrección programada: quedó primera en la cola')
+      const aviso = (r as { avisoExtra?: string | null }).avisoExtra
+      if (aviso) toast.warning(aviso)
       onCerrar()
     } catch (err) {
       setError(mensajeDe(err))
@@ -414,7 +427,7 @@ function DialogoProgramar({ observacion, onCerrar }: { observacion: ObservacionI
 
   return (
     <Dialog open onOpenChange={(a) => !a && onCerrar()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Programar la corrección</DialogTitle>
           <DialogDescription>
@@ -426,30 +439,73 @@ function DialogoProgramar({ observacion, onCerrar }: { observacion: ObservacionI
           <p className="text-sm">
             <strong>{duracion(observacion.minutosEstimados ?? 0)}</strong>, a entregar el <strong>{entrega ? formatearFechaHora(entrega) : '—'}</strong>.
           </p>
-          {plazo && <AvisoPlazo plazo={plazo} cargando={isFetching} />}
           <Field>
             <FieldLabel>Quién la hará</FieldLabel>
-            <Select value={quien} onValueChange={setQuien}>
-              <SelectTrigger>
-                <SelectValue placeholder="Elige a la persona" />
-              </SelectTrigger>
-              <SelectContent>
-                {(candidatos?.auxiliares ?? []).map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {nombreCompleto(u)}
-                    {u.id === original ? ' (lo hizo)' : ''}
-                  </SelectItem>
+            {isPending || !candidatos ? (
+              <Skeleton className="h-24" />
+            ) : (
+              <ul className="flex flex-col gap-1.5">
+                {candidatos.map((x) => (
+                  <li key={x.usuario.id}>
+                    <label className={`flex cursor-pointer flex-col gap-0.5 rounded-md border px-3 py-2 text-sm ${x.usuario.id === quien ? 'border-primary' : ''}`}>
+                      <span className="flex items-center gap-2">
+                        <input type="radio" name="quien" checked={x.usuario.id === quien} onChange={() => setElegido(x.usuario.id)} />
+                        <span className="font-medium">{nombreCompleto(x.usuario)}</span>
+                        {x.esOriginal && <Badge variant="outline">Lo hizo</Badge>}
+                        {x.recomendado && <Badge>Recomendado</Badge>}
+                      </span>
+                      <span className="pl-6 text-xs text-muted-foreground">
+                        {x.plazo.cabe ? 'Llega a tiempo' : `No alcanza (faltan ${duracion(x.plazo.faltanMinutos)})`}
+                        {x.pasanARojo > 0 ? ` · atrasaría ${x.pasanARojo} ${x.pasanARojo === 1 ? 'tarea suya' : 'tareas suyas'} más allá de su fecha` : ' · no atrasa a nadie'}
+                        {x.fijasAfectadas.length > 0 ? ` · fechas inamovibles: ${x.fijasAfectadas.join(', ')}` : ''}
+                      </span>
+                    </label>
+                  </li>
                 ))}
-              </SelectContent>
-            </Select>
-            <FieldDescription>Por defecto, el auxiliar que hizo el trabajo.</FieldDescription>
+              </ul>
+            )}
           </Field>
+
+          {c && <AvisoPlazo plazo={c.plazo} cargando={false} />}
+
+          {c && !c.plazo.cabe && (
+            <Field>
+              <FieldLabel>Cubrir lo que falta</FieldLabel>
+              <Select value={cubrir} onValueChange={(v) => setCubrir(v as typeof cubrir)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="no">No, solo confirmar que se atrasa</SelectItem>
+                  {ventana && <SelectItem value="horas_extra">{`Proponer horas extra (${ventana.fecha} ${ventana.horaInicio}–${ventana.horaFin})`}</SelectItem>}
+                  <SelectItem value="bono">Proponer un bono</SelectItem>
+                </SelectContent>
+              </Select>
+              {cubrir === 'bono' && <Input className="mt-2 w-40" type="number" min={1} step={1} placeholder="Monto (S/)" value={monto} onChange={(ev) => setMonto(ev.target.value)} />}
+              <FieldDescription>Queda propuesto a esa persona; un aprobador debe aceptarlo desde Horas extra.</FieldDescription>
+            </Field>
+          )}
+
+          {c && hayProblema && (cubrir === 'no' || c.pasanARojo > 0) && (
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-1" checked={confirmado} onChange={(ev) => setConfirmado(ev.target.checked)} />
+              {cubrir === 'no' && !c.plazo.cabe ? 'No alcanza en horario normal' : ''}
+              {cubrir === 'no' && !c.plazo.cabe && c.pasanARojo > 0 ? ' y ' : ''}
+              {c.pasanARojo > 0 ? 'Otras tareas suyas dejan de llegar a su fecha' : ''}: programarla igual.
+            </label>
+          )}
+          {c && c.fijasAfectadas.length > 0 && (
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-1" checked={fijas} disabled={!puedeFijas} onChange={(ev) => setFijas(ev.target.checked)} />
+              Acepto atrasar trabajos de fechas inamovibles ({c.fijasAfectadas.join(', ')}){puedeFijas ? '' : ': no tienes permiso para hacerlo'}.
+            </label>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onCerrar}>
             Cancelar
           </Button>
-          <Button disabled={programar.isPending || !quien} onClick={guardar}>
+          <Button disabled={programar.isPending || !quien || (cubrir === 'bono' && !Number(monto))} onClick={guardar}>
             {programar.isPending && <Loader2 className="animate-spin" />}
             Programar
           </Button>

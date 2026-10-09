@@ -1,4 +1,5 @@
 import type {
+  CandidatoCorreccion,
   ConfirmarObservacionFormulario,
   ConsultaPlazo,
   EstadoObservacion,
@@ -28,6 +29,9 @@ export const plazoQuery = (id: string, c: ConsultaPlazo | null) =>
     enabled: c !== null,
     staleTime: 0,
   })
+
+export const candidatosCorreccionQuery = (id: string) =>
+  queryOptions({ queryKey: ['observaciones', 'candidatos', id] as const, queryFn: () => api<CandidatoCorreccion[]>(`/observaciones/${id}/candidatos`), staleTime: 0 })
 
 function useAccion<T>(hacer: (datos: T) => Promise<unknown>) {
   const queryClient = useQueryClient()
