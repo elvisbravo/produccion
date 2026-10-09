@@ -548,7 +548,7 @@ export function DialogoRespuestaCliente({ entregable, abierto, onAbiertoChange }
   const [error, setError] = useState<string | null>(null)
   const form = useForm<RespuestaClienteFormulario, unknown, RespuestaClienteDatos>({
     resolver: zodResolver(respuestaClienteSchema),
-    defaultValues: { conforme: true, observaciones: '', minutosCorreccion: 120 },
+    defaultValues: { conforme: true, observaciones: '' },
   })
   const conforme = useWatch({ control: form.control, name: 'conforme' })
 
@@ -556,10 +556,10 @@ export function DialogoRespuestaCliente({ entregable, abierto, onAbiertoChange }
     setError(null)
     try {
       await responder.mutateAsync(datos)
-      toast.success(datos.conforme ? `${entregable.nombre} cerrado` : 'Observaciones registradas: la corrección quedó primera en la cola del auxiliar')
+      toast.success(datos.conforme ? `${entregable.nombre} cerrado` : 'Observaciones registradas: quedan por valorar en Observaciones del cliente')
       onAbiertoChange(false)
     } catch (err) {
-      setError(aplicarErroresApi(err, form.setError, ['conforme', 'observaciones', 'minutosCorreccion']))
+      setError(aplicarErroresApi(err, form.setError, ['conforme', 'observaciones']))
     }
   })
 
@@ -603,14 +603,6 @@ export function DialogoRespuestaCliente({ entregable, abierto, onAbiertoChange }
                 </FieldLabel>
                 <Textarea id="resp-obs" rows={4} {...form.register('observaciones')} />
                 <FieldError errors={[form.formState.errors.observaciones]} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="resp-horas">Tiempo estimado de la corrección</FieldLabel>
-                <Controller
-                  control={form.control}
-                  name="minutosCorreccion"
-                  render={({ field }) => <CampoHoras id="resp-horas" value={field.value} onChange={field.onChange} />}
-                />
               </Field>
             </>
           )}

@@ -23,6 +23,7 @@ const REFRESCAR: Record<AreaNotificacion, string[][]> = {
   trabajo: [['trabajos'], ['produccion']],
   equipo: [['trabajos'], ['produccion'], ['tareas']],
   entregable: [['trabajos'], ['produccion'], ['tareas']],
+  observacion: [['observaciones'], ['produccion'], ['tareas']],
   ausencia: [['ausencias'], ['agenda']],
   urgente: [['urgentes'], ['produccion'], ['trabajos'], ['tareas']],
   extra: [['horas-extra'], ['agenda']],

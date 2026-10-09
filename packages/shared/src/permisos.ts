@@ -97,6 +97,15 @@ export const MODULOS = [
     ],
   },
   {
+    codigo: 'observaciones', nombre: 'Observaciones del cliente', padre: 'produccion', ruta: '/observaciones', icono: 'MessageSquareWarning', orden: 24,
+    acciones: [
+      ver(),
+      { codigo: 'valorar', nombre: 'Valorar (tomarla y registrar tiempo, observaciones y entrega)' },
+      { codigo: 'confirmar', nombre: 'Confirmar el plazo con el cliente' },
+      { codigo: 'programar', nombre: 'Programar la corrección' },
+    ],
+  },
+  {
     codigo: 'entregas', nombre: 'Entregas', padre: 'produccion', ruta: '/entregas', icono: 'ClipboardList', orden: 23,
     acciones: [ver(), exportar],
   },

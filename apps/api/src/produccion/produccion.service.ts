@@ -606,16 +606,21 @@ export class ProduccionService {
   }
 
   /** La corrección va primero en la cola del auxiliar principal. */
-  private async crearCorreccion(tx: Tx, trabajoId: string, entregableId: string, titulo: string, observaciones: string, minutos: number | undefined, actor: ActorProduccion) {
+  private async crearCorreccion(tx: Tx, trabajoId: string, entregableId: string, titulo: string, observaciones: string, minutos: number | undefined, actor: ActorProduccion, usuarioId?: string): Promise<string> {
     const correccion = await tx.actividad.findUnique({ where: { nombre: ACTIVIDAD.correccion } });
     if (!correccion) throw new BadRequestException('Falta la actividad "Corrección de observaciones" en el catálogo');
-    await this.crearTareaTx(
+    return this.crearTareaTx(
       tx,
       { trabajoId, entregableId, actividadId: correccion.id, titulo, minutos: minutos ?? correccion.minutosEstimados, notas: observaciones },
-      undefined,
+      usuarioId,
       actor,
       true,
     );
+  }
+
+  /** La corrección de una observación del cliente ya valorada y confirmada: primera en la cola de quien la hará (por defecto, el auxiliar principal). */
+  crearCorreccionDeObservacion(tx: Tx, o: { trabajoId: string; entregableId: string; nombre: string; minutos: number; notas: string }, actor: ActorProduccion, usuarioId?: string): Promise<string> {
+    return this.crearCorreccion(tx, o.trabajoId, o.entregableId, `Corregir observaciones del cliente: ${o.nombre}`, o.notas, o.minutos, actor, usuarioId);
   }
 
   // ─── Turnitin ────────────────────────────────────────────
@@ -719,8 +724,10 @@ export class ProduccionService {
         });
       }
       await tx.entregable.update({ where: { id: entregableId }, data: { estado: datos.conforme ? 'cerrado' : 'observado_cliente' } });
+      // Con observaciones, no se programa nada todavía: primero pasan por una valoración (tiempo, lista y hora de entrega).
       if (!datos.conforme) {
-        await this.crearCorreccion(tx, e.trabajoId, entregableId, `Corregir observaciones del cliente: ${e.nombre}`, datos.observaciones!, datos.minutosCorreccion, actor);
+        const ronda = (await tx.observacionCliente.count({ where: { entregableId } })) + 1;
+        await tx.observacionCliente.create({ data: { trabajoId: e.trabajoId, entregableId, ronda, observaciones: datos.observaciones!, creadaPorId: actor.usuarioId } });
       }
       await this.evento(tx, e.trabajoId, `${e.nombre}: ${datos.conforme ? 'el cliente dio su conformidad' : 'el cliente dejó observaciones'}`, actor);
 
@@ -735,10 +742,11 @@ export class ProduccionService {
       }
     });
     if (!datos.conforme) {
+      // Cualquiera que pueda valorar (menos la asistente administrativa) puede tomarla.
       const e = await this.entregable(this.prisma, entregableId);
       await this.notificaciones.notificar(
-        await this.responsablesDe(entregableId, 'correccion'),
-        { tipo: 'entregable.observado_cliente', titulo: `El cliente observó ${e.nombre} (${e.trabajo.codigo})`, mensaje: datos.observaciones ?? null, enlace: '/tareas?vista=cola' },
+        await this.notificaciones.conPermiso('observaciones.valorar'),
+        { tipo: 'observacion.por_valorar', titulo: `El cliente observó ${e.nombre} (${e.trabajo.codigo}): falta valorarlo`, mensaje: datos.observaciones ?? null, enlace: '/observaciones' },
         actor.usuarioId,
       );
     }

@@ -90,7 +90,7 @@ export type EntregarFormulario = z.input<typeof entregarSchema>
 export type EntregarDatos = z.output<typeof entregarSchema>
 
 export const respuestaClienteSchema = z
-  .object({ conforme: z.boolean(), observaciones: texto(3000), minutosCorreccion: opcional(z.coerce.number().int().min(15).max(60 * 100)) })
+  .object({ conforme: z.boolean(), observaciones: texto(3000) })
   .refine((r) => r.conforme || Boolean(r.observaciones), { message: 'Escribe lo que observó el cliente', path: ['observaciones'] })
 export type RespuestaClienteFormulario = z.input<typeof respuestaClienteSchema>
 export type RespuestaClienteDatos = z.output<typeof respuestaClienteSchema>

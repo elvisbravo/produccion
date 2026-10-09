@@ -28,6 +28,7 @@ import { Route as AppEntregablesIndexRouteImport } from './routes/_app/entregabl
 import { Route as AppEntregasIndexRouteImport } from './routes/_app/entregas/index'
 import { Route as AppHorasExtraIndexRouteImport } from './routes/_app/horas-extra/index'
 import { Route as AppModulosIndexRouteImport } from './routes/_app/modulos/index'
+import { Route as AppObservacionesIndexRouteImport } from './routes/_app/observaciones/index'
 import { Route as AppParametrosIndexRouteImport } from './routes/_app/parametros/index'
 import { Route as AppProgramacionIndexRouteImport } from './routes/_app/programacion/index'
 import { Route as AppProspectosIndexRouteImport } from './routes/_app/prospectos/index'
@@ -146,6 +147,11 @@ const AppHorasExtraIndexRoute = AppHorasExtraIndexRouteImport.update({
 const AppModulosIndexRoute = AppModulosIndexRouteImport.update({
   id: '/modulos/',
   path: '/modulos/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppObservacionesIndexRoute = AppObservacionesIndexRouteImport.update({
+  id: '/observaciones/',
+  path: '/observaciones/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppParametrosIndexRoute = AppParametrosIndexRouteImport.update({
@@ -306,6 +312,7 @@ export interface FileRoutesByFullPath {
   '/entregas/': typeof AppEntregasIndexRoute
   '/horas-extra/': typeof AppHorasExtraIndexRoute
   '/modulos/': typeof AppModulosIndexRoute
+  '/observaciones/': typeof AppObservacionesIndexRoute
   '/parametros/': typeof AppParametrosIndexRoute
   '/programacion/': typeof AppProgramacionIndexRoute
   '/prospectos/': typeof AppProspectosIndexRoute
@@ -351,6 +358,7 @@ export interface FileRoutesByTo {
   '/entregas': typeof AppEntregasIndexRoute
   '/horas-extra': typeof AppHorasExtraIndexRoute
   '/modulos': typeof AppModulosIndexRoute
+  '/observaciones': typeof AppObservacionesIndexRoute
   '/parametros': typeof AppParametrosIndexRoute
   '/programacion': typeof AppProgramacionIndexRoute
   '/prospectos': typeof AppProspectosIndexRoute
@@ -398,6 +406,7 @@ export interface FileRoutesById {
   '/_app/entregas/': typeof AppEntregasIndexRoute
   '/_app/horas-extra/': typeof AppHorasExtraIndexRoute
   '/_app/modulos/': typeof AppModulosIndexRoute
+  '/_app/observaciones/': typeof AppObservacionesIndexRoute
   '/_app/parametros/': typeof AppParametrosIndexRoute
   '/_app/programacion/': typeof AppProgramacionIndexRoute
   '/_app/prospectos/': typeof AppProspectosIndexRoute
@@ -445,6 +454,7 @@ export interface FileRouteTypes {
     | '/entregas/'
     | '/horas-extra/'
     | '/modulos/'
+    | '/observaciones/'
     | '/parametros/'
     | '/programacion/'
     | '/prospectos/'
@@ -490,6 +500,7 @@ export interface FileRouteTypes {
     | '/entregas'
     | '/horas-extra'
     | '/modulos'
+    | '/observaciones'
     | '/parametros'
     | '/programacion'
     | '/prospectos'
@@ -536,6 +547,7 @@ export interface FileRouteTypes {
     | '/_app/entregas/'
     | '/_app/horas-extra/'
     | '/_app/modulos/'
+    | '/_app/observaciones/'
     | '/_app/parametros/'
     | '/_app/programacion/'
     | '/_app/prospectos/'
@@ -691,6 +703,13 @@ declare module '@tanstack/react-router' {
       path: '/modulos'
       fullPath: '/modulos/'
       preLoaderRoute: typeof AppModulosIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/observaciones/': {
+      id: '/_app/observaciones/'
+      path: '/observaciones'
+      fullPath: '/observaciones/'
+      preLoaderRoute: typeof AppObservacionesIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/parametros/': {
@@ -896,6 +915,7 @@ interface AppRouteChildren {
   AppEntregasIndexRoute: typeof AppEntregasIndexRoute
   AppHorasExtraIndexRoute: typeof AppHorasExtraIndexRoute
   AppModulosIndexRoute: typeof AppModulosIndexRoute
+  AppObservacionesIndexRoute: typeof AppObservacionesIndexRoute
   AppParametrosIndexRoute: typeof AppParametrosIndexRoute
   AppProgramacionIndexRoute: typeof AppProgramacionIndexRoute
   AppProspectosIndexRoute: typeof AppProspectosIndexRoute
@@ -937,6 +957,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppEntregasIndexRoute: AppEntregasIndexRoute,
   AppHorasExtraIndexRoute: AppHorasExtraIndexRoute,
   AppModulosIndexRoute: AppModulosIndexRoute,
+  AppObservacionesIndexRoute: AppObservacionesIndexRoute,
   AppParametrosIndexRoute: AppParametrosIndexRoute,
   AppProgramacionIndexRoute: AppProgramacionIndexRoute,
   AppProspectosIndexRoute: AppProspectosIndexRoute,
